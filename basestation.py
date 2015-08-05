@@ -25,6 +25,7 @@ if not goodToGo:
 
 #============================ imports =========================================
 
+import time
 import threading
 from   optparse                             import OptionParser
 
@@ -91,12 +92,6 @@ class notifClient(object):
     
     #======================== public ==========================================
     
-    def getData(self):
-        self.dataLock.acquire()
-        returnVal = self.data[:]
-        self.dataLock.release()
-        return returnVal
-        
     def disconnect(self):
         self.connector.disconnect()
     
@@ -114,32 +109,66 @@ class notifClient(object):
 
 class Basestation(object):
     
-    def __init__(self,port):
-        
-        # store params
-        self.port               = port
+    def __init__(self):
         
         # local variables
         self.apiDef             = IpMgrDefinition.IpMgrDefinition()
         self.notifClientHandler = None
+        self.reconnectEvent     = threading.Event()
+        self.dataLock           = threading.RLock()
+    
+    #======================== public ==========================================
+    
+    def connect(self,port):
         
-        # connect to the manager
-        self.connector          = IpMgrConnectorSerial.IpMgrConnectorSerial()
-        self.connector.connect({
-            'port': port,
-        })
+        # store params
+        self.port = port
         
-        # start a notification client
-        self.notifClientHandler = notifClient(
-            self.connector,
-            self._connectionFrameCb_disconnected
-        )
+        while True:
+            
+            try:
+                print 'connecting to {0}...'.format(self.port),
+                
+                # connect to the manager
+                self.connector          = IpMgrConnectorSerial.IpMgrConnectorSerial()
+                self.connector.connect({
+                    'port': self.port,
+                })
+                
+                # start a notification client
+                self.notifClientHandler = notifClient(
+                    self.connector,
+                    self._disconnected
+                )
+                
+            except Exception as err:
+                print 'FAIL.'
+                
+                try:
+                   self.notifClientHandler.disconnect()
+                except:
+                   pass
+                
+                try:
+                   self.connector.disconnect()
+                except:
+                   pass
+                
+                # wait to reconnect
+                time.sleep(5)
+                
+            else:
+                print 'PASS.'
+                self.reconnectEvent.clear()
+                self.reconnectEvent.wait()
     
     #======================== private =========================================
     
-    def _connectionFrameCb_disconnected(self,notifName,notifParams):
-        print "TODO: handle disconnected"
-
+    def _disconnected(self,notifName,notifParams):
+        
+        if not self.reconnectEvent.isSet():
+            self.reconnectEvent.set()
+    
 #============================ main ============================================
 
 def quitCallback():
@@ -147,8 +176,8 @@ def quitCallback():
 
 def main(port):
     
-    # starting the basestation
-    basestation = Basestation(port)
+    # create the basestation instance
+    basestation = Basestation()
     
     # start the CLI interface
     OpenCli.OpenCli(
@@ -156,6 +185,9 @@ def main(port):
         (ver.VER_MAJOR,ver.VER_MINOR,ver.VER_PATCH,ver.VER_BUILD),
         quitCallback,
     )
+    
+    # connect the basestation
+    basestation.connect(port)
 
 if __name__ == '__main__':
     
