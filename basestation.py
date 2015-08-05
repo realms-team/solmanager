@@ -35,6 +35,7 @@ from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
 from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrConnectorMux,          \
                                                    IpMgrSubscribe
 import basestation_version                  as ver
+import OpenCli
 
 #============================ defines =========================================
 
@@ -141,16 +142,20 @@ class Basestation(object):
 
 #============================ main ============================================
 
+def quitCallback():
+    print "TODO quitCallback"
+
 def main(port):
     
-    print 'Basestation (c) REALMS team - v{0}.{1}.{2}.{3}'.format(
-        ver.VER_MAJOR,
-        ver.VER_MINOR,
-        ver.VER_PATCH,
-        ver.VER_BUILD,
-    )
-    
+    # starting the basestation
     basestation = Basestation(port)
+    
+    # start the CLI interface
+    OpenCli.OpenCli(
+        "Basestation (c) REALMS team",
+        (ver.VER_MAJOR,ver.VER_MINOR,ver.VER_PATCH,ver.VER_BUILD),
+        quitCallback,
+    )
 
 if __name__ == '__main__':
     
