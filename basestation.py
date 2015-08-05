@@ -34,6 +34,7 @@ from   SmartMeshSDK.ApiDefinition           import IpMgrDefinition
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
 from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrConnectorMux,          \
                                                    IpMgrSubscribe
+import basestation_version                  as ver
 
 #============================ defines =========================================
 
@@ -141,6 +142,14 @@ class Basestation(object):
 #============================ main ============================================
 
 def main(port):
+    
+    print 'Basestation (c) REALMS team - v{0}.{1}.{2}.{3}'.format(
+        ver.VER_MAJOR,
+        ver.VER_MINOR,
+        ver.VER_PATCH,
+        ver.VER_BUILD,
+    )
+    
     basestation = Basestation(port)
 
 if __name__ == '__main__':
