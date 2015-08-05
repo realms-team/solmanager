@@ -26,38 +26,18 @@ if not goodToGo:
 #============================ imports =========================================
 
 import threading
-from   optparse                        import OptionParser
+from   optparse                             import OptionParser
 
-from   SmartMeshSDK                    import AppUtils,                   \
-                                              FormatUtils
-from   SmartMeshSDK.ApiDefinition      import IpMgrDefinition
-from   SmartMeshSDK.IpMgrConnectorMux  import IpMgrConnectorMux,          \
-                                              IpMgrSubscribe
-from   dustUI                          import dustWindow,                 \
-                                              dustFrameConnection,        \
-                                              dustFrameTable
-
-#============================ logging =========================================
-
-# local
-
-import logging
-class NullHandler(logging.Handler):
-    def emit(self, record):
-        pass
-log = logging.getLogger('App')
-log.setLevel(logging.ERROR)
-log.addHandler(NullHandler())
-
-# global
-
-AppUtils.configureLogging()
+from   SmartMeshSDK                         import AppUtils,                   \
+                                                   FormatUtils
+from   SmartMeshSDK.ApiDefinition           import IpMgrDefinition
+from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
+from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrConnectorMux,          \
+                                                   IpMgrSubscribe
 
 #============================ defines =========================================
 
-UPDATEPERIOD = 500 # in ms
-DEFAULT_HOST = '127.0.0.1'
-DEFAULT_PORT = 9900
+DEFAULT_PORT = 'COM14'
 
 #============================ body ============================================
 
@@ -86,7 +66,7 @@ class notifClient(object):
                                 IpMgrSubscribe.IpMgrSubscribe.NOTIFDATA,
                                 IpMgrSubscribe.IpMgrSubscribe.NOTIFIPDATA,
                             ],
-            fun =           self._notifCallback,
+            fun =           self._notifData,
             isRlbl =        False,
         )
         self.subscriber.subscribe(
@@ -95,7 +75,7 @@ class notifClient(object):
                                 IpMgrSubscribe.IpMgrSubscribe.NOTIFLOG, 
                                 IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT,
                             ],
-            fun =           self._notifCallback,
+            fun =           self._notifEvents,
             isRlbl =        True,
         )
         self.subscriber.subscribe(
@@ -120,145 +100,56 @@ class notifClient(object):
     
     #======================== private =========================================
     
-    def _notifCallback(self, notifName, notifParams):
-        self.dataLock.acquire()
-        
-        # find notifName row
-        found=False
-        for row in self.data:
-            if row[0]==notifName:
-               found=True
-               break
-        
-        # create row if needed
-        if not found:
-            self.data.append([notifName,0])
-            row = self.data[-1]
-        
-        # increment counter
-        row[1] += 1
-        
-        self.dataLock.release()
-        
-
-class notifGui(object):
+    def _notifData(self, notifName, notifParams):
+        print "TODO _notifData"
+        print notifName
+        print notifParams
     
-    def __init__(self):
+    def _notifEvents(self, notifName, notifParams):
+        print "TODO _notifEvents"
+        print notifName
+        print notifParams
+
+class Basestation(object):
+    
+    def __init__(self,port):
         
-        # variables
-        self.guiLock            = threading.Lock()
+        # store params
+        self.port               = port
+        
+        # local variables
         self.apiDef             = IpMgrDefinition.IpMgrDefinition()
         self.notifClientHandler = None
         
-        # create window
-        self.window = dustWindow.dustWindow('MgrListener',
-                                 self._windowCb_close)
-                                 
-        # add a connection frame
-        self.connectionFrame = dustFrameConnection.dustFrameConnection(
-                                    self.window,
-                                    self.guiLock,
-                                    self._connectionFrameCb_connected,
-                                    frameName="manager connection",
-                                    row=0,column=0)
-        self.connectionFrame.apiLoaded(self.apiDef)
-        self.connectionFrame.show()
-        
-        # add a table frame
-        self.tableFrame = dustFrameTable.dustFrameTable(self.window,
-                                         self.guiLock,
-                                         frameName="received notifications",
-                                         row=1,column=0)
-        self.tableFrame.show()
-    
-    #======================== public ==========================================
-    
-    def start(self, connect_params):
-        
-        # TODO: how to use connect_params?
-        
-        '''
-        This command instructs the GUI to start executing and reacting to 
-        user interactions. It never returns and should therefore be the last
-        command called.
-        '''
-        try:
-            self.window.mainloop()
-        except SystemExit:
-            sys.exit()
-
-    #======================== private =========================================
-    
-    def _windowCb_close(self):
-        if self.notifClientHandler:
-            self.notifClientHandler.disconnect()
-    
-    def _connectionFrameCb_connected(self,connector):
-        '''
-        \brief Called when the connectionFrame has connected.
-        '''
-        
-        # store the connector
-        self.connector = connector
-        
-        # schedule the GUI to update itself in UPDATEPERIOD ms
-        self.tableFrame.after(UPDATEPERIOD,self._updateTable)
+        # connect to the manager
+        self.connector          = IpMgrConnectorSerial.IpMgrConnectorSerial()
+        self.connector.connect({
+            'port': port,
+        })
         
         # start a notification client
         self.notifClientHandler = notifClient(
-                    self.connector,
-                    self._connectionFrameCb_disconnected
-                )
-        
-    def _connectionFrameCb_disconnected(self,notifName,notifParams):
-        '''
-        \brief Called when the connectionFrame has disconnected.
-        '''
-        
-        # update the GUI
-        self.connectionFrame.updateGuiDisconnected()
-        
-        # delete the connector
-        if self.connector:
-            self.connector.disconnect()
-        self.connector = None
+            self.connector,
+            self._connectionFrameCb_disconnected
+        )
     
-    def _updateTable(self):
-        
-        # get the data
-        dataToPlot = self.notifClientHandler.getData()
-        
-        # update the frame
-        self.tableFrame.update(dataToPlot)
-        
-        # schedule the next update
-        self.tableFrame.after(UPDATEPERIOD,self._updateTable)
+    #======================== private =========================================
+    
+    def _connectionFrameCb_disconnected(self,notifName,notifParams):
+        print "TODO: handle disconnected"
 
 #============================ main ============================================
 
-def main(connect_params):
-    notifGuiHandler = notifGui()
-    notifGuiHandler.start(connect_params)
+def main(port):
+    basestation = Basestation(port)
 
 if __name__ == '__main__':
     
-    # Parse the command line
-    parser = OptionParser("usage: %prog [options]", version="%prog 1.0")
-    parser.add_option("--host", dest="host", 
-                      default=DEFAULT_HOST,
-                      help="Mux host to connect to")
+    # parse the command line
+    parser = OptionParser("usage: %prog [options]")
     parser.add_option("-p", "--port", dest="port", 
                       default=DEFAULT_PORT,
-                      help="Mux port to connect to")
+                      help="serial port to connect to")
     (options, args) = parser.parse_args()
     
-    connect_params = {
-        'host': options.host,
-        'port': int(options.port),
-    }
-    main(connect_params)
-
-##
-# end of MgrListener
-# \}
-# 
+    main(options.port)
