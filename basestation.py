@@ -44,11 +44,6 @@ DEFAULT_PORT = 'COM14'
 
 #============================ body ============================================
 
-##
-# \addtogroup MgrListener
-# \{
-# 
-
 class notifClient(object):
     
     def __init__(self, connector, disconnectedCallback):
@@ -98,11 +93,33 @@ class notifClient(object):
     #======================== private =========================================
     
     def _notifData(self, notifName, notifParams):
-        print "TODO _notifData"
-        print notifName
-        print notifParams
+        
+        if notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFIPDATA:
+            print 'ERROR: IP data notification unsupported!'
+            return
+        
+        assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFDATA
+        
+        # extract the important data
+        
+        ts         = float(notifParams.utcSecs)+float(notifParams.utcUsecs/1000000.0)
+        macAddress = notifParams.macAddress
+        data       = notifParams.data
+        
+        # prepare string to print (TODO: publish to back-end system instead)
+        
+        output     = []
+        output    += ['']
+        output    += ['data notification']
+        output    += ['- ts :         {0:.6f}'.format(ts)]
+        output    += ['- macAddress : {0}'.format(FormatUtils.formatMacString(macAddress))]
+        output    += ['- data :       {0}'.format(FormatUtils.formatBuffer(data))]
+        output     = '\n'.join(output)
+        
+        print output
     
     def _notifEvents(self, notifName, notifParams):
+        
         print "TODO _notifEvents"
         print notifName
         print notifParams
