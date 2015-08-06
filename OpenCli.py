@@ -19,11 +19,12 @@ class OpenCli(threading.Thread):
     CMD_LEVEL_USER   = "user"
     CMD_LEVEL_SYSTEM = "system"
     
-    def __init__(self,appName,ver,quit_cb):
+    def __init__(self,appName,appVer,sdkVer,quit_cb):
     
         # slot params
         self.appName         = appName
-        self.ver             = ver
+        self.appVer          = appVer
+        self.sdkVer          = sdkVer
         self.quit_cb         = quit_cb
         
         # local variables
@@ -77,12 +78,10 @@ class OpenCli(threading.Thread):
         
     def run(self):
         
-        print '{0} (c) REALMS team - v{1}.{2}.{3}.{4}\n'.format(
+        print '{0} - version {1}.{2}.{3}.{4}\nUsing SmartMesh SDK {5}.{6}.{7}.{8}\n\n'.format(
             self.appName,
-            self.ver[0],
-            self.ver[1],
-            self.ver[2],
-            self.ver[3],
+            self.appVer[0],self.appVer[1],self.appVer[2],self.appVer[3],
+            self.sdkVer[0],self.sdkVer[1],self.sdkVer[2],self.sdkVer[3],
         )
         
         self.startTime = time.time()

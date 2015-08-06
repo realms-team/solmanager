@@ -30,12 +30,13 @@ import threading
 from   optparse                             import OptionParser
 
 from   SmartMeshSDK                         import AppUtils,                   \
-                                                   FormatUtils
+                                                   FormatUtils,                \
+                                                   sdk_version
 from   SmartMeshSDK.ApiDefinition           import IpMgrDefinition
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
 from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrConnectorMux,          \
                                                    IpMgrSubscribe
-import basestation_version                  as ver
+import basestation_version
 import OpenCli
 
 #============================ defines =========================================
@@ -62,16 +63,14 @@ class notifClient(object):
         self.subscriber.subscribe(
             notifTypes =    [
                                 IpMgrSubscribe.IpMgrSubscribe.NOTIFDATA,
-                                IpMgrSubscribe.IpMgrSubscribe.NOTIFIPDATA,
                             ],
             fun =           self._notifData,
             isRlbl =        False,
         )
         self.subscriber.subscribe(
             notifTypes =    [
-                                IpMgrSubscribe.IpMgrSubscribe.NOTIFEVENT,
-                                IpMgrSubscribe.IpMgrSubscribe.NOTIFLOG, 
                                 IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT,
+                                IpMgrSubscribe.IpMgrSubscribe.NOTIFEVENT,
                             ],
             fun =           self._notifEvents,
             isRlbl =        True,
@@ -94,20 +93,14 @@ class notifClient(object):
     
     def _notifData(self, notifName, notifParams):
         
-        if notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFIPDATA:
-            print 'ERROR: IP data notification unsupported!'
-            return
-        
         assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFDATA
         
         # extract the important data
-        
         ts         = float(notifParams.utcSecs)+float(notifParams.utcUsecs/1000000.0)
         macAddress = notifParams.macAddress
         data       = notifParams.data
         
-        # prepare string to print (TODO: publish to back-end system instead)
-        
+        # print content (TODO: publish to back-end system instead)
         output     = []
         output    += ['']
         output    += ['data notification']
@@ -115,13 +108,35 @@ class notifClient(object):
         output    += ['- macAddress : {0}'.format(FormatUtils.formatMacString(macAddress))]
         output    += ['- data :       {0}'.format(FormatUtils.formatBuffer(data))]
         output     = '\n'.join(output)
-        
         print output
     
     def _notifEvents(self, notifName, notifParams):
         
-        print "TODO _notifEvents"
-        print notifName
+        if   notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT:
+            self._notifHealthreport(notifParams)
+        elif notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFEVENT:
+            self._notifEvent(notifParams)
+        else:
+            raise SystemError()
+    
+    def _notifHealthreport(self,notifParams):
+        
+        # extract the important data
+        macAddress = notifParams.macAddress
+        payload    = notifParams.data
+    
+        # print content (TODO: publish to back-end system instead)
+        output     = []
+        output    += ['']
+        output    += ['healthreport notification']
+        output    += ['- macAddress : {0}'.format(FormatUtils.formatMacString(macAddress))]
+        output    += ['- payload :    {0}'.format(FormatUtils.formatBuffer(payload))]
+        output     = '\n'.join(output)
+        print output
+        print 'TODO: parse'
+    
+    def _notifEvent(self,notifParams):
+        print "\n\nTODO _notifEvent"
         print notifParams
 
 class Basestation(object):
@@ -198,8 +213,9 @@ def main(port):
     
     # start the CLI interface
     OpenCli.OpenCli(
-        "Basestation (c) REALMS team",
-        (ver.VER_MAJOR,ver.VER_MINOR,ver.VER_PATCH,ver.VER_BUILD),
+        "Basestation",
+        basestation_version.VERSION,
+        sdk_version.VERSION,
         quitCallback,
     )
     
