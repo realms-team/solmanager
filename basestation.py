@@ -29,13 +29,12 @@ import time
 import threading
 from   optparse                             import OptionParser
 
-from   SmartMeshSDK                         import AppUtils,                   \
-                                                   FormatUtils,                \
+from   SmartMeshSDK                         import FormatUtils,                \
+                                                   HrParser,                   \
                                                    sdk_version
 from   SmartMeshSDK.ApiDefinition           import IpMgrDefinition
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
-from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrConnectorMux,          \
-                                                   IpMgrSubscribe
+from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrSubscribe
 import basestation_version
 import OpenCli
 
@@ -54,8 +53,7 @@ class notifClient(object):
         self.disconnectedCallback = disconnectedCallback
         
         # variables
-        self.data      = []
-        self.dataLock  = threading.Lock()
+        self.hrParser  = HrParser.HrParser()
         
         # subscriber
         self.subscriber = IpMgrSubscribe.IpMgrSubscribe(self.connector)
@@ -123,14 +121,14 @@ class notifClient(object):
         
         # extract the important data
         macAddress = notifParams.macAddress
-        payload    = notifParams.data
-    
+        hr         = self.hrParser.parseHr(notifParams.payload)
+        
         # print content (TODO: publish to back-end system instead)
         output     = []
         output    += ['']
         output    += ['healthreport notification']
         output    += ['- macAddress : {0}'.format(FormatUtils.formatMacString(macAddress))]
-        output    += ['- payload :    {0}'.format(FormatUtils.formatBuffer(payload))]
+        output    += ['- hr :         {0}'.format(self.hrParser.formatHr(hr))]
         output     = '\n'.join(output)
         print output
         print 'TODO: parse'
@@ -147,7 +145,6 @@ class Basestation(object):
         self.apiDef             = IpMgrDefinition.IpMgrDefinition()
         self.notifClientHandler = None
         self.reconnectEvent     = threading.Event()
-        self.dataLock           = threading.RLock()
     
     #======================== public ==========================================
     
