@@ -112,10 +112,8 @@ class notifClient(object):
         
         if   notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT:
             self._notifHealthreport(notifParams)
-        elif notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFEVENT:
-            self._notifEvent(notifParams)
         else:
-            raise SystemError()
+            self._notifEvent(notifName,notifParams)
     
     def _notifHealthreport(self,notifParams):
         
@@ -131,10 +129,11 @@ class notifClient(object):
         output    += ['- hr :         {0}'.format(self.hrParser.formatHr(hr))]
         output     = '\n'.join(output)
         print output
-        print 'TODO: parse'
     
-    def _notifEvent(self,notifParams):
+    def _notifEvent(self,notifName,notifParams):
+        
         print "\n\nTODO _notifEvent"
+        print notifName
         print notifParams
 
 class Basestation(object):
