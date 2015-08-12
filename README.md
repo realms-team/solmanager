@@ -115,7 +115,7 @@ The HTTP reply contains the following body:
 
 #### setting
 
-To retrieve the status of the flows, issue a `POST` command to the API endpoint:
+To enable/disable flows, issue a `POST` command to the API endpoint:
 
 ```
 /flows.json
@@ -154,9 +154,52 @@ The HTTP reply contains the following body. This is the same reply body as the `
 }
 ```
 
-### retrieve data
+### have the basestation resend data
 
-TODO
+To have the basestation re-send some data, issue a `POST` command to the following URI:
+
+```
+/resend.json
+```
+
+The HTTP body MUST be a JSON string of the following format:
+
+```
+{
+   'action':         'count',
+   'startTimestamp': 1111111,
+   'endTimestamp':   2222222,
+}
+```
+
+Where:
+* `startTimestamp` and `endTimestamp` are epoch timestamps, except:
+    * set `startTimestamp` to `None` to mean "from the first object"
+    * set `endTimestamp` to `None` to mean "until the last object"
+* `action` can take the following values:
+    * `count` for the basestation to return the number of objects, but not resend them
+    * `resend` for the basestation to resend the objects
+
+If `action` is set to `resend`, the basestation will resend the corresponding objects to the server using the server JSON API.
+
+One of the following HTTP status codes is returned:
+
+| Code |               Meaning | Action required                                                             |
+|------|-----------------------|-----------------------------------------------------------------------------|
+| 200  |                    OK | Request received successfully, starting to resend if asked in `action`.     |
+| 400  |           Bad Request | The request is either no JSON, or doesn't contain the right keys/values     |
+| 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
+
+The HTTP reply contains the following body, regardless of the `action`.
+
+```
+{
+   'numObjects':  100,
+}
+```
+
+Where:
+* `numObjects` is the number of objects that the basestation is about to send to the server.
 
 ### start a snapshot
 
