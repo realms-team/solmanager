@@ -82,6 +82,76 @@ With:
 * `date` is the output of the `date` Linux command.
 * `last reboot` is the output of the `last reboot` Linux command.
 
+### configure
+
+#### setting
+
+To change to which server the basestation reports data to, issue a `POST` command to the following URI:
+
+```
+/config.json
+```
+
+The HTTP body MUST be a JSON string of the following format:
+
+```
+{
+   'server':        'www.example.com/realms/',
+   'servertoken':   'qwertyuiopqwertyuioppoiuytrewq',
+   'syncperiodmin':  60,
+   'token':         'qweieiuewrewrewewiwieuryiweury',
+}
+```
+
+This body MUST contain at least one of the following keys: `server`, `servertoken`, `syncperiodmin`, `token` and MIGHT contain multiple.
+
+Where:
+* `server` specifies the base URI of the server to send the data to.
+    * This can be an IP address (e.g. `10.10.10.1`), a hostname (e.g. `www.example.com`), a relative path on the host (e.g. `www.example.com/realms`).
+* `servertoken` is the token used by the basestation script to authenticate to the server (see server JSON API).
+* `syncperiodmin` is the period, in minutes, for the basestation script to synchronize to the server.
+* `token` is the token the server MUST provide in each JSON API command.
+
+Thee configurations are effective immediately, and are persistent.
+
+One of the following HTTP status codes is returned:
+
+| Code |               Meaning | Action required                                                             |
+|------|-----------------------|-----------------------------------------------------------------------------|
+| 200  |                    OK | Request received successfully, configuration applied                        |
+| 400  |           Bad Request | The request is either no JSON, or doesn't contain the right keys/values     |
+| 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
+
+No HTTP body is present in the reply.
+
+#### getting
+
+To retrieve configuration, issue a `GET` command to the following URI:
+
+```
+/config.json
+```
+
+No HTTP body is required. A HTTP body can be present, but will be ignored.
+
+One of the following HTTP status codes is returned:
+
+| Code |               Meaning | Action required                                                             |
+|------|-----------------------|-----------------------------------------------------------------------------|
+| 200  |                    OK | Request received successfully, configuration in body.                       |
+| 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
+
+The HTTP reply contains the following body:
+
+```
+{
+   'server':        'www.example.com/realms/',
+   'syncperiodmin':  60,
+}
+```
+
+Note that security-related fields such as `servertoken` and `token` are write-only and hence do not appear in the HTTP reply body.
+
 ### manage data flows
 
 #### getting
@@ -132,7 +202,7 @@ The HTTP body MUST be a JSON string of the following format:
 
 Acceptable keys are `event`, `log`, `data`, `ipData`, `healthReport`. Acceptable values are `on` and `off`.
 
-Flows in the request are turned on/off. Other flows are left untouched.
+Flows in the request are turned on/off. Other flows are left untouched. This setting is persistent.
 
 One of the following HTTP status codes is returned:
 
