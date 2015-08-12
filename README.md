@@ -50,11 +50,109 @@ The body of the reply contains the same contents as the body of the request.
 
 ### retrieve status
 
-TODO
+To retrieve the status of the basestation, issue a `GET` command to the API endpoint:
+
+```
+/status.json
+```
+
+No HTTP body is required. A HTTP body can be present, but will be ignored.
+
+One of the following HTTP status codes is returned:
+
+| Code |               Meaning | Action required                                                             |
+|------|-----------------------|-----------------------------------------------------------------------------|
+| 200  |                    OK | Request received successfully, snapshot is started.                         |
+| 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
+
+The HTTP reply contains the following body:
+
+```
+{
+    'uptime':      '21:01:36 up 21:49,  2 users,  load average: 0.04, 0.08, 0.05',
+    'date':        'Wed Aug 12 21:02:06 UTC 2015',
+    'last reboot': 'wtmp begins Wed Aug 12 21:01:33 2015',
+    'flows': {
+        'event':       'on',
+        'log':         'off',
+        'data':        'on',
+        'ipData':,     'on',
+        'healthReport':'on',
+    }
+}
+```
 
 ### manage data flows
 
-TODO
+#### getting
+
+To retrieve the status of the flows (whether on or off), issue a `GET` command to the API endpoint:
+
+```
+/flows.json
+```
+
+No HTTP body is required. A HTTP body can be present, but will be ignored.
+
+One of the following HTTP status codes is returned:
+
+| Code |               Meaning | Action required                                                             |
+|------|-----------------------|-----------------------------------------------------------------------------|
+| 200  |                    OK | Request received successfully, snapshot is started.                         |
+| 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
+
+The HTTP reply contains the following body:
+
+```
+{
+   'event':       'on',
+   'log':         'off',
+   'data':        'on',
+   'ipData':,     'on',
+   'healthReport':'on',
+}
+```
+
+#### setting
+
+To retrieve the status of the flows, issue a `POST` command to the API endpoint:
+
+```
+/flows.json
+```
+
+The HTTP body MUST be a JSON string of the following format:
+
+```
+{
+   'event':       'on',
+   'log':         'off',
+}
+```
+
+Acceptable keys are `event`, `log`, `data`, `ipData`, `healthReport`. Acceptable values are `on` and `off`.
+
+Flows in the request are turned on/off. Other flows are left untouched.
+
+One of the following HTTP status codes is returned:
+
+| Code |               Meaning | Action required                                                             |
+|------|-----------------------|-----------------------------------------------------------------------------|
+| 200  |                    OK | Request received successfully, snapshot is started.                         |
+| 400  |           Bad Request | The request is either no JSON, or doesn't contain the right keys/values     |
+| 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
+
+The HTTP reply contains the following body, which is the same as for the `GET` command:
+
+```
+{
+   'event':       'on',
+   'log':         'off',
+   'data':        'on',
+   'ipData':,     'on',
+   'healthReport':'on',
+}
+```
 
 ### retrieve data
 
