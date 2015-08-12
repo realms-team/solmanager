@@ -190,9 +190,15 @@ The HTTP body MUST be a JSON string of the following format:
 
 ```
 {
-TODO
+    'commandArray': ['getPathInfo'],
+    'fields':       {
+        'source': [0x11,0x11,0x11,0x11,0x11,0x11,0x11,0x11],
+        'dest':   [0x22,0x22,0x22,0x22,0x22,0x22,0x22,0x22],
+    }
 }
 ```
+
+The Python script will issue the Serial API command to the SmartMesh IP manager exactly as specified, with the exception of the `subscribe` command. Issuing a `subscribe` command will generate a 403 "Forbidden" HTTP status code, as the Python script needs to remain subscribed to all notifications at all times.
 
 One of the following HTTP status codes is returned:
 
@@ -200,10 +206,23 @@ One of the following HTTP status codes is returned:
 |------|-----------------------|-----------------------------------------------------------------------------|
 | 200  |                    OK | Request received, command issues, body contains reply.                      |
 | 400  |           Bad Request | Something is wrong with the request.                                        |
+| 403  |             Forbidden | You issued a `subscribe` command.                                           |
 | 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
 
 The HTTP reply contains the reply from SmartMesh IP manager, encoded as a JSON string.
 
 ```
-TODO
+{
+    'commandArray': ['getPathInfo'],
+    'fields':       {
+        'RC':          0,
+        'source':      [0x11,0x11,0x11,0x11,0x11,0x11,0x11,0x11],
+        'dest':        [0x22,0x22,0x22,0x22,0x22,0x22,0x22,0x22],
+        'direction':   3,
+        'numLinks':    4,
+        'quality':     74,
+        'rssiSrcDest': -78,
+        'rssiDestSrc': -79,
+    }
+}
 ```
