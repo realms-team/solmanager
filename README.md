@@ -34,7 +34,7 @@ Only `v1` of the API is defined in this document. Future revisions of this docum
 To verify the API is up and running, one can a `GET` command to the API endpoint:
 
 ```
-/echo
+/echo.json
 ```
 
 Any data passed in the payload of body of that request is echoed back untouched
@@ -69,18 +69,18 @@ The HTTP reply contains the following body:
 
 ```
 {
-    'uptime':      '21:01:36 up 21:49,  2 users,  load average: 0.04, 0.08, 0.05',
-    'date':        'Wed Aug 12 21:02:06 UTC 2015',
-    'last reboot': 'wtmp begins Wed Aug 12 21:01:33 2015',
-    'flows': {
-        'event':       'on',
-        'log':         'off',
-        'data':        'on',
-        'ipData':,     'on',
-        'healthReport':'on',
-    }
+    'software version': '1.0.2.3' 
+    'uptime':           '21:01:36 up 21:49,  2 users,  load average: 0.04, 0.08, 0.05',
+    'date':             'Wed Aug 12 21:02:06 UTC 2015',
+    'last reboot':      'wtmp begins Wed Aug 12 21:01:33 2015',
 }
 ```
+
+With:
+* `software version` is read from the version file of the basestation Python script.
+* `uptime` is the output of the `uptime` Linux command.
+* `date` is the output of the `date` Linux command.
+* `last reboot` is the output of the `last reboot` Linux command.
 
 ### manage data flows
 
@@ -142,7 +142,7 @@ One of the following HTTP status codes is returned:
 | 400  |           Bad Request | The request is either no JSON, or doesn't contain the right keys/values     |
 | 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
 
-The HTTP reply contains the following body, which is the same as for the `GET` command:
+The HTTP reply contains the following body. This is the same reply body as the `GET` command:
 
 ```
 {
@@ -163,7 +163,7 @@ TODO
 To start a snapshot on the manager, issue a `POST` request to the following URI 
 
 ```
-/snapshot
+/snapshot.json
 ```
 
 No HTTP body is required. A HTTP body can be present, but will be ignored.
@@ -180,5 +180,30 @@ No HTTP body is present in the reply.
 
 ### issue a raw SmartMesh IP API command
 
-TODO
+To issue an arbitrary command on the SmartMesh IP manager [Serial API](http://www.linear.com/docs/41883), issue a `POST` command to the following URI:
 
+```
+/smartmeshipapi.json
+```
+
+The HTTP body MUST be a JSON string of the following format:
+
+```
+{
+TODO
+}
+```
+
+One of the following HTTP status codes is returned:
+
+| Code |               Meaning | Action required                                                             |
+|------|-----------------------|-----------------------------------------------------------------------------|
+| 200  |                    OK | Request received, command issues, body contains reply.                      |
+| 400  |           Bad Request | Something is wrong with the request.                                        |
+| 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
+
+The HTTP reply contains the reply from SmartMesh IP manager, encoded as a JSON string.
+
+```
+TODO
+```
