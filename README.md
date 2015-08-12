@@ -13,9 +13,9 @@ The JSON API is available over HTTP, secured using SSL.
 
 ## Security
 
-Mutual authentication using SSL is REQUIRED. Prior to communicating between a basestation and the server:
-* the certificate of the server MUST be installed on the basestation
-* the certificate of the basestation MUST be installed on the server
+Access over HTTPS is REQUIRED (i.e. non-encrypted HTTP access is not allowed). HTTPS ensures that the communication is encrypted. To authenticate, the client connecting to this API MUST provide a token in each JSON API command. This token (a string) is passed as the custom HTTP header `REALMS-Token`.
+
+Before taking any action, the server `MUST` verify that this token is authorized, and issue a 401 "Unauthorized" HTTP status code with no body.
 
 ## Base URI
 
@@ -44,6 +44,7 @@ One of the following HTTP status codes is returned:
 | Code |               Meaning | Action required                                                             |
 |------|-----------------------|-----------------------------------------------------------------------------|
 | 200  |                    OK | Success. The body contains the same body as the request                     |
+| 401  |          Unauthorized | Invalid `REALMS-Token` passed                                               |
 | 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
 
 The body of the reply contains the same contents as the body of the request.
@@ -63,6 +64,7 @@ One of the following HTTP status codes is returned:
 | Code |               Meaning | Action required                                                             |
 |------|-----------------------|-----------------------------------------------------------------------------|
 | 200  |                    OK | Request received successfully, snapshot is started.                         |
+| 401  |          Unauthorized | Invalid `REALMS-Token` passed                                               |
 | 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
 
 The HTTP reply contains the following body:
@@ -120,6 +122,7 @@ One of the following HTTP status codes is returned:
 |------|-----------------------|-----------------------------------------------------------------------------|
 | 200  |                    OK | Request received successfully, configuration applied                        |
 | 400  |           Bad Request | The request is either no JSON, or doesn't contain the right keys/values     |
+| 401  |          Unauthorized | Invalid `REALMS-Token` passed                                               |
 | 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
 
 No HTTP body is present in the reply.
@@ -139,6 +142,7 @@ One of the following HTTP status codes is returned:
 | Code |               Meaning | Action required                                                             |
 |------|-----------------------|-----------------------------------------------------------------------------|
 | 200  |                    OK | Request received successfully, configuration in body.                       |
+| 401  |          Unauthorized | Invalid `REALMS-Token` passed                                               |
 | 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
 
 The HTTP reply contains the following body:
@@ -169,6 +173,7 @@ One of the following HTTP status codes is returned:
 | Code |               Meaning | Action required                                                             |
 |------|-----------------------|-----------------------------------------------------------------------------|
 | 200  |                    OK | Request received successfully, snapshot is started.                         |
+| 401  |          Unauthorized | Invalid `REALMS-Token` passed                                               |
 | 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
 
 The HTTP reply contains the following body:
@@ -210,6 +215,7 @@ One of the following HTTP status codes is returned:
 |------|-----------------------|-----------------------------------------------------------------------------|
 | 200  |                    OK | Request received successfully, snapshot is started.                         |
 | 400  |           Bad Request | The request is either no JSON, or doesn't contain the right keys/values     |
+| 401  |          Unauthorized | Invalid `REALMS-Token` passed                                               |
 | 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
 
 The HTTP reply contains the following body. This is the same reply body as the `GET` command:
@@ -258,6 +264,7 @@ One of the following HTTP status codes is returned:
 |------|-----------------------|-----------------------------------------------------------------------------|
 | 200  |                    OK | Request received successfully, starting to resend if asked in `action`.     |
 | 400  |           Bad Request | The request is either no JSON, or doesn't contain the right keys/values     |
+| 401  |          Unauthorized | Invalid `REALMS-Token` passed                                               |
 | 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
 
 The HTTP reply contains the following body, regardless of the `action`.
@@ -287,6 +294,7 @@ One of the following HTTP status codes is returned:
 |------|-----------------------|-----------------------------------------------------------------------------|
 | 200  |                    OK | Request received successfully, snapshot is started.                         |
 | 202  |              Accepted | Snapshot already ongoing, no new snapshot is started.                       |
+| 401  |          Unauthorized | Invalid `REALMS-Token` passed                                               |
 | 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
 
 No HTTP body is present in the reply.
@@ -319,6 +327,7 @@ One of the following HTTP status codes is returned:
 |------|-----------------------|-----------------------------------------------------------------------------|
 | 200  |                    OK | Request received, command issues, body contains reply.                      |
 | 400  |           Bad Request | Something is wrong with the request.                                        |
+| 401  |          Unauthorized | Invalid `REALMS-Token` passed                                               |
 | 403  |             Forbidden | You issued a `subscribe` command.                                           |
 | 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
 
