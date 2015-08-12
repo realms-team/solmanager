@@ -216,7 +216,7 @@ One of the following HTTP status codes is returned:
 | Code |               Meaning | Action required                                                             |
 |------|-----------------------|-----------------------------------------------------------------------------|
 | 200  |                    OK | Request received successfully, snapshot is started.                         |
-| 202  |                    OK | Snapshot already ongoing, no new snapshot is started.                       |
+| 202  |              Accepted | Snapshot already ongoing, no new snapshot is started.                       |
 | 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
 
 No HTTP body is present in the reply.
