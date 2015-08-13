@@ -8,84 +8,115 @@ if __name__ == "__main__":
     here = sys.path[0]
     sys.path.insert(0, os.path.join(here, 'smartmeshsdk-master'))
 
-#============================ verify installation =============================
-
-from SmartMeshSDK import SmsdkInstallVerifier
-(goodToGo,reason) = SmsdkInstallVerifier.verifyComponents(
-    [
-        SmsdkInstallVerifier.PYTHON,
-        SmsdkInstallVerifier.PYSERIAL,
-    ]
-)
-if not goodToGo:
-    print "Your installation does not allow this application to run:\n"
-    print reason
-    raw_input("Press any button to exit")
-    sys.exit(1)
-
 #============================ imports =========================================
 
 import time
 import threading
+import json
 from   optparse                             import OptionParser
 
-from   SmartMeshSDK                         import FormatUtils,                \
-                                                   HrParser,                   \
+import OpenCli
+import basestation_version
+
+# DustThread
+from   SmartMeshSDK                         import HrParser,                   \
                                                    sdk_version
-from   SmartMeshSDK.ApiDefinition           import IpMgrDefinition
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
 from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrSubscribe
-import basestation_version
-import OpenCli
+
+# JsonThread
+import bottle
 
 #============================ defines =========================================
 
-DEFAULT_PORT = 'COM14'
+DEFAULT_SERIALPORT = 'COM14'
+DEFAULT_TCPPORT    = 8080
 
-#============================ body ============================================
+#============================ classes =========================================
 
-class notifClient(object):
+class DustThread(threading.Thread):
     
-    def __init__(self, connector, disconnectedCallback):
+    def __init__(self, serialport):
         
         # store params
-        self.connector = connector
-        self.disconnectedCallback = disconnectedCallback
+        self.serialport      = serialport
         
-        # variables
-        self.hrParser  = HrParser.HrParser()
+        # local variables
+        self.reconnectEvent  = threading.Event()
+        self.hrParser        = HrParser.HrParser()
+        self.goOn            = True
         
-        # subscriber
-        self.subscriber = IpMgrSubscribe.IpMgrSubscribe(self.connector)
-        self.subscriber.start()
-        self.subscriber.subscribe(
-            notifTypes =    [
-                                IpMgrSubscribe.IpMgrSubscribe.NOTIFDATA,
-                            ],
-            fun =           self._notifData,
-            isRlbl =        False,
-        )
-        self.subscriber.subscribe(
-            notifTypes =    [
-                                IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT,
-                                IpMgrSubscribe.IpMgrSubscribe.NOTIFEVENT,
-                            ],
-            fun =           self._notifEvents,
-            isRlbl =        True,
-        )
-        self.subscriber.subscribe(
-            notifTypes =    [
-                                IpMgrSubscribe.IpMgrSubscribe.ERROR,
-                                IpMgrSubscribe.IpMgrSubscribe.FINISH,
-                            ],
-            fun =           self.disconnectedCallback,
-            isRlbl =        True,
-        )
+        # start the thread
+        threading.Thread.__init__(self)
+        self.name            = 'DustThread'
+        self.start()
+    
+    def run(self):
+        
+        while self.goOn:
+            
+            try:
+                print 'Connecting to {0}...'.format(self.serialport),
+                
+                # connect to the manager
+                self.connector          = IpMgrConnectorSerial.IpMgrConnectorSerial()
+                self.connector.connect({
+                    'port': self.serialport,
+                })
+                
+                # subscribe to notifications
+                self.subscriber = IpMgrSubscribe.IpMgrSubscribe(self.connector)
+                self.subscriber.start()
+                self.subscriber.subscribe(
+                    notifTypes =    [
+                                        IpMgrSubscribe.IpMgrSubscribe.NOTIFDATA,
+                                    ],
+                    fun =           self._notifData,
+                    isRlbl =        False,
+                )
+                self.subscriber.subscribe(
+                    notifTypes =    [
+                                        IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT,
+                                        IpMgrSubscribe.IpMgrSubscribe.NOTIFEVENT,
+                                    ],
+                    fun =           self._notifEventAll,
+                    isRlbl =        True,
+                )
+                self.subscriber.subscribe(
+                    notifTypes =    [
+                                        IpMgrSubscribe.IpMgrSubscribe.ERROR,
+                                        IpMgrSubscribe.IpMgrSubscribe.FINISH,
+                                    ],
+                    fun =           self._notifDisconnected,
+                    isRlbl =        True,
+                )
+                
+            except Exception as err:
+                print 'FAIL.'
+                
+                try:
+                   self.connector.disconnect()
+                except:
+                   pass
+                
+                # wait to reconnect
+                time.sleep(1)
+                
+            else:
+                print 'PASS.'
+                self.reconnectEvent.clear()
+                self.reconnectEvent.wait()
     
     #======================== public ==========================================
     
-    def disconnect(self):
-        self.connector.disconnect()
+    def close(self):
+        
+        try:
+            self.connector.disconnect()
+        except:
+            pass
+        
+        self.goOn = False
     
     #======================== private =========================================
     
@@ -108,14 +139,14 @@ class notifClient(object):
         output     = '\n'.join(output)
         print output
     
-    def _notifEvents(self, notifName, notifParams):
+    def _notifEventAll(self, notifName, notifParams):
         
         if   notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT:
-            self._notifHealthreport(notifParams)
+            self._notifHealthreport(notifName,notifParams)
         else:
             self._notifEvent(notifName,notifParams)
     
-    def _notifHealthreport(self,notifParams):
+    def _notifHealthreport(self,notifName,notifParams):
         
         # extract the important data
         macAddress = notifParams.macAddress
@@ -135,77 +166,81 @@ class notifClient(object):
         print "\n\nTODO _notifEvent"
         print notifName
         print notifParams
-
-class Basestation(object):
     
-    def __init__(self):
-        
-        # local variables
-        self.apiDef             = IpMgrDefinition.IpMgrDefinition()
-        self.notifClientHandler = None
-        self.reconnectEvent     = threading.Event()
-    
-    #======================== public ==========================================
-    
-    def connect(self,port):
-        
-        # store params
-        self.port = port
-        
-        while True:
-            
-            try:
-                print 'connecting to {0}...'.format(self.port),
-                
-                # connect to the manager
-                self.connector          = IpMgrConnectorSerial.IpMgrConnectorSerial()
-                self.connector.connect({
-                    'port': self.port,
-                })
-                
-                # start a notification client
-                self.notifClientHandler = notifClient(
-                    self.connector,
-                    self._disconnected
-                )
-                
-            except Exception as err:
-                print 'FAIL.'
-                
-                try:
-                   self.notifClientHandler.disconnect()
-                except:
-                   pass
-                
-                try:
-                   self.connector.disconnect()
-                except:
-                   pass
-                
-                # wait to reconnect
-                time.sleep(5)
-                
-            else:
-                print 'PASS.'
-                self.reconnectEvent.clear()
-                self.reconnectEvent.wait()
-    
-    #======================== private =========================================
-    
-    def _disconnected(self,notifName,notifParams):
+    def _notifDisconnected(self,notifName,notifParams):
         
         if not self.reconnectEvent.isSet():
             self.reconnectEvent.set()
+
+class JsonThread(threading.Thread):
     
+    def __init__(self,tcpport):
+        
+        # store params
+        self.tcpport    = tcpport
+        
+        # initialize web server
+        self.web        = bottle.Bottle()
+        self.web.route(path='/api/v1/echo.json',   method='GET', callback=self._cb_echo_GET)
+        self.web.route(path='/api/v1/status.json', method='GET', callback=self._cb_status_GET)
+        
+        # start the thread
+        threading.Thread.__init__(self)
+        self.name       = 'JsonThread'
+        self.start()
+    
+    def run(self):
+        self.web.run(
+            host   = 'localhost',
+            port   = self.tcpport,
+            quiet  = False,
+            debug  = True,
+        )
+    
+    #======================== public ==========================================
+    
+    def close(self):
+        print 'TODO JsonThread.close()'
+    
+    #======================== private ==========================================
+    
+    def _cb_echo_GET(self):
+        bottle.response.status = 501
+        bottle.response.content_type = 'application/json'
+        return json.dumps({'error': 'Not Implemented yet :-('})
+    
+    def _cb_status_GET(self):
+        bottle.response.status = 501
+        bottle.response.content_type = 'application/json'
+        return json.dumps({'error': 'Not Implemented yet :-('})
+
+class Basestation(object):
+    
+    def __init__(self,serialport,tcpport):
+        self.dustThread = DustThread(serialport)
+        self.jsonThread = JsonThread(tcpport)
+    
+    def close(self):
+        self.dustThread.close()
+        self.jsonThread.close()
+
 #============================ main ============================================
 
-def quitCallback():
-    print "TODO quitCallback"
+basestation = None
 
-def main(port):
+def quitCallback():
+    global basestation
+    
+    basestation.close()
+
+def main(serialport,tcpport):
+    global basestation
     
     # create the basestation instance
-    basestation = Basestation()
+    basestation = Basestation(
+        serialport,
+        tcpport,
+    )
     
     # start the CLI interface
     OpenCli.OpenCli(
@@ -216,17 +251,24 @@ def main(port):
             ("SmartMesh SDK",sdk_version.VERSION),
         ],
     )
-    
-    # connect the basestation
-    basestation.connect(port)
 
 if __name__ == '__main__':
     
     # parse the command line
     parser = OptionParser("usage: %prog [options]")
-    parser.add_option("-p", "--port", dest="port", 
-                      default=DEFAULT_PORT,
-                      help="serial port to connect to")
+    parser.add_option(
+        "-s", "--serialport", dest="serialport", 
+        default=DEFAULT_SERIALPORT,
+        help="Serial port of the SmartMesh IP manager."
+    )
+    parser.add_option(
+        "-t", "--tcpport", dest="tcpport", 
+        default=DEFAULT_TCPPORT,
+        help="TCP port to start the JSON API on."
+    )
     (options, args) = parser.parse_args()
     
-    main(options.port)
+    main(
+        options.serialport,
+        options.tcpport,
+    )
