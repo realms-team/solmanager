@@ -27,6 +27,7 @@ from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrSubscribe
 
 # JsonThread
 import bottle
+import Sol
 import SolVersion
 
 #============================ defines =========================================
