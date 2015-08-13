@@ -7,6 +7,7 @@ import os
 if __name__ == "__main__":
     here = sys.path[0]
     sys.path.insert(0, os.path.join(here, 'smartmeshsdk-master'))
+    sys.path.insert(0, os.path.join(here, '..', 'Sol'))
 
 #============================ imports =========================================
 
@@ -26,6 +27,7 @@ from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrSubscribe
 
 # JsonThread
 import bottle
+import SolVersion
 
 #============================ defines =========================================
 
@@ -249,6 +251,15 @@ def main(serialport,tcpport):
         quitCallback,
         [
             ("SmartMesh SDK",sdk_version.VERSION),
+            (
+                "Sol",
+                (
+                    SolVersion.SOL_VERSION['SOL_VERSION_MAJOR'],
+                    SolVersion.SOL_VERSION['SOL_VERSION_MINOR'],
+                    SolVersion.SOL_VERSION['SOL_VERSION_PATCH'],
+                    SolVersion.SOL_VERSION['SOL_VERSION_BUILD'],
+                ),
+            ),
         ],
     )
 
