@@ -19,12 +19,12 @@ class OpenCli(threading.Thread):
     CMD_LEVEL_USER   = "user"
     CMD_LEVEL_SYSTEM = "system"
     
-    def __init__(self,appName,appVer,sdkVer,quit_cb):
+    def __init__(self,appName,appVer,quit_cb,miscVer=None):
     
         # slot params
         self.appName         = appName
         self.appVer          = appVer
-        self.sdkVer          = sdkVer
+        self.miscVer         = miscVer
         self.quit_cb         = quit_cb
         
         # local variables
@@ -78,11 +78,20 @@ class OpenCli(threading.Thread):
         
     def run(self):
         
-        print '{0} - version {1}.{2}.{3}.{4}\nUsing SmartMesh SDK {5}.{6}.{7}.{8}\n\n'.format(
+        banner  = []
+        banner += ['{0} - version {1}.{2}.{3}.{4}'.format(
             self.appName,
             self.appVer[0],self.appVer[1],self.appVer[2],self.appVer[3],
-            self.sdkVer[0],self.sdkVer[1],self.sdkVer[2],self.sdkVer[3],
-        )
+        )]
+        if self.miscVer:
+            for (component,ver) in self.miscVer:
+                banner += ['Using {0} {1}.{2}.{3}.{4}'.format(
+                    component,
+                    ver[0],ver[1],ver[2],ver[3],
+                )]
+        banner += ['']
+        banner  = '\n'.join(banner)
+        print banner
         
         self.startTime = time.time()
         
@@ -249,10 +258,11 @@ if __name__=='__main__':
     def echoCallback(params):
         print "echo {0}!".format(params)
         
-    cli = OpenCli("Standalone Sample App",quitCallback)
-    cli.registerCommand('echo',
-                        'e',
-                        'echoes the first param',
-                        ['string to echo'],
-                        echoCallback)
-    cli.start()
+    cli = OpenCli("Standalone Sample App",(1,0,0,0),quitCallback)
+    cli.registerCommand(
+        'echo',
+        'e',
+        'echoes the first param',
+        ['string to echo'],
+        echoCallback
+    )

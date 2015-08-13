@@ -211,8 +211,10 @@ def main(port):
     OpenCli.OpenCli(
         "Basestation",
         basestation_version.VERSION,
-        sdk_version.VERSION,
         quitCallback,
+        [
+            ("SmartMesh SDK",sdk_version.VERSION),
+        ],
     )
     
     # connect the basestation
