@@ -331,7 +331,7 @@ class JsonThread(threading.Thread):
         
         # initialize web server
         self.web        = bottle.Bottle()
-        self.web.route(path='/api/v1/echo.json',     method='GET',  callback=self._cb_echo_GET)
+        self.web.route(path='/api/v1/echo.json',     method='POST', callback=self._cb_echo_POST)
         self.web.route(path='/api/v1/status.json',   method='GET',  callback=self._cb_status_GET)
         self.web.route(path='/api/v1/config.json',   method='POST', callback=self._cb_config_POST)
         self.web.route(path='/api/v1/config.json',   method='GET',  callback=self._cb_config_GET)
@@ -364,7 +364,7 @@ class JsonThread(threading.Thread):
     
     #======================== private ==========================================
     
-    def _cb_echo_GET(self):
+    def _cb_echo_POST(self):
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
