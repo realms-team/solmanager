@@ -365,41 +365,49 @@ class JsonThread(threading.Thread):
     #======================== private ==========================================
     
     def _cb_echo_POST(self):
+        # TODO: echo
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
     
     def _cb_status_GET(self):
+        # TODO: echo
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
     
     def _cb_config_POST(self):
+        # TODO: echo
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
     
     def _cb_config_GET(self):
+        # TODO: echo
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
     
     def _cb_flows_GET(self):
+        # TODO: echo
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
     
     def _cb_flows_POST(self):
+        # TODO: echo
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
     
     def _cb_resend_POST(self):
+        # TODO: echo
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
     
     def _cb_snapshot_POST(self):
+        # TODO: echo
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
@@ -408,6 +416,8 @@ class Basestation(object):
     
     def __init__(self,serialport,tcpport):
         self.dustThread = DustThread(serialport)
+        # TODO: add DataThread which periodically stores data to file
+        # TODO: add SendThread which periodically send data to server
         self.jsonThread = JsonThread(tcpport)
     
     def close(self):
