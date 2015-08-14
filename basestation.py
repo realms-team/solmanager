@@ -19,7 +19,7 @@ from   optparse                             import OptionParser
 import OpenCli
 import basestation_version
 
-# DustApiThread
+# DustThread
 from   SmartMeshSDK                         import FormatUtils, \
                                                    HrParser,    \
                                                    sdk_version
@@ -48,7 +48,7 @@ def printException(err):
 
 #============================ classes =========================================
 
-class DustApiThread(threading.Thread):
+class DustThread(threading.Thread):
     
     def __init__(self, serialport):
         
@@ -59,11 +59,12 @@ class DustApiThread(threading.Thread):
         self.reconnectEvent  = threading.Event()
         self.hrParser        = HrParser.HrParser()
         self.sol             = Sol.Sol()
+        self.dataLock        = threading.RLock()
         self.goOn            = True
         
         # start the thread
         threading.Thread.__init__(self)
-        self.name            = 'DustApiThread'
+        self.name            = 'DustThread'
         self.start()
     
     def run(self):
@@ -81,6 +82,15 @@ class DustApiThread(threading.Thread):
                 self.connector.connect({
                     'port': self.serialport,
                 })
+                
+                # get MAC address of manager
+                temp = self.dn_getSystemInfo()
+                self.managerMac = temp.macAddress
+                
+                # sync network-UTC time
+                temp  = self.dn_getTime()
+                netTs = self._calcNetTs(temp)
+                self._syncNetTsToUtc(netTs)
                 
                 # subscribe to notifications
                 self.subscriber = IpMgrSubscribe.IpMgrSubscribe(self.connector)
@@ -129,6 +139,8 @@ class DustApiThread(threading.Thread):
                     isRlbl =        True,
                 )
                 
+                print "TODO: periodically sync NetTs to UTC"
+                
             except Exception as err:
                 print 'FAIL.'
                 
@@ -171,7 +183,7 @@ class DustApiThread(threading.Thread):
             assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFDATA
             
             # extract the important data
-            netTs      = float(notifParams.utcSecs)+float(notifParams.utcUsecs/1000000.0)
+            netTs      = self._calcNetTs(notifParams)
             macAddress = notifParams.macAddress
             srcPort    = notifParams.srcPort
             dstPort    = notifParams.dstPort
@@ -220,7 +232,7 @@ class DustApiThread(threading.Thread):
             
             # create sensor object (SOL_TYPE_NOTIF_EVENT)
             sobject = {
-                'mac':       self._managerMac(),
+                'mac':       self.managerMac,
                 'timestamp': time.gmtime(),
                 'type':      SolDefines.SOL_TYPE_NOTIF_EVENT,
                 'value':     self.sol.create_value_NOTIF_EVENT(
@@ -237,11 +249,12 @@ class DustApiThread(threading.Thread):
             printException(err)
     
     def _notifHealthReport(self,notifName,notifParams):
+        
         try:
             assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT 
             
             # extract the important data
-            netTs      = float(notifParams.utcSecs)+float(notifParams.utcUsecs/1000000.0)
+            netTs      = self._calcNetTs(notifParams)
             macAddress = notifParams.macAddress
             data       = notifParams.data
             
@@ -260,6 +273,7 @@ class DustApiThread(threading.Thread):
             printException(err)
     
     def _notifIPData(self, notifName, notifParams):
+        
         try:
             assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFIPDATA
             
@@ -292,15 +306,22 @@ class DustApiThread(threading.Thread):
     
     #=== misc
     
+    def _calcNetTs(self,notif):
+        return float(notif.utcSecs)+float(notif.utcUsecs/1000000.0)
+    
+    def _syncNetTsToUtc(self,netTs):
+        with self.dataLock:
+            self.tsDiff = time.gmtime()-netTs
+    
     def _netTsToEpoch(self,netTs):
-        print "todo _networkTsToEpoch()"
-        return time.gmtime()
+        with self.dataLock:
+            return netTs+self.tsDiff
     
     def _publishObject(self,object):
         print "========== _publishObject"
         print "TODO store to file" 
         print "TODO send to server" 
-    
+
 class JsonThread(threading.Thread):
     
     def __init__(self,tcpport):
@@ -386,8 +407,8 @@ class JsonThread(threading.Thread):
 class Basestation(object):
     
     def __init__(self,serialport,tcpport):
-        self.dustApiThread   = DustApiThread(serialport)
-        self.jsonThread      = JsonThread(tcpport)
+        self.dustThread = DustThread(serialport)
+        self.jsonThread = JsonThread(tcpport)
     
     def close(self):
         self.dustApiThread.close()
