@@ -139,7 +139,7 @@ class DustThread(threading.Thread):
                     isRlbl =        True,
                 )
                 
-                print "TODO: periodically sync NetTs to UTC"
+                print "TODO: periodically sync NetTs to UTC (#4)" 
                 
             except Exception as err:
                 print 'FAIL.'
@@ -360,54 +360,54 @@ class JsonThread(threading.Thread):
     #======================== public ==========================================
     
     def close(self):
-        print 'TODO JsonThread.close()'
+        print 'TODO JsonThread.close() (#5)'
     
     #======================== private ==========================================
     
     def _cb_echo_POST(self):
-        # TODO: echo
+        # TODO: implement (#6)
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
     
     def _cb_status_GET(self):
-        # TODO: echo
+        # TODO: implement (#7)
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
     
     def _cb_config_POST(self):
-        # TODO: echo
+        # TODO: implement (#8)
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
     
     def _cb_config_GET(self):
-        # TODO: echo
+        # TODO: implement (#9)
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
     
     def _cb_flows_GET(self):
-        # TODO: echo
+        # TODO: implement (#10)
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
     
     def _cb_flows_POST(self):
-        # TODO: echo
+        # TODO: implement (#11)
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
     
     def _cb_resend_POST(self):
-        # TODO: echo
+        # TODO: implement (#12)
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
     
     def _cb_snapshot_POST(self):
-        # TODO: echo
+        # TODO: implement (#13)
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
@@ -416,8 +416,8 @@ class Basestation(object):
     
     def __init__(self,serialport,tcpport):
         self.dustThread = DustThread(serialport)
-        # TODO: add DataThread which periodically stores data to file
-        # TODO: add SendThread which periodically send data to server
+        # TODO: add DataThread which periodically stores data to file (#14)
+        # TODO: add SendThread which periodically sends data to server (#15)
         self.jsonThread = JsonThread(tcpport)
     
     def close(self):
