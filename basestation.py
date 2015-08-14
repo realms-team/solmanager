@@ -19,8 +19,9 @@ from   optparse                             import OptionParser
 import OpenCli
 import basestation_version
 
-# DustThread
-from   SmartMeshSDK                         import HrParser,                   \
+# DustApiThread
+from   SmartMeshSDK                         import FormatUtils, \
+                                                   HrParser,    \
                                                    sdk_version
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
 from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrSubscribe
@@ -29,15 +30,25 @@ from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrSubscribe
 import bottle
 import Sol
 import SolVersion
+import SolDefines
 
 #============================ defines =========================================
 
 DEFAULT_SERIALPORT = 'COM14'
 DEFAULT_TCPPORT    = 8080
 
+#============================ helpers =========================================
+
+def printException(err):
+    output  = []
+    output += ["ERROR:"]
+    output += [str(err)]
+    output  = '\n'.join(output)
+    print output
+
 #============================ classes =========================================
 
-class DustThread(threading.Thread):
+class DustApiThread(threading.Thread):
     
     def __init__(self, serialport):
         
@@ -47,14 +58,18 @@ class DustThread(threading.Thread):
         # local variables
         self.reconnectEvent  = threading.Event()
         self.hrParser        = HrParser.HrParser()
+        self.sol             = Sol.Sol()
         self.goOn            = True
         
         # start the thread
         threading.Thread.__init__(self)
-        self.name            = 'DustThread'
+        self.name            = 'DustApiThread'
         self.start()
     
     def run(self):
+        
+        # wait for banner to print
+        time.sleep(0.5)
         
         while self.goOn:
             
@@ -79,10 +94,30 @@ class DustThread(threading.Thread):
                 )
                 self.subscriber.subscribe(
                     notifTypes =    [
-                                        IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT,
                                         IpMgrSubscribe.IpMgrSubscribe.NOTIFEVENT,
                                     ],
-                    fun =           self._notifEventAll,
+                    fun =           self._notifEvent,
+                    isRlbl =        True,
+                )
+                self.subscriber.subscribe(
+                    notifTypes =    [
+                                        IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT,
+                                    ],
+                    fun =           self._notifHealthReport,
+                    isRlbl =        True,
+                )
+                self.subscriber.subscribe(
+                    notifTypes =    [
+                                        IpMgrSubscribe.IpMgrSubscribe.NOTIFIPDATA,
+                                    ],
+                    fun =           self._notifIPData,
+                    isRlbl =        False,
+                )
+                self.subscriber.subscribe(
+                    notifTypes =    [
+                                        IpMgrSubscribe.IpMgrSubscribe.NOTIFLOG,
+                                    ],
+                    fun =           self._notifLog,
                     isRlbl =        True,
                 )
                 self.subscriber.subscribe(
@@ -90,7 +125,7 @@ class DustThread(threading.Thread):
                                         IpMgrSubscribe.IpMgrSubscribe.ERROR,
                                         IpMgrSubscribe.IpMgrSubscribe.FINISH,
                                     ],
-                    fun =           self._notifDisconnected,
+                    fun =           self._notifErrorFinish,
                     isRlbl =        True,
                 )
                 
@@ -109,6 +144,11 @@ class DustThread(threading.Thread):
                 print 'PASS.'
                 self.reconnectEvent.clear()
                 self.reconnectEvent.wait()
+                
+                try:
+                   self.connector.disconnect()
+                except:
+                   pass
     
     #======================== public ==========================================
     
@@ -123,58 +163,144 @@ class DustThread(threading.Thread):
     
     #======================== private =========================================
     
+    #=== Dust API notifications
+    
     def _notifData(self, notifName, notifParams):
         
-        assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFDATA
-        
-        # extract the important data
-        ts         = float(notifParams.utcSecs)+float(notifParams.utcUsecs/1000000.0)
-        macAddress = notifParams.macAddress
-        data       = notifParams.data
-        
-        # print content (TODO: publish to back-end system instead)
-        output     = []
-        output    += ['']
-        output    += ['data notification']
-        output    += ['- ts :         {0:.6f}'.format(ts)]
-        output    += ['- macAddress : {0}'.format(FormatUtils.formatMacString(macAddress))]
-        output    += ['- data :       {0}'.format(FormatUtils.formatBuffer(data))]
-        output     = '\n'.join(output)
-        print output
-    
-    def _notifEventAll(self, notifName, notifParams):
-        
-        if   notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT:
-            self._notifHealthreport(notifName,notifParams)
-        else:
-            self._notifEvent(notifName,notifParams)
-    
-    def _notifHealthreport(self,notifName,notifParams):
-        
-        # extract the important data
-        macAddress = notifParams.macAddress
-        hr         = self.hrParser.parseHr(notifParams.payload)
-        
-        # print content (TODO: publish to back-end system instead)
-        output     = []
-        output    += ['']
-        output    += ['healthreport notification']
-        output    += ['- macAddress : {0}'.format(FormatUtils.formatMacString(macAddress))]
-        output    += ['- hr :         {0}'.format(self.hrParser.formatHr(hr))]
-        output     = '\n'.join(output)
-        print output
+        try:
+            assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFDATA
+            
+            # extract the important data
+            netTs      = float(notifParams.utcSecs)+float(notifParams.utcUsecs/1000000.0)
+            macAddress = notifParams.macAddress
+            srcPort    = notifParams.srcPort
+            dstPort    = notifParams.dstPort
+            data       = notifParams.data
+            
+            isSol = False
+            
+            if dstPort==SolDefines.SOL_PORT:
+                # try to decode as objects
+                try:
+                    raise NotImplementedError()
+                except:
+                    pass
+                else:
+                    isSol = True
+            
+            if not isSol:
+                
+                # create sensor object (NOTIF_DATA_RAW)
+                sobject = {
+                    'mac':       macAddress,
+                    'timestamp': self._netTsToEpoch(netTs),
+                    'type':      SolDefines.SOL_TYPE_NOTIF_DATA_RAW,
+                    'value':     self.sol.create_value_NOTIF_DATA_RAW(
+                        srcPort = srcPort,
+                        dstPort = dstPort,
+                        payload = data,
+                    ),
+                }
+            
+            # publish sensor object
+            self._publishObject(sobject)
+            
+        except Exception as err:
+            printException(err)
     
     def _notifEvent(self,notifName,notifParams):
         
-        print "\n\nTODO _notifEvent"
-        print notifName
-        print notifParams
+        try:
+            assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFEVENT
+            
+            # extract the important data
+            eventId    = notifParams.eventId
+            eventType  = notifParams.eventType
+            data       = notifParams.eventData
+            
+            # create sensor object (SOL_TYPE_NOTIF_EVENT)
+            sobject = {
+                'mac':       self._managerMac(),
+                'timestamp': time.gmtime(),
+                'type':      SolDefines.SOL_TYPE_NOTIF_EVENT,
+                'value':     self.sol.create_value_NOTIF_EVENT(
+                    eventID       = eventId,
+                    eventType     = eventType,
+                    payload       = data,
+                ),
+            }
+            
+            # publish sensor object
+            self._publishObject(sobject)
+            
+        except Exception as err:
+            printException(err)
     
-    def _notifDisconnected(self,notifName,notifParams):
+    def _notifHealthReport(self,notifName,notifParams):
+        try:
+            assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT 
+            
+            # extract the important data
+            netTs      = float(notifParams.utcSecs)+float(notifParams.utcUsecs/1000000.0)
+            macAddress = notifParams.macAddress
+            data       = notifParams.data
+            
+            # create sensor object (SOL_TYPE_NOTIF_HEALTHREPORT)
+            sobject = {
+                'mac':       macAddress,
+                'timestamp': self._netTsToEpoch(netTs),
+                'type':      SolDefines.SOL_TYPE_NOTIF_HEALTHREPORT,
+                'value':     data,
+            }
+            
+            # publish sensor object
+            self._publishObject(sobject)
+            
+        except Exception as err:
+            printException(err)
+    
+    def _notifIPData(self, notifName, notifParams):
+        try:
+            assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFIPDATA
+            
+            # create sensor object (SOL_TYPE_NOTIF_IPDATA)
+            sobject = {
+                'mac':       macAddress,
+                'timestamp': time.gmtime(),
+                'type':      SolDefines.SOL_TYPE_NOTIF_IPDATA,
+                'value':     data,
+            }
+            
+            # publish sensor object
+            self._publishObject(sobject)
+            
+        except Exception as err:
+            printException(err)
+    
+    def _notifErrorFinish(self,notifName,notifParams):
         
-        if not self.reconnectEvent.isSet():
-            self.reconnectEvent.set()
-
+        try:
+            assert notifName in [
+                IpMgrSubscribe.IpMgrSubscribe.ERROR,
+                IpMgrSubscribe.IpMgrSubscribe.FINISH,
+            ]
+            
+            if not self.reconnectEvent.isSet():
+                self.reconnectEvent.set()
+        except Exception as err:
+            printException(err)
+    
+    #=== misc
+    
+    def _netTsToEpoch(self,netTs):
+        print "todo _networkTsToEpoch()"
+        return time.gmtime()
+    
+    def _publishObject(self,object):
+        print "========== _publishObject"
+        print "TODO store to file" 
+        print "TODO send to server" 
+    
 class JsonThread(threading.Thread):
     
     def __init__(self,tcpport):
@@ -193,11 +319,15 @@ class JsonThread(threading.Thread):
         self.start()
     
     def run(self):
+        
+        # wait for banner to print
+        time.sleep(0.5)
+        
         self.web.run(
             host   = 'localhost',
             port   = self.tcpport,
-            quiet  = False,
-            debug  = True,
+            quiet  = True,
+            debug  = False,
         )
     
     #======================== public ==========================================
@@ -220,11 +350,11 @@ class JsonThread(threading.Thread):
 class Basestation(object):
     
     def __init__(self,serialport,tcpport):
-        self.dustThread = DustThread(serialport)
-        self.jsonThread = JsonThread(tcpport)
+        self.dustApiThread   = DustApiThread(serialport)
+        self.jsonThread      = JsonThread(tcpport)
     
     def close(self):
-        self.dustThread.close()
+        self.dustApiThread.close()
         self.jsonThread.close()
 
 #============================ main ============================================
