@@ -365,10 +365,8 @@ class JsonThread(threading.Thread):
     #======================== private ==========================================
     
     def _cb_echo_POST(self):
-        # TODO: implement (#6)
-        bottle.response.status = 501
-        bottle.response.content_type = 'application/json'
-        return json.dumps({'error': 'Not Implemented yet :-('})
+        bottle.response.content_type = bottle.request.content_type
+        return bottle.request.body.read()
     
     def _cb_status_GET(self):
         # TODO: implement (#7)
