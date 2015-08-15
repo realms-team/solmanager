@@ -40,9 +40,11 @@ DEFAULT_TCPPORT    = 8080
 #============================ helpers =========================================
 
 def printException(err):
+    import traceback
     output  = []
     output += ["ERROR:"]
     output += [str(err)]
+    output += [traceback.format_exc()]
     output  = '\n'.join(output)
     print output
 
@@ -84,11 +86,11 @@ class DustThread(threading.Thread):
                 })
                 
                 # get MAC address of manager
-                temp = self.dn_getSystemInfo()
+                temp = self.connector.dn_getSystemInfo()
                 self.managerMac = temp.macAddress
                 
                 # sync network-UTC time
-                temp  = self.dn_getTime()
+                temp  = self.connector.dn_getTime()
                 netTs = self._calcNetTs(temp)
                 self._syncNetTsToUtc(netTs)
                 
@@ -139,9 +141,9 @@ class DustThread(threading.Thread):
                     isRlbl =        True,
                 )
                 
-                print "TODO: periodically sync NetTs to UTC (#4)" 
-                
             except Exception as err:
+                
+                print err
                 print 'FAIL.'
                 
                 try:
@@ -223,30 +225,128 @@ class DustThread(threading.Thread):
     def _notifEvent(self,notifName,notifParams):
         
         try:
-            assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFEVENT
+            # create appropriate object
+            
+            sobject = {
+                'mac':       self.managerMac,
+                'timestamp': time.time(),
+            }
+            
+            if   notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTCOMMANDFINISHED:
+                sobject['type']   = SolDefines.NOTIF_EVENT_COMMANDFINISHED
+                sobject['value']  = self.sol.create_value_NOTIF_EVENT_COMMANDFINISHED(
+                    callbackId    = notifParams.callbackId,
+                    rc            = notifParams.rc,
+                )
+            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPATHCREATE:
+                sobject['type']   = SolDefines.NOTIF_EVENT_PATHCREATE
+                sobject['value']  = self.sol.create_value_NOTIF_EVENT_PATHCREATE(
+                    source        = notifParams.source,
+                    dest          = notifParams.dest,
+                    direction     = notifParams.direction,
+                )
+            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPATHDELETE:
+                sobject['type']   = SolDefines.NOTIF_EVENT_PATHDELETE
+                sobject['value']  = self.sol.poipoi(
+                    poipoi
+                )
+            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPING:
+                sobject['type']   = SolDefines.NOTIF_EVENT_PING
+                sobject['value']  = self.sol.poipoi(
+                    poipoi
+                )
+            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTNETWORKTIME:
+                sobject['type']   = SolDefines.NOTIF_EVENT_NETWORKTIME
+                sobject['value']  = self.sol.poipoi(
+                    poipoi
+                )
+            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTNETWORKRESET:
+                sobject['type']   = SolDefines.NOTIF_EVENT_NETWORKRESET
+                sobject['value']  = self.sol.poipoi(
+                    poipoi
+                )
+            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEJOIN:
+                sobject['type']   = SolDefines.NOTIF_EVENT_MOTEJOIN
+                sobject['value']  = self.sol.poipoi(
+                    poipoi
+                )
+            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTECREATE:
+                sobject['type']   = SolDefines.NOTIF_EVENT_MOTECREATE
+                sobject['value']  = self.sol.poipoi(
+                    poipoi
+                )
+            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEDELETE:
+                sobject['type']   = SolDefines.NOTIF_EVENT_MOTEDELETE
+                sobject['value']  = self.sol.poipoi(
+                    poipoi
+                )
+            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTELOST:
+                sobject['type']   = SolDefines.NOTIF_EVENT_MOTELOST
+                sobject['value']  = self.sol.poipoi(
+                    poipoi
+                )
+            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEOPERATIONAL:
+                sobject['type']   = SolDefines.NOTIF_EVENT_MOTEOPERATIONAL
+                sobject['value']  = self.sol.poipoi(
+                    poipoi
+                )
+            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTERESET:
+                sobject['type']   = SolDefines.NOTIF_EVENT_MOTERESET
+                sobject['value']  = self.sol.poipoi(
+                    poipoi
+                )
+            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPACKETSENT:
+                sobject['type']   = SolDefines.NOTIF_EVENT_PACKETSENT
+                sobject['value']  = self.sol.poipoi(
+                    poipoi
+                )
+            else:
+                raise SystemError("Unexpected notifName={0}".format(notifName))
+            
+            
+            print notifParams
             
             # extract the important data
             eventId    = notifParams.eventId
             eventType  = notifParams.eventType
             data       = notifParams.eventData
             
-            # create sensor object (SOL_TYPE_NOTIF_EVENT)
-            sobject = {
-                'mac':       self.managerMac,
-                'timestamp': time.gmtime(),
-                'type':      SolDefines.SOL_TYPE_NOTIF_EVENT,
-                'value':     self.sol.create_value_NOTIF_EVENT(
-                    eventID       = eventId,
-                    eventType     = eventType,
-                    payload       = data,
-                ),
-            }
+            print eventId
+            print eventType
+            print notifName
             
             # publish sensor object
             self._publishObject(sobject)
             
         except Exception as err:
             printException(err)
+    
+    def _notifEventCommandFinished(self,notifName,notifParams):
+        raise NotImplementedError()
+    def _notifEventPathCreate(self,notifName,notifParams):
+        raise NotImplementedError()
+    def _notifEventPathDelete(self,notifName,notifParams):
+        raise NotImplementedError()
+    def _notifEventPing(self,notifName,notifParams):
+        raise NotImplementedError()
+    def _notifEventNetworkTime(self,notifName,notifParams):
+        raise NotImplementedError()
+    def _notifEventNetworkReset(self,notifName,notifParams):
+        raise NotImplementedError()
+    def _notifEventMoteJoin(self,notifName,notifParams):
+        raise NotImplementedError()
+    def _notifEventMoteCreate(self,notifName,notifParams):
+        raise NotImplementedError()
+    def _notifEventMoteDelete(self,notifName,notifParams):
+        raise NotImplementedError()
+    def _notifEventMoteLost(self,notifName,notifParams):
+        raise NotImplementedError()
+    def _notifEventMoteOperational(self,notifName,notifParams):
+        raise NotImplementedError()
+    def _notifEventMoteReset(self,notifName,notifParams):
+        raise NotImplementedError()
+    def _notifEventPacketSent(self,notifName,notifParams):
+        raise NotImplementedError()
     
     def _notifHealthReport(self,notifName,notifParams):
         
@@ -291,6 +391,29 @@ class DustThread(threading.Thread):
         except Exception as err:
             printException(err)
     
+    def _notifLog(self, notifName, notifParams):
+        
+        try:
+            assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFLOG
+            
+            # extract the important data
+            macAddress = notifParams.macAddress
+            data       = notifParams.logMsg
+            
+            # create sensor object (SOL_TYPE_NOTIF_LOG)
+            sobject = {
+                'mac':       macAddress,
+                'timestamp': time.time(),
+                'type':      SolDefines.SOL_TYPE_NOTIF_LOG,
+                'value':     data,
+            }
+            
+            # publish sensor object
+            self._publishObject(sobject)
+            
+        except Exception as err:
+            printException(err)
+    
     def _notifErrorFinish(self,notifName,notifParams):
         
         try:
@@ -311,7 +434,7 @@ class DustThread(threading.Thread):
     
     def _syncNetTsToUtc(self,netTs):
         with self.dataLock:
-            self.tsDiff = time.gmtime()-netTs
+            self.tsDiff = time.time()-netTs
     
     def _netTsToEpoch(self,netTs):
         with self.dataLock:
@@ -319,6 +442,7 @@ class DustThread(threading.Thread):
     
     def _publishObject(self,object):
         print "========== _publishObject"
+        print object
         print "TODO store to file" 
         print "TODO send to server" 
 
