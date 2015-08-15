@@ -541,15 +541,7 @@ def main(serialport,tcpport):
         quitCallback,
         [
             ("SmartMesh SDK",sdk_version.VERSION),
-            (
-                "Sol",
-                (
-                    SolVersion.SOL_VERSION['SOL_VERSION_MAJOR'],
-                    SolVersion.SOL_VERSION['SOL_VERSION_MINOR'],
-                    SolVersion.SOL_VERSION['SOL_VERSION_PATCH'],
-                    SolVersion.SOL_VERSION['SOL_VERSION_BUILD'],
-                ),
-            ),
+            ("Sol",SolVersion.VERSION),
         ],
     )
 
