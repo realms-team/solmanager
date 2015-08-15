@@ -513,7 +513,7 @@ class Basestation(object):
         self.jsonThread = JsonThread(tcpport)
     
     def close(self):
-        self.dustApiThread.close()
+        self.dustThread.close()
         self.jsonThread.close()
 
 #============================ main ============================================
