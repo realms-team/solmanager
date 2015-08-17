@@ -83,8 +83,9 @@ class DustThread(threading.Thread):
     
     def runSimulation(self):
         
-        FAKEMAC_MGR  = [1]*8
-        FAKEMAC_MOTE = [2]*8
+        FAKEMAC_MGR     = [0x0a]*8
+        FAKEMAC_MOTE_1  = [1]*8
+        FAKEMAC_MOTE_2  = [2]*8
         
         RANDOMACTION = [
             (
@@ -97,6 +98,125 @@ class DustThread(threading.Thread):
                     srcPort       = 1234,
                     dstPort       = 1234,
                     data          = range(10),
+                ),
+            ),
+            (
+                self._notifEvent,
+                IpMgrSubscribe.IpMgrSubscribe.EVENTCOMMANDFINISHED,
+                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventCommandFinished(
+                    eventId       = 0x11,
+                    callbackId    = 0x22,
+                    rc            = 0x33,
+                ),
+            ),
+            (
+                self._notifEvent,
+                IpMgrSubscribe.IpMgrSubscribe.EVENTPATHCREATE,
+                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventPathCreate(
+                    eventId       = 0x11,
+                    source        = FAKEMAC_MOTE_1,
+                    dest          = FAKEMAC_MOTE_2,
+                    direction     = 0x33,
+                ),
+            ),
+            (
+                self._notifEvent,
+                IpMgrSubscribe.IpMgrSubscribe.EVENTPATHDELETE,
+                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventPathDelete(
+                    eventId       = 0x11,
+                    source        = FAKEMAC_MOTE_1,
+                    dest          = FAKEMAC_MOTE_2,
+                    direction     = 0x33,
+                ),
+            ),
+            (
+                self._notifEvent,
+                IpMgrSubscribe.IpMgrSubscribe.EVENTPINGRESPONSE,
+                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventPingResponse(
+                    eventId       = 0x11,
+                    callbackId    = 0x22,
+                    macAddress    = FAKEMAC_MOTE_1,
+                    delay         = 0x33,
+                    voltage       = 0x44,
+                    temperature   = 0x55,
+                ),
+            ),
+            (
+                self._notifEvent,
+                IpMgrSubscribe.IpMgrSubscribe.EVENTNETWORKTIME,
+                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventNetworkTime(
+                    eventId       = 0x11,
+                    uptime        = 0x22,
+                    utcSecs       = 0,
+                    utcUsecs      = 0,
+                    asn           = (1,1,1,1,1),
+                    asnOffset     = 0x33,
+                ),
+            ),
+            (
+                self._notifEvent,
+                IpMgrSubscribe.IpMgrSubscribe.EVENTNETWORKRESET,
+                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventNetworkReset(
+                    eventId       = 0x11,
+                ),
+            ),
+            (
+                self._notifEvent,
+                IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEJOIN,
+                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventMoteJoin(
+                    eventId       = 0x11,
+                    macAddress    = FAKEMAC_MOTE_1,
+                ),
+            ),
+            (
+                self._notifEvent,
+                IpMgrSubscribe.IpMgrSubscribe.EVENTMOTECREATE,
+                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventMoteCreate(
+                    eventId       = 0x11,
+                    macAddress    = FAKEMAC_MOTE_1,
+                    moteId        = 0x22,
+                ),
+            ),
+            (
+                self._notifEvent,
+                IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEDELETE,
+                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventMoteDelete(
+                    eventId       = 0x11,
+                    macAddress    = FAKEMAC_MOTE_1,
+                    moteId        = 0x22,
+                ),
+            ),
+            (
+                self._notifEvent,
+                IpMgrSubscribe.IpMgrSubscribe.EVENTMOTELOST,
+                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventMoteLost(
+                    eventId       = 0x11,
+                    macAddress    = FAKEMAC_MOTE_1,
+                ),
+            ),
+            (
+                self._notifEvent,
+                IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEOPERATIONAL,
+                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventMoteOperational(
+                    eventId       = 0x11,
+                    macAddress    = FAKEMAC_MOTE_1,
+                ),
+            ),
+            (
+                self._notifEvent,
+                IpMgrSubscribe.IpMgrSubscribe.EVENTMOTERESET,
+                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventMoteReset(
+                    eventId       = 0x11,
+                    macAddress    = FAKEMAC_MOTE_1,
+                ),
+            ),
+            (
+                self._notifEvent,
+                IpMgrSubscribe.IpMgrSubscribe.EVENTPACKETSENT,
+                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventPacketSent(
+                    eventId       = 0x11,
+                    callbackId    = 0x22,
+                    rc            = 0x33,
                 ),
             ),
         ]
@@ -112,10 +232,9 @@ class DustThread(threading.Thread):
             # issues a random action
             (func,notifName,notifParams) = random.choice(RANDOMACTION)
             func(notifName,notifParams)
-            print func
             
             # sleep some random time
-            time.sleep(random.randint(2,5))
+            time.sleep(random.randint(1,1))
     
     def runHardware(self):
         
