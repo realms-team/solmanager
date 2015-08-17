@@ -14,6 +14,7 @@ if __name__ == "__main__":
 import time
 import threading
 import json
+import random
 from   optparse                             import OptionParser
 
 import OpenCli
@@ -24,7 +25,8 @@ from   SmartMeshSDK                         import FormatUtils, \
                                                    HrParser,    \
                                                    sdk_version
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
-from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrSubscribe
+from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrConnectorMux, \
+                                                   IpMgrSubscribe
 
 # JsonThread
 import bottle
@@ -39,11 +41,10 @@ DEFAULT_TCPPORT    = 8080
 
 #============================ helpers =========================================
 
-def printException(err):
+def printCrash():
     import traceback
     output  = []
-    output += ["ERROR:"]
-    output += [str(err)]
+    output += ["CRASH in Thread {0}!".format(self.name)]
     output += [traceback.format_exc()]
     output  = '\n'.join(output)
     print output
@@ -52,10 +53,11 @@ def printException(err):
 
 class DustThread(threading.Thread):
     
-    def __init__(self, serialport):
+    def __init__(self,serialport,simulation=False):
         
         # store params
         self.serialport      = serialport
+        self.simulation      = simulation
         
         # local variables
         self.reconnectEvent  = threading.Event()
@@ -73,6 +75,49 @@ class DustThread(threading.Thread):
         
         # wait for banner to print
         time.sleep(0.5)
+        
+        if self.simulation:
+            self.runSimulation()
+        else:
+            self.runHardware()
+    
+    def runSimulation(self):
+        
+        FAKEMAC_MGR  = [1]*8
+        FAKEMAC_MOTE = [2]*8
+        
+        RANDOMACTION = [
+            (
+                self._notifData,
+                IpMgrSubscribe.IpMgrSubscribe.NOTIFDATA,
+                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_notifData(
+                    utcSecs       = 0,
+                    utcUsecs      = 0,
+                    macAddress    = FAKEMAC_MGR,
+                    srcPort       = 1234,
+                    dstPort       = 1234,
+                    data          = range(10),
+                ),
+            ),
+        ]
+        
+        # get (fake) MAC address of manager
+        self.managerMac = FAKEMAC_MGR
+        
+        # sync (fake) network-UTC time
+        self._syncNetTsToUtc(time.time())
+        
+        while self.goOn:
+            
+            # issues a random action
+            (func,notifName,notifParams) = random.choice(RANDOMACTION)
+            func(notifName,notifParams)
+            print func
+            
+            # sleep some random time
+            time.sleep(random.randint(2,5))
+    
+    def runHardware(self):
         
         while self.goOn:
             
@@ -219,8 +264,8 @@ class DustThread(threading.Thread):
             # publish sensor object
             self._publishObject(sobject)
             
-        except Exception as err:
-            printException(err)
+        except Exception:
+            printCrash()
     
     def _notifEvent(self,notifName,notifParams):
         
@@ -318,8 +363,8 @@ class DustThread(threading.Thread):
             # publish sensor object
             self._publishObject(sobject)
             
-        except Exception as err:
-            printException(err)
+        except Exception:
+            printCrash()
     
     def _notifHealthReport(self,notifName,notifParams):
         
@@ -342,8 +387,8 @@ class DustThread(threading.Thread):
             # publish sensor object
             self._publishObject(sobject)
             
-        except Exception as err:
-            printException(err)
+        except Exception:
+            printCrash()
     
     def _notifIPData(self, notifName, notifParams):
         
@@ -361,8 +406,8 @@ class DustThread(threading.Thread):
             # publish sensor object
             self._publishObject(sobject)
             
-        except Exception as err:
-            printException(err)
+        except Exception:
+            printCrash()
     
     def _notifLog(self, notifName, notifParams):
         
@@ -384,8 +429,8 @@ class DustThread(threading.Thread):
             # publish sensor object
             self._publishObject(sobject)
             
-        except Exception as err:
-            printException(err)
+        except Exception:
+            printCrash()
     
     def _notifErrorFinish(self,notifName,notifParams):
         
@@ -397,8 +442,8 @@ class DustThread(threading.Thread):
             
             if not self.reconnectEvent.isSet():
                 self.reconnectEvent.set()
-        except Exception as err:
-            printException(err)
+        except Exception:
+            printCrash()
     
     #=== misc
     
@@ -415,6 +460,34 @@ class DustThread(threading.Thread):
     
     def _publishObject(self,object):
         print "========== _publishObject 0x{0:02x}".format(object['type'])
+
+class FileThread(threading.Thread):
+    def __init__(self):
+        self.goOn = True
+        # start the thread
+        threading.Thread.__init__(self)
+        self.name       = 'FileThread'
+        self.start()
+    def run(self):
+        while self.goOn:
+            time.sleep(1)
+    def close(self):
+        self.goOn = False
+
+class SendThread(threading.Thread):
+    def __init__(self):
+        self.goOn = True
+        # start the thread
+        threading.Thread.__init__(self)
+        self.name       = 'SendThread'
+        self.start()
+    def run(self):
+        while self.goOn:
+            time.sleep(1)
+    def publish(self,o):
+        pass
+    def close(self):
+        self.goOn = False
 
 class JsonThread(threading.Thread):
     
@@ -507,13 +580,15 @@ class JsonThread(threading.Thread):
 class Basestation(object):
     
     def __init__(self,serialport,tcpport):
-        self.dustThread = DustThread(serialport)
-        # TODO: add DataThread which periodically stores data to file (#14)
-        # TODO: add SendThread which periodically sends data to server (#15)
+        self.dustThread = DustThread(serialport,simulation=True)
+        self.fileThread = FileThread()
+        self.sendThread = SendThread()
         self.jsonThread = JsonThread(tcpport)
     
     def close(self):
         self.dustThread.close()
+        self.fileThread.close()
+        self.sendThread.close()
         self.jsonThread.close()
 
 #============================ main ============================================
