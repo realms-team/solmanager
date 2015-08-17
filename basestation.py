@@ -239,7 +239,7 @@ class DustThread(threading.Thread):
             ),
             (
                 self._notifLog,
-                IpMgrSubscribe.IpMgrSubscribe.NOTIFIPDATA,
+                IpMgrSubscribe.IpMgrSubscribe.NOTIFLOG,
                 IpMgrConnectorMux.IpMgrConnectorMux.Tuple_notifLog(
                     macAddress    = FAKEMAC_MOTE_1,
                     logMsg        = [1]*10,
@@ -375,7 +375,6 @@ class DustThread(threading.Thread):
             assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFDATA
             
             # extract the important data
-            netTs      = self._calcNetTs(notifParams)
             macAddress = notifParams.macAddress
             srcPort    = notifParams.srcPort
             dstPort    = notifParams.dstPort
@@ -397,7 +396,7 @@ class DustThread(threading.Thread):
                 # create sensor object (NOTIF_DATA_RAW)
                 sobject = {
                     'mac':       macAddress,
-                    'timestamp': self._netTsToEpoch(netTs),
+                    'timestamp': time.time(),
                     'type':      SolDefines.SOL_TYPE_NOTIF_DATA_RAW,
                     'value':     self.sol.create_value_SOL_TYPE_NOTIF_DATA_RAW(
                         srcPort = srcPort,
@@ -455,8 +454,8 @@ class DustThread(threading.Thread):
                 sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_NETWORKTIME
                 sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_NETWORKTIME(
                     uptime        = notifParams.uptime,
-                    utcTimeSec    = notifParams.utcTimeSec,
-                    utcTimeUsec   = notifParams.utcTimeUsec,
+                    utcSecs       = notifParams.utcSecs,
+                    utcUsecs      = notifParams.utcUsecs,
                     asn           = notifParams.asn,
                     asnOffset     = notifParams.asnOffset,
                 )
@@ -517,16 +516,15 @@ class DustThread(threading.Thread):
             assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT 
             
             # extract the important data
-            netTs      = self._calcNetTs(notifParams)
             macAddress = notifParams.macAddress
-            data       = notifParams.data
+            payload    = notifParams.payload
             
             # create sensor object (SOL_TYPE_NOTIF_HEALTHREPORT)
             sobject = {
                 'mac':       macAddress,
-                'timestamp': self._netTsToEpoch(netTs),
+                'timestamp': time.time(),
                 'type':      SolDefines.SOL_TYPE_NOTIF_HEALTHREPORT,
-                'value':     data,
+                'value':     payload,
             }
             
             # publish sensor object
@@ -540,10 +538,15 @@ class DustThread(threading.Thread):
         try:
             assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFIPDATA
             
+            # extract the important data
+            netTs      = self._calcNetTs(notifParams)
+            macAddress = notifParams.macAddress
+            data       = notifParams.data
+            
             # create sensor object (SOL_TYPE_NOTIF_IPDATA)
             sobject = {
                 'mac':       macAddress,
-                'timestamp': time.gmtime(),
+                'timestamp': self._netTsToEpoch(netTs),
                 'type':      SolDefines.SOL_TYPE_NOTIF_IPDATA,
                 'value':     data,
             }
