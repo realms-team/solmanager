@@ -399,7 +399,7 @@ class DustThread(threading.Thread):
                     'mac':       macAddress,
                     'timestamp': self._netTsToEpoch(netTs),
                     'type':      SolDefines.SOL_TYPE_NOTIF_DATA_RAW,
-                    'value':     self.sol.create_value_NOTIF_DATA_RAW(
+                    'value':     self.sol.create_value_SOL_TYPE_NOTIF_DATA_RAW(
                         srcPort = srcPort,
                         dstPort = dstPort,
                         payload = data,
@@ -424,27 +424,27 @@ class DustThread(threading.Thread):
             
             if   notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTCOMMANDFINISHED:
                 sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_COMMANDFINISHED
-                sobject['value']  = self.sol.create_value_NOTIF_EVENT_COMMANDFINISHED(
+                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_COMMANDFINISHED(
                     callbackId    = notifParams.callbackId,
                     rc            = notifParams.rc,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPATHCREATE:
                 sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_PATHCREATE
-                sobject['value']  = self.sol.create_value_NOTIF_EVENT_PATHCREATE(
+                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_PATHCREATE(
                     source        = notifParams.source,
                     dest          = notifParams.dest,
                     direction     = notifParams.direction,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPATHDELETE:
                 sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_PATHDELETE
-                sobject['value']  = self.sol.create_value_NOTIF_EVENT_PATHDELETE(
+                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_PATHDELETE(
                     source        = notifParams.source,
                     dest          = notifParams.dest,
                     direction     = notifParams.direction,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPINGRESPONSE:
                 sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_PING
-                sobject['value']  = self.sol.create_value_NOTIF_EVENT_PING(
+                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_PING(
                     callbackId    = notifParams.callbackId,
                     macAddress    = notifParams.macAddress,
                     delay         = notifParams.delay,
@@ -453,7 +453,7 @@ class DustThread(threading.Thread):
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTNETWORKTIME:
                 sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_NETWORKTIME
-                sobject['value']  = self.sol.create_value_NOTIF_EVENT_NETWORKTIME(
+                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_NETWORKTIME(
                     uptime        = notifParams.uptime,
                     utcTimeSec    = notifParams.utcTimeSec,
                     utcTimeUsec   = notifParams.utcTimeUsec,
@@ -462,43 +462,43 @@ class DustThread(threading.Thread):
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTNETWORKRESET:
                 sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_NETWORKRESET
-                sobject['value']  = self.sol.create_value_NOTIF_EVENT_NETWORKRESET(
+                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_NETWORKRESET(
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEJOIN:
                 sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTEJOIN
-                sobject['value']  = self.sol.create_value_NOTIF_EVENT_MOTEJOIN(
+                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_MOTEJOIN(
                     macAddress    = notifParams.macAddress,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTECREATE:
                 sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTECREATE
-                sobject['value']  = self.sol.create_value_NOTIF_EVENT_MOTECREATE(
+                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_MOTECREATE(
                     macAddress    = notifParams.macAddress,
                     moteId        = notifParams.moteId,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEDELETE:
                 sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTEDELETE
-                sobject['value']  = self.sol.create_value_NOTIF_EVENT_MOTEDELETE(
+                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_MOTEDELETE(
                     macAddress    = notifParams.macAddress,
                     moteId        = notifParams.moteId,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTELOST:
                 sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTELOST
-                sobject['value']  = self.sol.create_value_NOTIF_EVENT_MOTELOST(
+                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_MOTELOST(
                     macAddress    = notifParams.macAddress,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEOPERATIONAL:
                 sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTEOPERATIONAL
-                sobject['value']  = self.sol.create_value_NOTIF_EVENT_MOTEOPERATIONAL(
+                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_MOTEOPERATIONAL(
                     macAddress    = notifParams.macAddress,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTERESET:
                 sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTERESET
-                sobject['value']  = self.sol.create_value_NOTIF_EVENT_MOTERESET(
+                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_MOTERESET(
                     macAddress    = notifParams.macAddress,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPACKETSENT:
                 sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_PACKETSENT
-                sobject['value']  = self.sol.create_value_NOTIF_EVENT_PACKETSENT(
+                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_PACKETSENT(
                     callbackId    = notifParams.callbackId,
                     rc            = notifParams.rc,
                 )
