@@ -253,14 +253,19 @@ class DustThread(threading.Thread):
         # sync (fake) network-UTC time
         self._syncNetTsToUtc(time.time())
         
+        lastActionIndex = 0
+        
         while self.goOn:
             
             # issues a random action
-            (func,notifName,notifParams) = random.choice(RANDOMACTION)
+            #(func,notifName,notifParams) = random.choice(RANDOMACTION)
+            (func,notifName,notifParams) = RANDOMACTION[lastActionIndex]
+            lastActionIndex = (lastActionIndex+1)%len(RANDOMACTION)
             func(notifName,notifParams)
             
             # sleep some random time
-            time.sleep(random.randint(1,1))
+            #time.sleep(random.randint(1,6))
+            time.sleep(0.5)
     
     def runHardware(self):
         
@@ -607,7 +612,18 @@ class DustThread(threading.Thread):
             return netTs+self.tsDiff
     
     def _publishObject(self,object):
-        print "========== _publishObject {0}".format(SolDefines.solTypeToString(SolDefines,object['type']))
+        
+        assert sorted(object.keys()) == sorted(['mac','type','timestamp','value'])
+        assert type(object['mac'])==list
+        for b in object['mac']:
+            assert type(b)==int
+        assert type(object['type'])==int
+        assert type(object['timestamp'])==float
+        assert type(object['value'])==list
+        for b in object['value']:
+            assert type(b)==int
+        
+        print "========== _publishObject {0}: {1}".format(SolDefines.solTypeToString(SolDefines,object['type']),object)
 
 class FileThread(threading.Thread):
     def __init__(self):
