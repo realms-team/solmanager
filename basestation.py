@@ -604,7 +604,7 @@ class DustThread(threading.Thread):
             return netTs+self.tsDiff
     
     def _publishObject(self,object):
-        print "========== _publishObject 0x{0:02x}".format(object['type'])
+        print "========== _publishObject {0}".format(SolDefines.solTypeToString(SolDefines,object['type']))
 
 class FileThread(threading.Thread):
     def __init__(self):
