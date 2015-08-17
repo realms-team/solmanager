@@ -41,10 +41,10 @@ DEFAULT_TCPPORT    = 8080
 
 #============================ helpers =========================================
 
-def printCrash():
+def printCrash(threadName):
     import traceback
     output  = []
-    output += ["CRASH in Thread {0}!".format(self.name)]
+    output += ["CRASH in Thread {0}!".format(threadName)]
     output += [traceback.format_exc()]
     output  = '\n'.join(output)
     print output
@@ -219,6 +219,32 @@ class DustThread(threading.Thread):
                     rc            = 0x33,
                 ),
             ),
+            (
+                self._notifHealthReport,
+                IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT,
+                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_notifHealthReport(
+                    macAddress    = FAKEMAC_MOTE_1,
+                    payload       = [1]*10,
+                ),
+            ),
+            (
+                self._notifIPData,
+                IpMgrSubscribe.IpMgrSubscribe.NOTIFIPDATA,
+                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_notifIpData(
+                    utcSecs       = 0,
+                    utcUsecs      = 0,
+                    macAddress    = FAKEMAC_MOTE_1,
+                    data          = [1]*10,
+                ),
+            ),
+            (
+                self._notifLog,
+                IpMgrSubscribe.IpMgrSubscribe.NOTIFIPDATA,
+                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_notifLog(
+                    macAddress    = FAKEMAC_MOTE_1,
+                    logMsg        = [1]*10,
+                ),
+            ),
         ]
         
         # get (fake) MAC address of manager
@@ -384,7 +410,7 @@ class DustThread(threading.Thread):
             self._publishObject(sobject)
             
         except Exception:
-            printCrash()
+            printCrash(self.name)
     
     def _notifEvent(self,notifName,notifParams):
         
@@ -397,27 +423,27 @@ class DustThread(threading.Thread):
             }
             
             if   notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTCOMMANDFINISHED:
-                sobject['type']   = SolDefines.NOTIF_EVENT_COMMANDFINISHED
+                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_COMMANDFINISHED
                 sobject['value']  = self.sol.create_value_NOTIF_EVENT_COMMANDFINISHED(
                     callbackId    = notifParams.callbackId,
                     rc            = notifParams.rc,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPATHCREATE:
-                sobject['type']   = SolDefines.NOTIF_EVENT_PATHCREATE
+                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_PATHCREATE
                 sobject['value']  = self.sol.create_value_NOTIF_EVENT_PATHCREATE(
                     source        = notifParams.source,
                     dest          = notifParams.dest,
                     direction     = notifParams.direction,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPATHDELETE:
-                sobject['type']   = SolDefines.NOTIF_EVENT_PATHDELETE
+                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_PATHDELETE
                 sobject['value']  = self.sol.create_value_NOTIF_EVENT_PATHDELETE(
                     source        = notifParams.source,
                     dest          = notifParams.dest,
                     direction     = notifParams.direction,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPINGRESPONSE:
-                sobject['type']   = SolDefines.NOTIF_EVENT_PING
+                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_PING
                 sobject['value']  = self.sol.create_value_NOTIF_EVENT_PING(
                     callbackId    = notifParams.callbackId,
                     macAddress    = notifParams.macAddress,
@@ -426,7 +452,7 @@ class DustThread(threading.Thread):
                     temperature   = notifParams.temperature,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTNETWORKTIME:
-                sobject['type']   = SolDefines.NOTIF_EVENT_NETWORKTIME
+                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_NETWORKTIME
                 sobject['value']  = self.sol.create_value_NOTIF_EVENT_NETWORKTIME(
                     uptime        = notifParams.uptime,
                     utcTimeSec    = notifParams.utcTimeSec,
@@ -435,43 +461,43 @@ class DustThread(threading.Thread):
                     asnOffset     = notifParams.asnOffset,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTNETWORKRESET:
-                sobject['type']   = SolDefines.NOTIF_EVENT_NETWORKRESET
+                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_NETWORKRESET
                 sobject['value']  = self.sol.create_value_NOTIF_EVENT_NETWORKRESET(
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEJOIN:
-                sobject['type']   = SolDefines.NOTIF_EVENT_MOTEJOIN
+                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTEJOIN
                 sobject['value']  = self.sol.create_value_NOTIF_EVENT_MOTEJOIN(
                     macAddress    = notifParams.macAddress,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTECREATE:
-                sobject['type']   = SolDefines.NOTIF_EVENT_MOTECREATE
+                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTECREATE
                 sobject['value']  = self.sol.create_value_NOTIF_EVENT_MOTECREATE(
                     macAddress    = notifParams.macAddress,
                     moteId        = notifParams.moteId,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEDELETE:
-                sobject['type']   = SolDefines.NOTIF_EVENT_MOTEDELETE
+                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTEDELETE
                 sobject['value']  = self.sol.create_value_NOTIF_EVENT_MOTEDELETE(
                     macAddress    = notifParams.macAddress,
                     moteId        = notifParams.moteId,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTELOST:
-                sobject['type']   = SolDefines.NOTIF_EVENT_MOTELOST
+                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTELOST
                 sobject['value']  = self.sol.create_value_NOTIF_EVENT_MOTELOST(
                     macAddress    = notifParams.macAddress,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEOPERATIONAL:
-                sobject['type']   = SolDefines.NOTIF_EVENT_MOTEOPERATIONAL
+                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTEOPERATIONAL
                 sobject['value']  = self.sol.create_value_NOTIF_EVENT_MOTEOPERATIONAL(
                     macAddress    = notifParams.macAddress,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTERESET:
-                sobject['type']   = SolDefines.NOTIF_EVENT_MOTERESET
+                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTERESET
                 sobject['value']  = self.sol.create_value_NOTIF_EVENT_MOTERESET(
                     macAddress    = notifParams.macAddress,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPACKETSENT:
-                sobject['type']   = SolDefines.NOTIF_EVENT_PACKETSENT
+                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_PACKETSENT
                 sobject['value']  = self.sol.create_value_NOTIF_EVENT_PACKETSENT(
                     callbackId    = notifParams.callbackId,
                     rc            = notifParams.rc,
@@ -483,7 +509,7 @@ class DustThread(threading.Thread):
             self._publishObject(sobject)
             
         except Exception:
-            printCrash()
+            printCrash(self.name)
     
     def _notifHealthReport(self,notifName,notifParams):
         
@@ -507,7 +533,7 @@ class DustThread(threading.Thread):
             self._publishObject(sobject)
             
         except Exception:
-            printCrash()
+            printCrash(self.name)
     
     def _notifIPData(self, notifName, notifParams):
         
@@ -526,7 +552,7 @@ class DustThread(threading.Thread):
             self._publishObject(sobject)
             
         except Exception:
-            printCrash()
+            printCrash(self.name)
     
     def _notifLog(self, notifName, notifParams):
         
@@ -549,7 +575,7 @@ class DustThread(threading.Thread):
             self._publishObject(sobject)
             
         except Exception:
-            printCrash()
+            printCrash(self.name)
     
     def _notifErrorFinish(self,notifName,notifParams):
         
@@ -562,7 +588,7 @@ class DustThread(threading.Thread):
             if not self.reconnectEvent.isSet():
                 self.reconnectEvent.set()
         except Exception:
-            printCrash()
+            printCrash(self.name)
     
     #=== misc
     
