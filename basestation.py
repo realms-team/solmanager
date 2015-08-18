@@ -38,7 +38,7 @@ import SolDefines
 
 DEFAULT_SERIALPORT           = 'COM14'
 DEFAULT_TCPPORT              = 8080
-DEFAULT_FILECOMMITDELAY_S    = 3
+DEFAULT_FILECOMMITDELAY_S    = 60
 DEFAULT_SENDCOMMITDELAY_S    = 11
 DEFAULT_FILENAME             = 'basestation.sol'
 
@@ -53,6 +53,28 @@ def printCrash(threadName):
     print output
 
 #============================ classes =========================================
+
+class Stats(object):
+    _instance = None
+    _init     = False
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(Stats,cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+    def __init__(self):
+        if self._init:
+            return
+        self._init    = True
+        self.dataLock = threading.RLock()
+        self.data     = {}
+    def incr(self,statName):
+        with self.dataLock:
+            if statName not in self.data:
+                self.data[statName] = 0
+            self.data[statName] += 1
+    def get(self):
+        with self.dataLock:
+            return self.data.copy()
 
 class DustThread(threading.Thread):
     
@@ -75,14 +97,16 @@ class DustThread(threading.Thread):
         self.start()
     
     def run(self):
-        
-        # wait for banner to print
-        time.sleep(0.5)
-        
-        if self.simulation:
-            self.runSimulation()
-        else:
-            self.runHardware()
+        try:        
+            # wait for banner to print
+            time.sleep(0.5)
+            
+            if self.simulation:
+                self.runSimulation()
+            else:
+                self.runHardware()
+        except:
+            printCrash(self.name)
     
     def runSimulation(self):
         
@@ -383,6 +407,7 @@ class DustThread(threading.Thread):
             assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFDATA
             
             # extract the important data
+            netTs      = self._calcNetTs(notifParams)
             macAddress = notifParams.macAddress
             srcPort    = notifParams.srcPort
             dstPort    = notifParams.dstPort
@@ -404,7 +429,7 @@ class DustThread(threading.Thread):
                 # create sensor object (NOTIF_DATA_RAW)
                 sobject = {
                     'mac':       macAddress,
-                    'timestamp': int(time.time()),
+                    'timestamp': self._netTsToEpoch(netTs),
                     'type':      SolDefines.SOL_TYPE_NOTIF_DATA_RAW,
                     'value':     self.sol.create_value_SOL_TYPE_NOTIF_DATA_RAW(
                         srcPort = srcPort,
@@ -604,7 +629,7 @@ class DustThread(threading.Thread):
     #=== misc
     
     def _calcNetTs(self,notif):
-        return float(notif.utcSecs)+float(notif.utcUsecs/1000000.0)
+        return int(float(notif.utcSecs)+float(notif.utcUsecs/1000000.0))
     
     def _syncNetTsToUtc(self,netTs):
         with self.dataLock:
@@ -640,13 +665,16 @@ class PublishThread(threading.Thread):
         self.name            = 'PublishThread'
         self.start()
     def run(self):
-        self.currentDelay = self.commitDelay
-        while self.goOn:
-            self.currentDelay -= 1
-            if self.currentDelay==0:
-                self.commit()
-                self.currentDelay = self.commitDelay
-            time.sleep(1)
+        try:
+            self.currentDelay = self.commitDelay
+            while self.goOn:
+                self.currentDelay -= 1
+                if self.currentDelay==0:
+                    self.commit()
+                    self.currentDelay = self.commitDelay
+                time.sleep(1)
+        except:
+            printCrash(self.name)
     def close(self):
         self.goOn = False
     def publish(self,object):
@@ -720,16 +748,18 @@ class JsonThread(threading.Thread):
         self.start()
     
     def run(self):
-        
-        # wait for banner to print
-        time.sleep(0.5)
-        
-        self.web.run(
-            host   = 'localhost',
-            port   = self.tcpport,
-            quiet  = True,
-            debug  = False,
-        )
+        try:
+            # wait for banner to print
+            time.sleep(0.5)
+            
+            self.web.run(
+                host   = 'localhost',
+                port   = self.tcpport,
+                quiet  = True,
+                debug  = False,
+            )
+        except:
+            printCrash(self.name)
     
     #======================== public ==========================================
     
@@ -743,10 +773,19 @@ class JsonThread(threading.Thread):
         return bottle.request.body.read()
     
     def _cb_status_GET(self):
-        # TODO: implement (#7)
-        bottle.response.status = 501
+        Stats().incr(self.STAT_NUM_REQ_RX)
+        
+        returnVal = {}
+        returnVal['version server']   = server_version.VERSION
+        returnVal['version Sol']      = SolVersion.VERSION
+        returnVal['uptime computer']  = self._exec_cmd('uptime')
+        returnVal['utc']              = int(time.time())
+        returnVal['date']             = time.strftime("%a, %d %b %Y %H:%M:%S", time.gmtime())
+        returnVal['last reboot']      = self._exec_cmd('last reboot')
+        returnVal['stats']            = Stats().get()
+        
         bottle.response.content_type = 'application/json'
-        return json.dumps({'error': 'Not Implemented yet :-('})
+        return json.dumps(returnVal)
     
     def _cb_config_POST(self):
         # TODO: implement (#8)
