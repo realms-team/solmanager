@@ -817,14 +817,15 @@ class JsonThread(threading.Thread):
         
         # initialize web server
         self.web        = bottle.Bottle()
-        self.web.route(path='/api/v1/echo.json',     method='POST', callback=self._cb_echo_POST)
-        self.web.route(path='/api/v1/status.json',   method='GET',  callback=self._cb_status_GET)
-        self.web.route(path='/api/v1/config.json',   method='GET',  callback=self._cb_config_GET)
-        self.web.route(path='/api/v1/config.json',   method='POST', callback=self._cb_config_POST)
-        self.web.route(path='/api/v1/flows.json',    method='GET',  callback=self._cb_flows_GET)
-        self.web.route(path='/api/v1/flows.json',    method='POST', callback=self._cb_flows_POST)
-        self.web.route(path='/api/v1/resend.json',   method='POST', callback=self._cb_resend_POST)
-        self.web.route(path='/api/v1/snapshot.json', method='POST', callback=self._cb_snapshot_POST)
+        self.web.route(path='/api/v1/echo.json',           method='POST', callback=self._cb_echo_POST)
+        self.web.route(path='/api/v1/status.json',         method='GET',  callback=self._cb_status_GET)
+        self.web.route(path='/api/v1/config.json',         method='GET',  callback=self._cb_config_GET)
+        self.web.route(path='/api/v1/config.json',         method='POST', callback=self._cb_config_POST)
+        self.web.route(path='/api/v1/flows.json',          method='GET',  callback=self._cb_flows_GET)
+        self.web.route(path='/api/v1/flows.json',          method='POST', callback=self._cb_flows_POST)
+        self.web.route(path='/api/v1/resend.json',         method='POST', callback=self._cb_resend_POST)
+        self.web.route(path='/api/v1/snapshot.json',       method='POST', callback=self._cb_snapshot_POST)
+        self.web.route(path='/api/v1/smartmeshipapi.json', method='POST', callback=self._cb_smartmeshipapi_POST)
         
         # start the thread
         threading.Thread.__init__(self)
@@ -981,6 +982,18 @@ class JsonThread(threading.Thread):
             raise
     
     def _cb_snapshot_POST(self):
+        self._authorizeClient()
+        try:
+            # TODO: implement (#13)
+            bottle.response.status = 501
+            bottle.response.content_type = 'application/json'
+            return json.dumps({'error': 'Not Implemented yet :-('})
+            
+        except Exception as err:
+            printCrash(self.name)
+            raise
+    
+    def _cb_smartmeshipapi_POST(self):
         self._authorizeClient()
         try:
             # TODO: implement (#13)
