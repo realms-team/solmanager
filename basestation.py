@@ -726,6 +726,8 @@ class SendThread(PublishThread):
 
 class JsonThread(threading.Thread):
     
+    STAT_NUM_REQ_RX = 'NUM_REQ_RX'
+    
     def __init__(self,tcpport):
         
         # store params
@@ -768,6 +770,8 @@ class JsonThread(threading.Thread):
     
     #======================== private ==========================================
     
+    #=== JSON request handler
+    
     def _cb_echo_POST(self):
         bottle.response.content_type = bottle.request.content_type
         return bottle.request.body.read()
@@ -776,15 +780,16 @@ class JsonThread(threading.Thread):
         Stats().incr(self.STAT_NUM_REQ_RX)
         
         returnVal = {}
-        returnVal['version server']   = server_version.VERSION
-        returnVal['version Sol']      = SolVersion.VERSION
-        returnVal['uptime computer']  = self._exec_cmd('uptime')
-        returnVal['utc']              = int(time.time())
-        returnVal['date']             = time.strftime("%a, %d %b %Y %H:%M:%S", time.gmtime())
-        returnVal['last reboot']      = self._exec_cmd('last reboot')
-        returnVal['stats']            = Stats().get()
+        returnVal['version basestation']    = basestation_version.VERSION
+        returnVal['version SmartMesh SDK']  = sdk_version.VERSION
+        returnVal['version Sol']            = SolVersion.VERSION
+        returnVal['uptime computer']        = self._exec_cmd('uptime')
+        returnVal['utc']                    = int(time.time())
+        returnVal['date']                   = time.strftime("%a, %d %b %Y %H:%M:%S", time.gmtime())
+        returnVal['last reboot']            = self._exec_cmd('last reboot')
+        returnVal['stats']                  = Stats().get()
         
-        bottle.response.content_type = 'application/json'
+        bottle.response.content_type        = 'application/json'
         return json.dumps(returnVal)
     
     def _cb_config_POST(self):
@@ -822,6 +827,16 @@ class JsonThread(threading.Thread):
         bottle.response.status = 501
         bottle.response.content_type = 'application/json'
         return json.dumps({'error': 'Not Implemented yet :-('})
+    
+    #=== misc
+    
+    def _exec_cmd(self,cmd):
+        returnVal = None
+        try:
+            returnVal = subprocess.check_output(cmd, shell=False)
+        except:
+            returnVal = "ERROR"
+        return returnVal
 
 class Basestation(object):
     
