@@ -28,6 +28,9 @@ from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
 from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrConnectorMux, \
                                                    IpMgrSubscribe
 
+# SendThread
+import requests
+
 # JsonThread
 import bottle
 import Sol
@@ -39,8 +42,12 @@ import SolDefines
 DEFAULT_SERIALPORT           = 'COM14'
 DEFAULT_TCPPORT              = 8080
 DEFAULT_FILECOMMITDELAY_S    = 60
-DEFAULT_SENDCOMMITDELAY_S    = 11
+DEFAULT_SENDCOMMITDELAY_S    = 3
 DEFAULT_FILENAME             = 'basestation.sol'
+DEFAULT_SERVER               = '127.0.0.1'
+DEFAULT_SERVERTOKEN          = 'DEFAULT_SERVERTOKEN'
+DEFAULT_SYNCPERIODMINUTES    = 1
+DEFAULT_BASESTATIONTOKEN     = 'DEFAULT_BASESTATIONTOKEN'
 
 #============================ helpers =========================================
 
@@ -716,13 +723,37 @@ class SendThread(PublishThread):
         if self._init:
             return
         self._init           = True
-        self.commitDelay = DEFAULT_SENDCOMMITDELAY_S
+        self.commitDelay     = DEFAULT_SENDCOMMITDELAY_S
+        self.server          = DEFAULT_SERVER
+        self.serverToken     = DEFAULT_SERVERTOKEN
         PublishThread.__init__(self)
         self.name       = 'SendThread'
     def commit(self):
+        # stop if nothing to publish
+        if not self.objectsToCommit:
+            return
+        
+        # prepare payload
         with self.dataLock:
-            print "TODO SendThread commit"
-            self.objectsToCommit = []
+            payload = 'poipoi'
+        
+        # post
+        try:
+            r = requests.post(
+                'https://{0}/o.json'.format(self.server),
+                headers = {'REALMS-Token': self.serverToken},
+                data    = payload,
+            )
+            print r.status_code
+        except requests.exceptions.RequestException:
+            # happens when could not contact server
+            pass
+        else:
+            # server answered
+            
+            # clear objects
+            if r.status_code==200:
+                self.objectsToCommit = []
 
 class JsonThread(threading.Thread):
     

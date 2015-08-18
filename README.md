@@ -98,10 +98,10 @@ The HTTP body MUST be a JSON string of the following format:
 
 ```
 {
-   'server':        'www.example.com/realms/',
-   'servertoken':   'qwertyuiopqwertyuioppoiuytrewq',
-   'syncperiodmin':  60,
-   'token':         'qweieiuewrewrewewiwieuryiweury',
+   'server':            'www.example.com/realms/',
+   'servertoken':       'ssssssssssssssssssssssssssssss',
+   'syncperiodminutes': 60,
+   'basestationtoken':  'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
 }
 ```
 
