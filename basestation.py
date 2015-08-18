@@ -36,8 +36,11 @@ import SolDefines
 
 #============================ defines =========================================
 
-DEFAULT_SERIALPORT = 'COM14'
-DEFAULT_TCPPORT    = 8080
+DEFAULT_SERIALPORT           = 'COM14'
+DEFAULT_TCPPORT              = 8080
+DEFAULT_FILECOMMITDELAY_S    = 3
+DEFAULT_SENDCOMMITDELAY_S    = 11
+DEFAULT_FILENAME             = 'basestation.sol'
 
 #============================ helpers =========================================
 
@@ -401,7 +404,7 @@ class DustThread(threading.Thread):
                 # create sensor object (NOTIF_DATA_RAW)
                 sobject = {
                     'mac':       macAddress,
-                    'timestamp': time.time(),
+                    'timestamp': int(time.time()),
                     'type':      SolDefines.SOL_TYPE_NOTIF_DATA_RAW,
                     'value':     self.sol.create_value_SOL_TYPE_NOTIF_DATA_RAW(
                         srcPort = srcPort,
@@ -423,7 +426,7 @@ class DustThread(threading.Thread):
             
             sobject = {
                 'mac':       self.managerMac,
-                'timestamp': time.time(),
+                'timestamp': int(time.time()),
             }
             
             if   notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTCOMMANDFINISHED:
@@ -527,7 +530,7 @@ class DustThread(threading.Thread):
             # create sensor object (SOL_TYPE_NOTIF_HEALTHREPORT)
             sobject = {
                 'mac':       macAddress,
-                'timestamp': time.time(),
+                'timestamp': int(time.time()),
                 'type':      SolDefines.SOL_TYPE_NOTIF_HEALTHREPORT,
                 'value':     payload,
             }
@@ -574,7 +577,7 @@ class DustThread(threading.Thread):
             # create sensor object (SOL_TYPE_NOTIF_LOG)
             sobject = {
                 'mac':       macAddress,
-                'timestamp': time.time(),
+                'timestamp': int(time.time()),
                 'type':      SolDefines.SOL_TYPE_NOTIF_LOG,
                 'value':     data,
             }
@@ -609,7 +612,7 @@ class DustThread(threading.Thread):
     
     def _netTsToEpoch(self,netTs):
         with self.dataLock:
-            return netTs+self.tsDiff
+            return int(netTs+self.tsDiff)
     
     def _publishObject(self,object):
         
@@ -618,40 +621,80 @@ class DustThread(threading.Thread):
         for b in object['mac']:
             assert type(b)==int
         assert type(object['type'])==int
-        assert type(object['timestamp'])==float
+        assert type(object['timestamp'])==int
         assert type(object['value'])==list
         for b in object['value']:
             assert type(b)==int
         
-        print "========== _publishObject {0}: {1}".format(SolDefines.solTypeToString(SolDefines,object['type']),object)
+        # publish
+        FileThread().publish(object)
+        SendThread().publish(object)
 
-class FileThread(threading.Thread):
+class PublishThread(threading.Thread):
     def __init__(self):
-        self.goOn = True
+        self.goOn            = True
+        self.objectsToCommit = []
+        self.dataLock        = threading.RLock()
         # start the thread
         threading.Thread.__init__(self)
-        self.name       = 'FileThread'
+        self.name            = 'PublishThread'
         self.start()
     def run(self):
+        self.currentDelay = self.commitDelay
         while self.goOn:
+            self.currentDelay -= 1
+            if self.currentDelay==0:
+                self.commit()
+                self.currentDelay = self.commitDelay
             time.sleep(1)
     def close(self):
         self.goOn = False
+    def publish(self,object):
+        with self.dataLock:
+            # TODO: insert in order
+            self.objectsToCommit += [object]
 
-class SendThread(threading.Thread):
+class FileThread(PublishThread):
+    _instance = None
+    _init     = False
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(FileThread,cls).__new__(cls, *args, **kwargs)
+        return cls._instance
     def __init__(self):
-        self.goOn = True
-        # start the thread
-        threading.Thread.__init__(self)
+        if self._init:
+            return
+        self._init           = True
+        self.commitDelay     = DEFAULT_FILECOMMITDELAY_S
+        self.sol             = Sol.Sol()
+        PublishThread.__init__(self)
+        self.name            = 'FileThread'
+    def commit(self):
+        with self.dataLock:
+            self.sol.dumpToFile(
+                self.objectsToCommit,
+                DEFAULT_FILENAME,
+            )
+            self.objectsToCommit = []
+
+class SendThread(PublishThread):
+    _instance = None
+    _init     = False
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(SendThread,cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+    def __init__(self):
+        if self._init:
+            return
+        self._init           = True
+        self.commitDelay = DEFAULT_SENDCOMMITDELAY_S
+        PublishThread.__init__(self)
         self.name       = 'SendThread'
-        self.start()
-    def run(self):
-        while self.goOn:
-            time.sleep(1)
-    def publish(self,o):
-        pass
-    def close(self):
-        self.goOn = False
+    def commit(self):
+        with self.dataLock:
+            print "TODO SendThread commit"
+            self.objectsToCommit = []
 
 class JsonThread(threading.Thread):
     
