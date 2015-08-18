@@ -691,6 +691,11 @@ class DustThread(threading.Thread):
         with self.dataLock:
             return int(netTs+self.tsDiff)
     
+    def _isActiveFlow(self,type):
+        flows = AppData().getFlows()
+        returnVal = flows.get(type,flows['default'])
+        return returnVal==FLOW_ON
+    
     def _publishObject(self,object):
         
         assert sorted(object.keys()) == sorted(['mac','type','timestamp','value'])
@@ -705,7 +710,8 @@ class DustThread(threading.Thread):
         
         # publish
         FileThread().publish(object)
-        SendThread().publish(object)
+        if self._isActiveFlow(object['type']):
+            SendThread().publish(object)
 
 class PublishThread(threading.Thread):
     def __init__(self):
