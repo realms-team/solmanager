@@ -118,12 +118,14 @@ class AppData(object):
     def setConfig(self,key,value):
         with self.dataLock:
             self.data['config'][key] = value
+        self._backupData()
     def getFlows(self):
         with self.dataLock:
             return self.data['flows'].copy()
     def setFlow(self,key,value):
         with self.dataLock:
             self.data['flows'][key] = value
+        self._backupData()
     def _backupData(self):
         with self.dataLock:
             with open(DEFAULT_BACKUPFILE,'w') as f:
@@ -814,8 +816,8 @@ class JsonThread(threading.Thread):
         self.web        = bottle.Bottle()
         self.web.route(path='/api/v1/echo.json',     method='POST', callback=self._cb_echo_POST)
         self.web.route(path='/api/v1/status.json',   method='GET',  callback=self._cb_status_GET)
-        self.web.route(path='/api/v1/config.json',   method='POST', callback=self._cb_config_POST)
         self.web.route(path='/api/v1/config.json',   method='GET',  callback=self._cb_config_GET)
+        self.web.route(path='/api/v1/config.json',   method='POST', callback=self._cb_config_POST)
         self.web.route(path='/api/v1/flows.json',    method='GET',  callback=self._cb_flows_GET)
         self.web.route(path='/api/v1/flows.json',    method='POST', callback=self._cb_flows_POST)
         self.web.route(path='/api/v1/resend.json',   method='POST', callback=self._cb_resend_POST)
@@ -888,6 +890,23 @@ class JsonThread(threading.Thread):
             printCrash(self.name)
             raise
     
+    def _cb_config_GET(self):
+        self._authorizeClient()
+        try:
+            # increment stats
+            AppData().incrStats(self.STAT_NUM_REQ_RX)
+            
+            # handle
+            allConfig = AppData().getAllConfig()
+            for hidden in ['logfile','servertoken','basestationtoken']:
+                if hidden in allConfig.keys():
+                    del allConfig[hidden]
+            return allConfig
+            
+        except Exception as err:
+            printCrash(self.name)
+            raise
+    
     def _cb_config_POST(self):
         self._authorizeClient()
         try:
@@ -903,23 +922,6 @@ class JsonThread(threading.Thread):
             # handle
             for (k,v) in bottle.request.json.items():
                 AppData().setConfig(k,v)
-            
-        except Exception as err:
-            printCrash(self.name)
-            raise
-    
-    def _cb_config_GET(self):
-        self._authorizeClient()
-        try:
-            # increment stats
-            AppData().incrStats(self.STAT_NUM_REQ_RX)
-            
-            # handle
-            allConfig = AppData().getAllConfig()
-            for hidden in ['logfile','servertoken','basestationtoken']:
-                if hidden in allConfig.keys():
-                    del allConfig[hidden]
-            return allConfig
             
         except Exception as err:
             printCrash(self.name)
@@ -941,10 +943,19 @@ class JsonThread(threading.Thread):
     def _cb_flows_POST(self):
         self._authorizeClient()
         try:
-            # TODO: implement (#11)
-            bottle.response.status = 501
-            bottle.response.content_type = 'application/json'
-            return json.dumps({'error': 'Not Implemented yet :-('})
+            # increment stats
+            AppData().incrStats(self.STAT_NUM_REQ_RX)
+            
+            # abort if malformed JSON body
+            if bottle.request.json==None:
+                bottle.response.status = 400
+                bottle.response.content_type = 'application/json'
+                return json.dumps({'error': 'Malformed JSON body'})
+            
+            # handle
+            for (k,v) in bottle.request.json.items():
+                assert v in [FLOW_ON,FLOW_OFF]
+                AppData().setFlow(k,v)
             
         except Exception as err:
             printCrash(self.name)

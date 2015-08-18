@@ -86,6 +86,35 @@ With:
 
 ### configure
 
+#### getting
+
+To retrieve configuration, issue a `GET` command to the following URI:
+
+```
+/config.json
+```
+
+No HTTP body is required. A HTTP body can be present, but will be ignored.
+
+One of the following HTTP status codes is returned:
+
+| Code |               Meaning | Action required                                                             |
+|------|-----------------------|-----------------------------------------------------------------------------|
+| 200  |                    OK | Request received successfully, configuration in body.                       |
+| 401  |          Unauthorized | Invalid `X-REALMS-Token` passed                                             |
+| 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
+
+The HTTP reply contains the following body:
+
+```
+{
+   'server':        'www.example.com/realms/',
+   'syncperiodmin':  60,
+}
+```
+
+Note that security-related fields such as `servertoken` and `token` are write-only and hence do not appear in the HTTP reply body.
+
 #### setting
 
 To change to which server the basestation reports data to, issue a `POST` command to the following URI:
@@ -126,35 +155,6 @@ One of the following HTTP status codes is returned:
 | 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
 
 No HTTP body is present in the reply.
-
-#### getting
-
-To retrieve configuration, issue a `GET` command to the following URI:
-
-```
-/config.json
-```
-
-No HTTP body is required. A HTTP body can be present, but will be ignored.
-
-One of the following HTTP status codes is returned:
-
-| Code |               Meaning | Action required                                                             |
-|------|-----------------------|-----------------------------------------------------------------------------|
-| 200  |                    OK | Request received successfully, configuration in body.                       |
-| 401  |          Unauthorized | Invalid `X-REALMS-Token` passed                                             |
-| 500  | Internal Server Error | Server error. The body MIGHT contain a description.                         |
-
-The HTTP reply contains the following body:
-
-```
-{
-   'server':        'www.example.com/realms/',
-   'syncperiodmin':  60,
-}
-```
-
-Note that security-related fields such as `servertoken` and `token` are write-only and hence do not appear in the HTTP reply body.
 
 ### manage data flows
 
