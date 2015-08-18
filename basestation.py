@@ -44,7 +44,7 @@ DEFAULT_TCPPORT              = 8080
 DEFAULT_FILECOMMITDELAY_S    = 60
 DEFAULT_SENDCOMMITDELAY_S    = 3
 DEFAULT_FILENAME             = 'basestation.sol'
-DEFAULT_SERVER               = '127.0.0.1'
+DEFAULT_SERVER               = '127.0.0.1:8080'
 DEFAULT_SERVERTOKEN          = 'DEFAULT_SERVERTOKEN'
 DEFAULT_SYNCPERIODMINUTES    = 1
 DEFAULT_BASESTATIONTOKEN     = 'DEFAULT_BASESTATIONTOKEN'
@@ -735,17 +735,17 @@ class SendThread(PublishThread):
         
         # prepare payload
         with self.dataLock:
-            payload = 'poipoi'
+            payload = {'poipoi': 'poipoi'}
         
-        # post
+        # send payload to server
         try:
-            r = requests.post(
-                'https://{0}/o.json'.format(self.server),
-                headers = {'REALMS-Token': self.serverToken},
-                data    = payload,
+            r = requests.put(
+                'http://{0}/api/v1/o.json'.format(self.server),
+                headers = {'X-REALMS-Token': self.serverToken},
+                json    = payload,
             )
             print r.status_code
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as err:
             # happens when could not contact server
             pass
         else:
@@ -875,13 +875,13 @@ class Basestation(object):
         self.dustThread = DustThread(serialport,simulation=True)
         self.fileThread = FileThread()
         self.sendThread = SendThread()
-        self.jsonThread = JsonThread(tcpport)
+        #self.jsonThread = JsonThread(tcpport)
     
     def close(self):
         self.dustThread.close()
         self.fileThread.close()
         self.sendThread.close()
-        self.jsonThread.close()
+        #self.jsonThread.close()
 
 #============================ main ============================================
 
