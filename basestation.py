@@ -11,7 +11,6 @@ if __name__ == "__main__":
 
 #============================ imports =========================================
 
-import hashlib
 import time
 import threading
 import json
@@ -44,9 +43,8 @@ import SolDefines
 DEFAULT_SERIALPORT           = 'COM14'
 DEFAULT_TCPPORT              = 8080
 DEFAULT_FILECOMMITDELAY_S    = 60
-DEFAULT_SENDCOMMITDELAY_S    = 3
 
-DEFAULT_CONFIGFILE           = 'basestation.config'
+DEFAULT_BACKUPFILE           = 'basestation.backup'
 # config
 DEFAULT_LOGFILE              = 'basestation.sol'
 DEFAULT_SERVER               = '127.0.0.1:8081'
@@ -64,11 +62,6 @@ def printCrash(threadName):
     output  = '\n'.join(output)
     print output
 
-def calculateHash(token):
-    m = hashlib.md5()
-    m.update(token)
-    return m.hexdigest()
-
 #============================ classes =========================================
 
 class AppData(object):
@@ -83,20 +76,21 @@ class AppData(object):
             return
         self._init      = True
         self.dataLock   = threading.RLock()
-        self.data       = {}
         try:
-            with open(DEFAULT_CONFIGFILE,'r') as f:
-                self.data['config'] = pickle.load(f)
+            with open(DEFAULT_BACKUPFILE,'r') as f:
+                self.data = pickle.load(f)
         except:
-            self.data['config'] = {
-                'logfile':             DEFAULT_LOGFILE,
-                'server':              DEFAULT_SERVER,
-                'servertoken':         calculateHash(DEFAULT_SERVERTOKEN),
-                'basestationtoken':    calculateHash(DEFAULT_BASESTATIONTOKEN),
-                'syncperiodminutes':   DEFAULT_SYNCPERIODMINUTES,
+            self.data = {
+                'stats' : {},
+                'config' : {
+                    'logfile':              DEFAULT_LOGFILE,
+                    'server':               DEFAULT_SERVER,
+                    'servertoken':          DEFAULT_SERVERTOKEN,
+                    'basestationtoken':     DEFAULT_BASESTATIONTOKEN,
+                    'syncperiodminutes':    DEFAULT_SYNCPERIODMINUTES,
+                },
             }
             self._backupData()
-        self.data['stats'] = {}
     def incrStats(self,statName):
         with self.dataLock:
             if statName not in self.data['stats']:
@@ -116,7 +110,7 @@ class AppData(object):
             self.data['config'][key] = value
     def _backupData(self):
         with self.dataLock:
-            with open(DEFAULT_CONFIGFILE,'w') as f:
+            with open(DEFAULT_BACKUPFILE,'w') as f:
                 pickle.dump(self.data,f)
 
 class DustThread(threading.Thread):
@@ -709,12 +703,12 @@ class PublishThread(threading.Thread):
         self.start()
     def run(self):
         try:
-            self.currentDelay = self.commitDelay
+            self.currentDelay = 5
             while self.goOn:
                 self.currentDelay -= 1
                 if self.currentDelay==0:
                     self.commit()
-                    self.currentDelay = self.commitDelay
+                    self.currentDelay = 60*AppData().getConfig('syncperiodminutes')
                 time.sleep(1)
         except:
             printCrash(self.name)
@@ -760,9 +754,6 @@ class SendThread(PublishThread):
             return
         self._init           = True
         self.sol             = Sol.Sol()
-        self.commitDelay     = DEFAULT_SENDCOMMITDELAY_S
-        self.server          = DEFAULT_SERVER
-        self.serverToken     = DEFAULT_SERVERTOKEN
         PublishThread.__init__(self)
         self.name       = 'SendThread'
     def commit(self):
@@ -777,8 +768,8 @@ class SendThread(PublishThread):
         # send payload to server
         try:
             r = requests.put(
-                'http://{0}/api/v1/o.json'.format(self.server),
-                headers = {'X-REALMS-Token': self.serverToken},
+                'http://{0}/api/v1/o.json'.format(AppData().getConfig('server')),
+                headers = {'X-REALMS-Token': AppData().getConfig('servertoken')},
                 json    = payload,
             )
         except requests.exceptions.RequestException as err:
@@ -802,7 +793,6 @@ class JsonThread(threading.Thread):
         
         # local variables
         self.sol                  = Sol.Sol()
-        self.basestationtoken     = DEFAULT_BASESTATIONTOKEN # TODO: read from file
         
         # initialize web server
         self.web        = bottle.Bottle()
@@ -909,7 +899,7 @@ class JsonThread(threading.Thread):
             AppData().incrStats(self.STAT_NUM_REQ_RX)
             
             # handle
-            allConfig = AppData().getAllConfig()['config']
+            allConfig = AppData().getAllConfig()
             for hidden in ['logfile','servertoken','basestationtoken']:
                 if hidden in allConfig.keys():
                     del allConfig[hidden]
@@ -970,7 +960,7 @@ class JsonThread(threading.Thread):
     #=== misc
     
     def _authorizeClient(self):
-        if bottle.request.headers.get('X-REALMS-Token')!=self.basestationtoken:
+        if bottle.request.headers.get('X-REALMS-Token')!=AppData().getConfig('basestationtoken'):
             raise bottle.HTTPResponse(
                 body   = json.dumps({'error': 'Unauthorized'}),
                 status = 401,
@@ -988,6 +978,7 @@ class JsonThread(threading.Thread):
 class Basestation(object):
     
     def __init__(self,serialport,tcpport):
+        AppData()
         self.dustThread = DustThread(serialport,simulation=True)
         self.fileThread = FileThread()
         self.sendThread = SendThread()
