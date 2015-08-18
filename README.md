@@ -180,11 +180,8 @@ The HTTP reply contains the following body:
 
 ```
 {
-   'event':       'on',
-   'log':         'off',
-   'data':        'on',
-   'ipData':      'on',
-   'healthReport':'on',
+   10:        'off',
+   'default': 'on',
 }
 ```
 
@@ -200,12 +197,12 @@ The HTTP body MUST be a JSON string of the following format:
 
 ```
 {
-   'event':       'on',
-   'log':         'off',
+   10:        'on',
+   'default': 'off',
 }
 ```
 
-Acceptable keys are `event`, `log`, `data`, `ipData`, `healthReport`. Acceptable values are `on` and `off`.
+Acceptable values are `on` and `off`.
 
 Flows in the request are turned on/off. Other flows are left untouched. This setting is persistent.
 
@@ -222,11 +219,8 @@ The HTTP reply contains the following body. This is the same reply body as the `
 
 ```
 {
-   'event':       'on',
-   'log':         'off',
-   'data':        'on',
-   'ipData':,     'on',
-   'healthReport':'on',
+   10:        'off',
+   'default': 'on',
 }
 ```
 

@@ -40,6 +40,7 @@ import SolDefines
 
 #============================ defines =========================================
 
+FLOW_DEFAULT                 = 'default'
 FLOW_ON                      = 'on'
 FLOW_OFF                     = 'off'
 
@@ -93,11 +94,7 @@ class AppData(object):
                     'syncperiodminutes':    DEFAULT_SYNCPERIODMINUTES,
                 },
                 'flows' : {
-                    'event':                FLOW_ON,
-                    'log':                  FLOW_ON,
-                    'data':                 FLOW_ON,
-                    'ipData':               FLOW_ON,
-                    'healthReport':         FLOW_ON,
+                    FLOW_DEFAULT:           FLOW_ON,
                 },
             }
             self._backupData()
@@ -954,6 +951,10 @@ class JsonThread(threading.Thread):
             
             # handle
             for (k,v) in bottle.request.json.items():
+                try:
+                    k = int(k)
+                except:
+                    pass
                 assert v in [FLOW_ON,FLOW_OFF]
                 AppData().setFlow(k,v)
             
