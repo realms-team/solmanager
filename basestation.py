@@ -40,6 +40,9 @@ import SolDefines
 
 #============================ defines =========================================
 
+FLOW_ON                      = 'on'
+FLOW_OFF                     = 'off'
+
 DEFAULT_SERIALPORT           = 'COM14'
 DEFAULT_TCPPORT              = 8080
 DEFAULT_FILECOMMITDELAY_S    = 60
@@ -89,6 +92,13 @@ class AppData(object):
                     'basestationtoken':     DEFAULT_BASESTATIONTOKEN,
                     'syncperiodminutes':    DEFAULT_SYNCPERIODMINUTES,
                 },
+                'flows' : {
+                    'event':                FLOW_ON,
+                    'log':                  FLOW_ON,
+                    'data':                 FLOW_ON,
+                    'ipData':               FLOW_ON,
+                    'healthReport':         FLOW_ON,
+                },
             }
             self._backupData()
     def incrStats(self,statName):
@@ -108,6 +118,12 @@ class AppData(object):
     def setConfig(self,key,value):
         with self.dataLock:
             self.data['config'][key] = value
+    def getFlows(self):
+        with self.dataLock:
+            return self.data['flows'].copy()
+    def setFlow(self,key,value):
+        with self.dataLock:
+            self.data['flows'][key] = value
     def _backupData(self):
         with self.dataLock:
             with open(DEFAULT_BACKUPFILE,'w') as f:
@@ -912,10 +928,11 @@ class JsonThread(threading.Thread):
     def _cb_flows_GET(self):
         self._authorizeClient()
         try:
-            # TODO: implement (#10)
-            bottle.response.status = 501
-            bottle.response.content_type = 'application/json'
-            return json.dumps({'error': 'Not Implemented yet :-('})
+            # increment stats
+            AppData().incrStats(self.STAT_NUM_REQ_RX)
+            
+            # handle
+            return AppData().getFlows()
             
         except Exception as err:
             printCrash(self.name)

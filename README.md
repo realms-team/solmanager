@@ -183,7 +183,7 @@ The HTTP reply contains the following body:
    'event':       'on',
    'log':         'off',
    'data':        'on',
-   'ipData':,     'on',
+   'ipData':      'on',
    'healthReport':'on',
 }
 ```
