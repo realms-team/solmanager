@@ -723,6 +723,7 @@ class SendThread(PublishThread):
         if self._init:
             return
         self._init           = True
+        self.sol             = Sol.Sol()
         self.commitDelay     = DEFAULT_SENDCOMMITDELAY_S
         self.server          = DEFAULT_SERVER
         self.serverToken     = DEFAULT_SERVERTOKEN
@@ -735,7 +736,7 @@ class SendThread(PublishThread):
         
         # prepare payload
         with self.dataLock:
-            payload = {'poipoi': 'poipoi'}
+            payload = self.sol.dicts_to_json(self.objectsToCommit,mode="minimal")
         
         # send payload to server
         try:
