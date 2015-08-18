@@ -11,9 +11,11 @@ if __name__ == "__main__":
 
 #============================ imports =========================================
 
+import hashlib
 import time
 import threading
 import json
+import pickle
 import random
 from   optparse                             import OptionParser
 
@@ -43,11 +45,14 @@ DEFAULT_SERIALPORT           = 'COM14'
 DEFAULT_TCPPORT              = 8080
 DEFAULT_FILECOMMITDELAY_S    = 60
 DEFAULT_SENDCOMMITDELAY_S    = 3
-DEFAULT_FILENAME             = 'basestation.sol'
+
+DEFAULT_CONFIGFILE           = 'basestation.config'
+# config
+DEFAULT_LOGFILE              = 'basestation.sol'
 DEFAULT_SERVER               = '127.0.0.1:8081'
 DEFAULT_SERVERTOKEN          = 'DEFAULT_SERVERTOKEN'
-DEFAULT_SYNCPERIODMINUTES    = 1
 DEFAULT_BASESTATIONTOKEN     = 'DEFAULT_BASESTATIONTOKEN'
+DEFAULT_SYNCPERIODMINUTES    = 1
 
 #============================ helpers =========================================
 
@@ -59,29 +64,60 @@ def printCrash(threadName):
     output  = '\n'.join(output)
     print output
 
+def calculateHash(token):
+    m = hashlib.md5()
+    m.update(token)
+    return m.hexdigest()
+
 #============================ classes =========================================
 
-class Stats(object):
+class AppData(object):
     _instance = None
     _init     = False
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
-            cls._instance = super(Stats,cls).__new__(cls, *args, **kwargs)
+            cls._instance = super(AppData,cls).__new__(cls, *args, **kwargs)
         return cls._instance
     def __init__(self):
         if self._init:
             return
-        self._init    = True
-        self.dataLock = threading.RLock()
-        self.data     = {}
-    def incr(self,statName):
+        self._init      = True
+        self.dataLock   = threading.RLock()
+        self.data       = {}
+        try:
+            with open(DEFAULT_CONFIGFILE,'r') as f:
+                self.data['config'] = pickle.load(f)
+        except:
+            self.data['config'] = {
+                'logfile':             DEFAULT_LOGFILE,
+                'server':              DEFAULT_SERVER,
+                'servertoken':         calculateHash(DEFAULT_SERVERTOKEN),
+                'basestationtoken':    calculateHash(DEFAULT_BASESTATIONTOKEN),
+                'syncperiodminutes':   DEFAULT_SYNCPERIODMINUTES,
+            }
+            self._backupData()
+        self.data['stats'] = {}
+    def incrStats(self,statName):
         with self.dataLock:
-            if statName not in self.data:
-                self.data[statName] = 0
-            self.data[statName] += 1
-    def get(self):
+            if statName not in self.data['stats']:
+                self.data['stats'][statName] = 0
+            self.data['stats'][statName] += 1
+    def getStats(self):
         with self.dataLock:
-            return self.data.copy()
+            return self.data['stats'].copy()
+    def getConfig(self,key):
+        with self.dataLock:
+            return self.data['config'][key]
+    def getAllConfig(self):
+        with self.dataLock:
+            return self.data['config'].copy()
+    def setConfig(self,key,value):
+        with self.dataLock:
+            self.data['config'][key] = value
+    def _backupData(self):
+        with self.dataLock:
+            with open(DEFAULT_CONFIGFILE,'w') as f:
+                pickle.dump(self.data,f)
 
 class DustThread(threading.Thread):
     
@@ -708,7 +744,7 @@ class FileThread(PublishThread):
         with self.dataLock:
             self.sol.dumpToFile(
                 self.objectsToCommit,
-                DEFAULT_FILENAME,
+                DEFAULT_LOGFILE,
             )
             self.objectsToCommit = []
 
@@ -764,6 +800,10 @@ class JsonThread(threading.Thread):
         # store params
         self.tcpport    = tcpport
         
+        # local variables
+        self.sol                  = Sol.Sol()
+        self.basestationtoken     = DEFAULT_BASESTATIONTOKEN # TODO: read from file
+        
         # initialize web server
         self.web        = bottle.Bottle()
         self.web.route(path='/api/v1/echo.json',     method='POST', callback=self._cb_echo_POST)
@@ -804,62 +844,138 @@ class JsonThread(threading.Thread):
     #=== JSON request handler
     
     def _cb_echo_POST(self):
-        bottle.response.content_type = bottle.request.content_type
-        return bottle.request.body.read()
+        self._authorizeClient()
+        try:
+            # increment stats
+            AppData().incrStats(self.STAT_NUM_REQ_RX)
+            
+            # answer with same Content-Type/body
+            bottle.response.content_type = bottle.request.content_type
+            return bottle.request.body.read()
+        
+        except Exception as err:
+            printCrash(self.name)
+            raise
     
     def _cb_status_GET(self):
-        Stats().incr(self.STAT_NUM_REQ_RX)
+        self._authorizeClient()
+        try:
+            # increment stats
+            AppData().incrStats(self.STAT_NUM_REQ_RX)
+            
+            # format response
+            returnVal = {}
+            returnVal['version basestation']    = basestation_version.VERSION
+            returnVal['version SmartMesh SDK']  = sdk_version.VERSION
+            returnVal['version Sol']            = SolVersion.VERSION
+            returnVal['uptime computer']        = self._exec_cmd('uptime')
+            returnVal['utc']                    = int(time.time())
+            returnVal['date']                   = time.strftime("%a, %d %b %Y %H:%M:%S", time.gmtime())
+            returnVal['last reboot']            = self._exec_cmd('last reboot')
+            returnVal['stats']                  = AppData().getStats()
+            
+            # send response
+            bottle.response.content_type        = 'application/json'
+            return json.dumps(returnVal)
         
-        returnVal = {}
-        returnVal['version basestation']    = basestation_version.VERSION
-        returnVal['version SmartMesh SDK']  = sdk_version.VERSION
-        returnVal['version Sol']            = SolVersion.VERSION
-        returnVal['uptime computer']        = self._exec_cmd('uptime')
-        returnVal['utc']                    = int(time.time())
-        returnVal['date']                   = time.strftime("%a, %d %b %Y %H:%M:%S", time.gmtime())
-        returnVal['last reboot']            = self._exec_cmd('last reboot')
-        returnVal['stats']                  = Stats().get()
-        
-        bottle.response.content_type        = 'application/json'
-        return json.dumps(returnVal)
+        except Exception as err:
+            printCrash(self.name)
+            raise
     
     def _cb_config_POST(self):
-        # TODO: implement (#8)
-        bottle.response.status = 501
-        bottle.response.content_type = 'application/json'
-        return json.dumps({'error': 'Not Implemented yet :-('})
+        self._authorizeClient()
+        try:
+            # increment stats
+            AppData().incrStats(self.STAT_NUM_REQ_RX)
+            
+            # abort if malformed JSON body
+            if bottle.request.json==None:
+                bottle.response.status = 400
+                bottle.response.content_type = 'application/json'
+                return json.dumps({'error': 'Malformed JSON body'})
+            
+            # handle
+            for (k,v) in bottle.request.json.items():
+                AppData().setConfig(k,v)
+            
+        except Exception as err:
+            printCrash(self.name)
+            raise
     
     def _cb_config_GET(self):
-        # TODO: implement (#9)
-        bottle.response.status = 501
-        bottle.response.content_type = 'application/json'
-        return json.dumps({'error': 'Not Implemented yet :-('})
+        self._authorizeClient()
+        try:
+            # increment stats
+            AppData().incrStats(self.STAT_NUM_REQ_RX)
+            
+            # handle
+            allConfig = AppData().getAllConfig()['config']
+            for hidden in ['logfile','servertoken','basestationtoken']:
+                if hidden in allConfig.keys():
+                    del allConfig[hidden]
+            return allConfig
+            
+        except Exception as err:
+            printCrash(self.name)
+            raise
     
     def _cb_flows_GET(self):
-        # TODO: implement (#10)
-        bottle.response.status = 501
-        bottle.response.content_type = 'application/json'
-        return json.dumps({'error': 'Not Implemented yet :-('})
+        self._authorizeClient()
+        try:
+            # TODO: implement (#10)
+            bottle.response.status = 501
+            bottle.response.content_type = 'application/json'
+            return json.dumps({'error': 'Not Implemented yet :-('})
+            
+        except Exception as err:
+            printCrash(self.name)
+            raise
     
     def _cb_flows_POST(self):
-        # TODO: implement (#11)
-        bottle.response.status = 501
-        bottle.response.content_type = 'application/json'
-        return json.dumps({'error': 'Not Implemented yet :-('})
+        self._authorizeClient()
+        try:
+            # TODO: implement (#11)
+            bottle.response.status = 501
+            bottle.response.content_type = 'application/json'
+            return json.dumps({'error': 'Not Implemented yet :-('})
+            
+        except Exception as err:
+            printCrash(self.name)
+            raise
     
     def _cb_resend_POST(self):
-        # TODO: implement (#12)
-        bottle.response.status = 501
-        bottle.response.content_type = 'application/json'
-        return json.dumps({'error': 'Not Implemented yet :-('})
+        self._authorizeClient()
+        try:
+            # TODO: implement (#12)
+            bottle.response.status = 501
+            bottle.response.content_type = 'application/json'
+            return json.dumps({'error': 'Not Implemented yet :-('})
+            
+        except Exception as err:
+            printCrash(self.name)
+            raise
     
     def _cb_snapshot_POST(self):
-        # TODO: implement (#13)
-        bottle.response.status = 501
-        bottle.response.content_type = 'application/json'
-        return json.dumps({'error': 'Not Implemented yet :-('})
+        self._authorizeClient()
+        try:
+            # TODO: implement (#13)
+            bottle.response.status = 501
+            bottle.response.content_type = 'application/json'
+            return json.dumps({'error': 'Not Implemented yet :-('})
+            
+        except Exception as err:
+            printCrash(self.name)
+            raise
     
     #=== misc
+    
+    def _authorizeClient(self):
+        if bottle.request.headers.get('X-REALMS-Token')!=self.basestationtoken:
+            raise bottle.HTTPResponse(
+                body   = json.dumps({'error': 'Unauthorized'}),
+                status = 401,
+                headers= {'Content-Type': 'application/json'},
+            )
     
     def _exec_cmd(self,cmd):
         returnVal = None
@@ -875,13 +991,13 @@ class Basestation(object):
         self.dustThread = DustThread(serialport,simulation=True)
         self.fileThread = FileThread()
         self.sendThread = SendThread()
-        #self.jsonThread = JsonThread(tcpport)
+        self.jsonThread = JsonThread(tcpport)
     
     def close(self):
         self.dustThread.close()
         self.fileThread.close()
         self.sendThread.close()
-        #self.jsonThread.close()
+        self.jsonThread.close()
 
 #============================ main ============================================
 
