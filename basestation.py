@@ -105,7 +105,7 @@ class DustThread(threading.Thread):
     
     def run(self):
         try:        
-            # wait for banner to print
+            # wait for banner
             time.sleep(0.5)
             
             if self.simulation:
@@ -745,7 +745,6 @@ class SendThread(PublishThread):
                 headers = {'X-REALMS-Token': self.serverToken},
                 json    = payload,
             )
-            print r.status_code
         except requests.exceptions.RequestException as err:
             # happens when could not contact server
             pass
@@ -783,7 +782,7 @@ class JsonThread(threading.Thread):
     
     def run(self):
         try:
-            # wait for banner to print
+            # wait for banner
             time.sleep(0.5)
             
             self.web.run(
