@@ -149,7 +149,10 @@ class AppData(object):
             self.data['stats'][statName] += 1
     def getStats(self):
         with self.dataLock:
-            return self.data['stats'].copy()
+            stats = self.data['stats'].copy()
+        stats[STAT_BACKLOG_FILETHREAD] = FileThread().getBacklogLength()
+        stats[STAT_BACKLOG_SENDTHREAD] = SendThread().getBacklogLength()
+        return stats
     def getConfig(self,key):
         with self.dataLock:
             return self.data['config'][key]
@@ -1023,8 +1026,6 @@ class JsonThread(threading.Thread):
             returnVal['date']                   = time.strftime("%a, %d %b %Y %H:%M:%S UTC", time.gmtime())
             returnVal['last reboot']            = self._exec_cmd('last reboot')
             returnVal['stats']                  = AppData().getStats()
-            returnVal['stats'][STAT_BACKLOG_FILETHREAD] = FileThread().getBacklogLength()
-            returnVal['stats'][STAT_BACKLOG_SENDTHREAD] = SendThread().getBacklogLength()
             
             # send response
             bottle.response.content_type        = 'application/json'
@@ -1197,6 +1198,14 @@ def quitCallback():
     
     basestation.close()
 
+def cli_cb_stats(params):
+    stats = AppData().getStats()
+    output = []
+    for k in sorted(stats.keys()):
+        output += ['{0:<30}: {1}'.format(k,stats[k])]
+    output = '\n'.join(output)
+    print output
+
 def main(serialport,tcpport):
     global basestation
     
@@ -1207,7 +1216,7 @@ def main(serialport,tcpport):
     )
     
     # start the CLI interface
-    OpenCli.OpenCli(
+    cli = OpenCli.OpenCli(
         "Basestation",
         basestation_version.VERSION,
         quitCallback,
@@ -1215,6 +1224,13 @@ def main(serialport,tcpport):
             ("SmartMesh SDK",sdk_version.VERSION),
             ("Sol",SolVersion.VERSION),
         ],
+    )
+    cli.registerCommand(
+        'stats',
+        's',
+        'print the stats',
+        [],
+        cli_cb_stats
     )
 
 if __name__ == '__main__':
