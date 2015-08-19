@@ -2,3 +2,6 @@
 /basestation.sol
 /basestation.config
 /basestation.backup
+/basestation.cert
+/basestation.ppk
+/server.cert

@@ -51,7 +51,7 @@ DEFAULT_FILECOMMITDELAY_S    = 60
 DEFAULT_BACKUPFILE           = 'basestation.backup'
 # config
 DEFAULT_LOGFILE              = 'basestation.sol'
-DEFAULT_SERVER               = '127.0.0.1:8081'
+DEFAULT_SERVER               = 'localhost:8081'
 DEFAULT_SERVERTOKEN          = 'DEFAULT_SERVERTOKEN'
 DEFAULT_BASESTATIONTOKEN     = 'DEFAULT_BASESTATIONTOKEN'
 DEFAULT_SYNCPERIODMINUTES    = 1
@@ -731,7 +731,7 @@ class PublishThread(threading.Thread):
                 self.currentDelay -= 1
                 if self.currentDelay==0:
                     self.commit()
-                    self.currentDelay = 60*AppData().getConfig('syncperiodminutes')
+                    self.currentDelay = 2*AppData().getConfig('syncperiodminutes')
                 time.sleep(1)
         except:
             printCrash(self.name)
@@ -790,12 +790,15 @@ class SendThread(PublishThread):
         
         # send payload to server
         try:
+            requests.packages.urllib3.disable_warnings()
             r = requests.put(
-                'http://{0}/api/v1/o.json'.format(AppData().getConfig('server')),
+                'https://{0}/api/v1/o.json'.format(AppData().getConfig('server')),
                 headers = {'X-REALMS-Token': AppData().getConfig('servertoken')},
                 json    = payload,
+                verify  = 'server.cert',
             )
         except requests.exceptions.RequestException as err:
+            print 'ERROR: {0}'.format(err)
             # happens when could not contact server
             pass
         else:
@@ -804,6 +807,20 @@ class SendThread(PublishThread):
             # clear objects
             if r.status_code==200:
                 self.objectsToCommit = []
+
+class CherryPySSL(bottle.ServerAdapter):
+    def run(self, handler):
+        from cherrypy import wsgiserver
+        from cherrypy.wsgiserver.ssl_pyopenssl import pyOpenSSLAdapter
+        server = wsgiserver.CherryPyWSGIServer((self.host, self.port), handler)
+        server.ssl_adapter = pyOpenSSLAdapter(
+            certificate           = "basestation.cert",
+            private_key           = "basestation.ppk",
+        )
+        try:
+            server.start()
+        finally:
+            server.stop()
 
 class JsonThread(threading.Thread):
     
@@ -843,6 +860,7 @@ class JsonThread(threading.Thread):
             self.web.run(
                 host   = 'localhost',
                 port   = self.tcpport,
+                server = CherryPySSL,
                 quiet  = True,
                 debug  = False,
             )
