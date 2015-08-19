@@ -919,9 +919,11 @@ class JsonThread(threading.Thread):
             
             # abort if malformed JSON body
             if bottle.request.json==None:
-                bottle.response.status = 400
-                bottle.response.content_type = 'application/json'
-                return json.dumps({'error': 'Malformed JSON body'})
+                raise bottle.HTTPResponse(
+                    body   = json.dumps({'error': 'Malformed JSON body'}),
+                    status = 400,
+                    headers= {'Content-Type': 'application/json'},
+                )
             
             # handle
             for (k,v) in bottle.request.json.items():
@@ -952,9 +954,11 @@ class JsonThread(threading.Thread):
             
             # abort if malformed JSON body
             if bottle.request.json==None:
-                bottle.response.status = 400
-                bottle.response.content_type = 'application/json'
-                return json.dumps({'error': 'Malformed JSON body'})
+                raise bottle.HTTPResponse(
+                    body   = json.dumps({'error': 'Malformed JSON body'}),
+                    status = 400,
+                    headers= {'Content-Type': 'application/json'},
+                )
             
             # handle
             for (k,v) in bottle.request.json.items():
@@ -973,9 +977,11 @@ class JsonThread(threading.Thread):
         self._authorizeClient()
         try:
             # TODO: implement (#12)
-            bottle.response.status = 501
-            bottle.response.content_type = 'application/json'
-            return json.dumps({'error': 'Not Implemented yet :-('})
+            raise bottle.HTTPResponse(
+                body   = json.dumps({'error': 'Not Implemented yet :-('}),
+                status = 501,
+                headers= {'Content-Type': 'application/json'},
+            )
             
         except Exception as err:
             printCrash(self.name)
@@ -985,9 +991,11 @@ class JsonThread(threading.Thread):
         self._authorizeClient()
         try:
             # TODO: implement (#13)
-            bottle.response.status = 501
-            bottle.response.content_type = 'application/json'
-            return json.dumps({'error': 'Not Implemented yet :-('})
+            raise bottle.HTTPResponse(
+                body   = json.dumps({'error': 'Not Implemented yet :-('}),
+                status = 501,
+                headers= {'Content-Type': 'application/json'},
+            )
             
         except Exception as err:
             printCrash(self.name)
@@ -997,9 +1005,11 @@ class JsonThread(threading.Thread):
         self._authorizeClient()
         try:
             # TODO: implement (#13)
-            bottle.response.status = 501
-            bottle.response.content_type = 'application/json'
-            return json.dumps({'error': 'Not Implemented yet :-('})
+            raise bottle.HTTPResponse(
+                body   = json.dumps({'error': 'Not Implemented yet :-('}),
+                status = 501,
+                headers= {'Content-Type': 'application/json'},
+            )
             
         except Exception as err:
             printCrash(self.name)
