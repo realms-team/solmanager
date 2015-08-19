@@ -340,6 +340,8 @@ class DustThread(threading.Thread):
             #(func,notifName,notifParams) = random.choice(RANDOMACTION)
             (func,notifName,notifParams) = RANDOMACTION[lastActionIndex]
             lastActionIndex = (lastActionIndex+1)%len(RANDOMACTION)
+            if 'utcSecs' in notifParams:
+                notifParams.utcSecs = time.time()
             func(notifName,notifParams)
             
             # sleep some random time
@@ -830,6 +832,7 @@ class JsonThread(threading.Thread):
         # start the thread
         threading.Thread.__init__(self)
         self.name       = 'JsonThread'
+        self.daemon     = True
         self.start()
     
     def run(self):
@@ -849,7 +852,8 @@ class JsonThread(threading.Thread):
     #======================== public ==========================================
     
     def close(self):
-        print 'TODO JsonThread.close() (#5)'
+        # bottle thread is daemon, it will close when main thread closes
+        pass
     
     #======================== private ==========================================
     
