@@ -59,6 +59,7 @@ DEFAULT_BASESTATIONTOKEN          = 'DEFAULT_BASESTATIONTOKEN'
 DEFAULT_SYNCPERIODMINUTES         = 0.1
 
 # stats
+STAT_NUM_JSON_UNAUTHORIZED        = 'NUM_JSON_UNAUTHORIZED'
 STAT_NUM_JSON_REQ                 = 'NUM_JSON_REQ'
 STAT_NUM_CRASHES                  = 'NUM_CRASHES'
 STAT_NUM_DUST_DISCONNECTS         = 'NUM_DUST_DISCONNECTS'
@@ -997,10 +998,12 @@ class JsonThread(threading.Thread):
     #=== JSON request handler
     
     def _cb_echo_POST(self):
-        self._authorizeClient()
         try:
             # update stats
             AppData().incrStats(STAT_NUM_JSON_REQ)
+            
+            # authorize the client
+            self._authorizeClient()
             
             # answer with same Content-Type/body
             bottle.response.content_type = bottle.request.content_type
@@ -1011,10 +1014,12 @@ class JsonThread(threading.Thread):
             raise
     
     def _cb_status_GET(self):
-        self._authorizeClient()
         try:
             # update stats
             AppData().incrStats(STAT_NUM_JSON_REQ)
+            
+            # authorize the client
+            self._authorizeClient()
             
             # format response
             returnVal = {}
@@ -1036,10 +1041,12 @@ class JsonThread(threading.Thread):
             raise
     
     def _cb_config_GET(self):
-        self._authorizeClient()
         try:
             # update stats
             AppData().incrStats(STAT_NUM_JSON_REQ)
+            
+            # authorize the client
+            self._authorizeClient()
             
             # handle
             allConfig = AppData().getAllConfig()
@@ -1053,10 +1060,12 @@ class JsonThread(threading.Thread):
             raise
     
     def _cb_config_POST(self):
-        self._authorizeClient()
         try:
             # update stats
             AppData().incrStats(STAT_NUM_JSON_REQ)
+            
+            # authorize the client
+            self._authorizeClient()
             
             # abort if malformed JSON body
             if bottle.request.json==None:
@@ -1075,10 +1084,12 @@ class JsonThread(threading.Thread):
             raise
     
     def _cb_flows_GET(self):
-        self._authorizeClient()
         try:
             # update stats
             AppData().incrStats(STAT_NUM_JSON_REQ)
+            
+            # authorize the client
+            self._authorizeClient()
             
             # handle
             return AppData().getFlows()
@@ -1088,10 +1099,12 @@ class JsonThread(threading.Thread):
             raise
     
     def _cb_flows_POST(self):
-        self._authorizeClient()
         try:
             # update stats
             AppData().incrStats(STAT_NUM_JSON_REQ)
+            
+            # authorize the client
+            self._authorizeClient()
             
             # abort if malformed JSON body
             if bottle.request.json==None:
@@ -1115,8 +1128,13 @@ class JsonThread(threading.Thread):
             raise
     
     def _cb_resend_POST(self):
-        self._authorizeClient()
         try:
+            # update stats
+            AppData().incrStats(STAT_NUM_JSON_REQ)
+            
+            # authorize the client
+            self._authorizeClient()
+            
             # TODO: implement (#12)
             raise bottle.HTTPResponse(
                 body   = json.dumps({'error': 'Not Implemented yet :-('}),
@@ -1129,8 +1147,13 @@ class JsonThread(threading.Thread):
             raise
     
     def _cb_snapshot_POST(self):
-        self._authorizeClient()
         try:
+            # update stats
+            AppData().incrStats(STAT_NUM_JSON_REQ)
+            
+            # authorize the client
+            self._authorizeClient()
+            
             # TODO: implement (#13)
             raise bottle.HTTPResponse(
                 body   = json.dumps({'error': 'Not Implemented yet :-('}),
@@ -1143,8 +1166,13 @@ class JsonThread(threading.Thread):
             raise
     
     def _cb_smartmeshipapi_POST(self):
-        self._authorizeClient()
         try:
+            # update stats
+            AppData().incrStats(STAT_NUM_JSON_REQ)
+            
+            # authorize the client
+            self._authorizeClient()
+            
             # TODO: implement (#13)
             raise bottle.HTTPResponse(
                 body   = json.dumps({'error': 'Not Implemented yet :-('}),
@@ -1160,6 +1188,7 @@ class JsonThread(threading.Thread):
     
     def _authorizeClient(self):
         if bottle.request.headers.get('X-REALMS-Token')!=AppData().getConfig('basestationtoken'):
+            AppData().incrStats(STAT_NUM_JSON_UNAUTHORIZED)
             raise bottle.HTTPResponse(
                 body   = json.dumps({'error': 'Unauthorized'}),
                 status = 401,
