@@ -77,7 +77,7 @@ def logCrash(threadName,err):
     output += ["=== traceback ==="]
     output += [traceback.format_exc()]
     output  = '\n'.join(output)
-    AppData().incrStats(self.STAT_NUM_CRASHES)
+    AppData().incrStats(STAT_NUM_CRASHES)
     print output
     with open(DEFAULT_CRASHLOG,'a') as f:
         f.write(output)
@@ -729,7 +729,6 @@ class DustThread(threading.Thread):
         # publish
         FileThread().publish(object)
         if self._isActiveFlow(object['type']):
-            raise SystemError()
             SendThread().publish(object)
 
 class PublishThread(threading.Thread):
