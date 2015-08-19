@@ -83,10 +83,10 @@ STAT_NUM_DUST_NOTIFLOG            = 'NUM_DUST_NOTIFLOG'
 STAT_NUM_DUST_TIMESYNC            = 'NUM_DUST_TIMESYNC'
 STAT_NUM_OBJECTS_RECEIVED         = 'NUM_OBJECTS_RECEIVED'
 STAT_NUM_LOGFILE_UPDATES          = 'NUM_LOGFILE_UPDATES'
-STAT_NUM_SERVERSEND_ATTEMPTS      = 'NUM_SERVERSEND_ATTEMPTS'
+STAT_NUM_SERVER_SENDATTEMPTS      = 'NUM_SERVER_SENDATTEMPTS'
 STAT_NUM_SERVER_UNREACHABLE       = 'NUM_SERVER_UNREACHABLE'
-STAT_NUM_SERVER_STATUSOK          = 'NUM_SERVER_STATUSOK'
-STAT_NUM_SERVER_STATUSNOTOK       = 'NUM_SERVER_STATUSNOTOK'
+STAT_NUM_SERVER_SENDOK            = 'NUM_SERVER_SENDOK'
+STAT_NUM_SERVER_STATUSFAIL        = 'NUM_SERVER_STATUSFAIL'
 STAT_BACKLOG_FILETHREAD           = 'BACKLOG_FILETHREAD'
 STAT_BACKLOG_SENDTHREAD           = 'BACKLOG_SENDTHREAD'
 
@@ -905,7 +905,7 @@ class SendThread(PublishThread):
         # send payload to server
         try:
             # update stats
-            AppData().incrStats(STAT_NUM_SERVERSEND_ATTEMPTS)
+            AppData().incrStats(STAT_NUM_SERVER_SENDATTEMPTS)
             requests.packages.urllib3.disable_warnings()
             r = requests.put(
                 'https://{0}/api/v1/o.json'.format(AppData().getConfig('server')),
@@ -924,11 +924,11 @@ class SendThread(PublishThread):
             # clear objects
             if r.status_code==200:
                 # update stats
-                AppData().incrStats(STAT_NUM_SERVER_STATUSOK)
+                AppData().incrStats(STAT_NUM_SERVER_SENDOK)
                 self.objectsToCommit = []
             else:
                 # update stats
-                AppData().incrStats(STAT_NUM_SERVER_STATUSNOTOK)
+                AppData().incrStats(STAT_NUM_SERVER_STATUSFAIL)
 
 class CherryPySSL(bottle.ServerAdapter):
     def run(self, handler):
