@@ -16,6 +16,7 @@ import threading
 import json
 import pickle
 import random
+import traceback
 from   optparse                             import OptionParser
 
 import OpenCli
@@ -48,6 +49,7 @@ DEFAULT_SERIALPORT           = 'COM14'
 DEFAULT_TCPPORT              = 8080
 DEFAULT_FILECOMMITDELAY_S    = 60
 
+DEFAULT_CRASHLOG             = 'basestation.crashlog'
 DEFAULT_BACKUPFILE           = 'basestation.backup'
 # config
 DEFAULT_LOGFILE              = 'basestation.sol'
@@ -56,15 +58,29 @@ DEFAULT_SERVERTOKEN          = 'DEFAULT_SERVERTOKEN'
 DEFAULT_BASESTATIONTOKEN     = 'DEFAULT_BASESTATIONTOKEN'
 DEFAULT_SYNCPERIODMINUTES    = 1
 
+# stats
+STAT_NUM_JSON_REQ            = 'NUM_JSON_REQ'
+STAT_NUM_CRASHES             = 'NUM_CRASHES'
+
 #============================ helpers =========================================
 
-def printCrash(threadName):
-    import traceback
+def logCrash(threadName,err):
     output  = []
+    output += ["==============================================================="]
+    output += [time.strftime("%m/%d/%Y %H:%M:%S UTC",time.gmtime())]
+    output += [""]
     output += ["CRASH in Thread {0}!".format(threadName)]
+    output += [""]
+    output += ["=== exception type ==="]
+    output += [str(type(err))]
+    output += [""]
+    output += ["=== traceback ==="]
     output += [traceback.format_exc()]
     output  = '\n'.join(output)
+    AppData().incrStats(self.STAT_NUM_CRASHES)
     print output
+    with open(DEFAULT_CRASHLOG,'a') as f:
+        f.write(output)
 
 #============================ classes =========================================
 
@@ -157,8 +173,8 @@ class DustThread(threading.Thread):
                 self.runSimulation()
             else:
                 self.runHardware()
-        except:
-            printCrash(self.name)
+        except Exception as err:
+            logCrash(self.name,err)
     
     def runSimulation(self):
         
@@ -495,8 +511,8 @@ class DustThread(threading.Thread):
             # publish sensor object
             self._publishObject(sobject)
             
-        except Exception:
-            printCrash(self.name)
+        except Exception as err:
+            logCrash(self.name,err)
     
     def _notifEvent(self,notifName,notifParams):
         
@@ -594,8 +610,8 @@ class DustThread(threading.Thread):
             # publish sensor object
             self._publishObject(sobject)
             
-        except Exception:
-            printCrash(self.name)
+        except Exception as err:
+            logCrash(self.name,err)
     
     def _notifHealthReport(self,notifName,notifParams):
         
@@ -617,8 +633,8 @@ class DustThread(threading.Thread):
             # publish sensor object
             self._publishObject(sobject)
             
-        except Exception:
-            printCrash(self.name)
+        except Exception as err:
+            logCrash(self.name,err)
     
     def _notifIPData(self, notifName, notifParams):
         
@@ -641,8 +657,8 @@ class DustThread(threading.Thread):
             # publish sensor object
             self._publishObject(sobject)
             
-        except Exception:
-            printCrash(self.name)
+        except Exception as err:
+            logCrash(self.name,err)
     
     def _notifLog(self, notifName, notifParams):
         
@@ -664,8 +680,8 @@ class DustThread(threading.Thread):
             # publish sensor object
             self._publishObject(sobject)
             
-        except Exception:
-            printCrash(self.name)
+        except Exception as err:
+            logCrash(self.name,err)
     
     def _notifErrorFinish(self,notifName,notifParams):
         
@@ -677,8 +693,8 @@ class DustThread(threading.Thread):
             
             if not self.reconnectEvent.isSet():
                 self.reconnectEvent.set()
-        except Exception:
-            printCrash(self.name)
+        except Exception as err:
+            logCrash(self.name,err)
     
     #=== misc
     
@@ -713,6 +729,7 @@ class DustThread(threading.Thread):
         # publish
         FileThread().publish(object)
         if self._isActiveFlow(object['type']):
+            raise SystemError()
             SendThread().publish(object)
 
 class PublishThread(threading.Thread):
@@ -731,10 +748,10 @@ class PublishThread(threading.Thread):
                 self.currentDelay -= 1
                 if self.currentDelay==0:
                     self.commit()
-                    self.currentDelay = 2*AppData().getConfig('syncperiodminutes')
+                    self.currentDelay = 60*AppData().getConfig('syncperiodminutes')
                 time.sleep(1)
-        except:
-            printCrash(self.name)
+        except Exception as err:
+            logCrash(self.name,err)
     def close(self):
         self.goOn = False
     def publish(self,object):
@@ -824,8 +841,6 @@ class CherryPySSL(bottle.ServerAdapter):
 
 class JsonThread(threading.Thread):
     
-    STAT_NUM_REQ_RX = 'NUM_REQ_RX'
-    
     def __init__(self,tcpport):
         
         # store params
@@ -864,8 +879,8 @@ class JsonThread(threading.Thread):
                 quiet  = True,
                 debug  = False,
             )
-        except:
-            printCrash(self.name)
+        except Exception as err:
+            logCrash(self.name,err)
     
     #======================== public ==========================================
     
@@ -881,21 +896,21 @@ class JsonThread(threading.Thread):
         self._authorizeClient()
         try:
             # increment stats
-            AppData().incrStats(self.STAT_NUM_REQ_RX)
+            AppData().incrStats(STAT_NUM_JSON_REQ)
             
             # answer with same Content-Type/body
             bottle.response.content_type = bottle.request.content_type
             return bottle.request.body.read()
         
         except Exception as err:
-            printCrash(self.name)
+            logCrash(self.name,err)
             raise
     
     def _cb_status_GET(self):
         self._authorizeClient()
         try:
             # increment stats
-            AppData().incrStats(self.STAT_NUM_REQ_RX)
+            AppData().incrStats(STAT_NUM_JSON_REQ)
             
             # format response
             returnVal = {}
@@ -913,14 +928,14 @@ class JsonThread(threading.Thread):
             return json.dumps(returnVal)
         
         except Exception as err:
-            printCrash(self.name)
+            logCrash(self.name,err)
             raise
     
     def _cb_config_GET(self):
         self._authorizeClient()
         try:
             # increment stats
-            AppData().incrStats(self.STAT_NUM_REQ_RX)
+            AppData().incrStats(STAT_NUM_JSON_REQ)
             
             # handle
             allConfig = AppData().getAllConfig()
@@ -930,14 +945,14 @@ class JsonThread(threading.Thread):
             return allConfig
             
         except Exception as err:
-            printCrash(self.name)
+            logCrash(self.name,err)
             raise
     
     def _cb_config_POST(self):
         self._authorizeClient()
         try:
             # increment stats
-            AppData().incrStats(self.STAT_NUM_REQ_RX)
+            AppData().incrStats(STAT_NUM_JSON_REQ)
             
             # abort if malformed JSON body
             if bottle.request.json==None:
@@ -952,27 +967,27 @@ class JsonThread(threading.Thread):
                 AppData().setConfig(k,v)
             
         except Exception as err:
-            printCrash(self.name)
+            logCrash(self.name,err)
             raise
     
     def _cb_flows_GET(self):
         self._authorizeClient()
         try:
             # increment stats
-            AppData().incrStats(self.STAT_NUM_REQ_RX)
+            AppData().incrStats(STAT_NUM_JSON_REQ)
             
             # handle
             return AppData().getFlows()
             
         except Exception as err:
-            printCrash(self.name)
+            logCrash(self.name,err)
             raise
     
     def _cb_flows_POST(self):
         self._authorizeClient()
         try:
             # increment stats
-            AppData().incrStats(self.STAT_NUM_REQ_RX)
+            AppData().incrStats(STAT_NUM_JSON_REQ)
             
             # abort if malformed JSON body
             if bottle.request.json==None:
@@ -992,7 +1007,7 @@ class JsonThread(threading.Thread):
                 AppData().setFlow(k,v)
             
         except Exception as err:
-            printCrash(self.name)
+            logCrash(self.name,err)
             raise
     
     def _cb_resend_POST(self):
@@ -1006,7 +1021,7 @@ class JsonThread(threading.Thread):
             )
             
         except Exception as err:
-            printCrash(self.name)
+            logCrash(self.name,err)
             raise
     
     def _cb_snapshot_POST(self):
@@ -1020,7 +1035,7 @@ class JsonThread(threading.Thread):
             )
             
         except Exception as err:
-            printCrash(self.name)
+            logCrash(self.name,err)
             raise
     
     def _cb_smartmeshipapi_POST(self):
@@ -1034,7 +1049,7 @@ class JsonThread(threading.Thread):
             )
             
         except Exception as err:
-            printCrash(self.name)
+            logCrash(self.name,err)
             raise
     
     #=== misc
