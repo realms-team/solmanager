@@ -81,10 +81,55 @@ The HTTP reply contains the following body:
 
 ```
 {
-    'software version': '1.0.2.3' 
-    'uptime':           '21:01:36 up 21:49,  2 users,  load average: 0.04, 0.08, 0.05',
-    'date':             'Wed Aug 12 21:02:06 UTC 2015',
-    'last reboot':      'wtmp begins Wed Aug 12 21:01:33 2015',
+  "last reboot": "ERROR",
+  "utc": 1439991791,
+  "stats": {
+    "NUM_DUST_EVENTPACKETSENT": 8,
+    "BACKLOG_SENDTHREAD": 12,
+    "NUM_DUST_EVENTCOMMANDFINISHED": 9,
+    "NUM_DUST_EVENTPATHCREATE": 9,
+    "NUM_OBJECTS_RECEIVED": 140,
+    "NUM_SERVERSEND_ATTEMPTS": 11,
+    "NUM_JSON_REQ": 19,
+    "NUM_LOGFILE_UPDATES": 12,
+    "NUM_DUST_EVENTMOTEDELETE": 8,
+    "NUM_DUST_TIMESYNC": 1,
+    "NUM_DUST_EVENTPATHDELETE": 9,
+    "NUM_DUST_EVENTNETWORKRESET": 8,
+    "NUM_DUST_EVENTNETWORKTIME": 8,
+    "NUM_DUST_NOTIFHEALTHREPORT": 8,
+    "NUM_DUST_EVENTMOTEOPERATIONAL": 8,
+    "NUM_DUST_EVENTMOTELOST": 8,
+    "NUM_DUST_EVENTPINGRESPONSE": 8,
+    "NUM_DUST_NOTIFIPDATA": 8,
+    "NUM_DUST_EVENTMOTEJOIN": 8,
+    "NUM_DUST_EVENTMOTECREATE": 8,
+    "NUM_DUST_NOTIFLOG": 8,
+    "NUM_DUST_NOTIFDATA": 9,
+    "BACKLOG_FILETHREAD": 1,
+    "NUM_SERVER_STATUSOK": 11,
+    "NUM_DUST_EVENTMOTERESET": 8
+  },
+  "version SmartMesh SDK": [
+    1,
+    0,
+    4,
+    110
+  ],
+  "version Sol": [
+    1,
+    0,
+    0,
+    0
+  ],
+  "version basestation": [
+    1,
+    0,
+    0,
+    0
+  ],
+  "uptime computer": "ERROR",
+  "date": "Wed, 19 Aug 2015 13:43:11 UTC"
 }
 ```
 
