@@ -56,7 +56,8 @@ DEFAULT_LOGFILE                   = 'basestation.sol'
 DEFAULT_SERVER                    = 'localhost:8081'
 DEFAULT_SERVERTOKEN               = 'DEFAULT_SERVERTOKEN'
 DEFAULT_BASESTATIONTOKEN          = 'DEFAULT_BASESTATIONTOKEN'
-DEFAULT_SYNCPERIODMINUTES         = 0.1
+DEFAULT_SENDPERIODMINUTES         = 0.1 # TODO change
+DEFAULT_FILEPERIODMINUTES         = 0.1 # TODO change
 
 # stats
 STAT_NUM_JSON_UNAUTHORIZED        = 'NUM_JSON_UNAUTHORIZED'
@@ -136,7 +137,8 @@ class AppData(object):
                     'server':               DEFAULT_SERVER,
                     'servertoken':          DEFAULT_SERVERTOKEN,
                     'basestationtoken':     DEFAULT_BASESTATIONTOKEN,
-                    'syncperiodminutes':    DEFAULT_SYNCPERIODMINUTES,
+                    'sendperiodminutes':    DEFAULT_SENDPERIODMINUTES,
+                    'fileperiodminutes':    DEFAULT_FILEPERIODMINUTES,
                 },
                 'flows' : {
                     FLOW_DEFAULT:           FLOW_ON,
@@ -214,7 +216,7 @@ class DustThread(threading.Thread):
         FAKEMAC_MOTE_1  = [1]*8
         FAKEMAC_MOTE_2  = [2]*8
         
-        RANDOMACTION = [
+        SIMACTIONS = [
             (
                 self._notifData,
                 IpMgrSubscribe.IpMgrSubscribe.NOTIFDATA,
@@ -384,16 +386,16 @@ class DustThread(threading.Thread):
         
         while self.goOn:
             
-            # issues a random action
-            #(func,notifName,notifParams) = random.choice(RANDOMACTION)
-            (func,notifName,notifParams) = RANDOMACTION[lastActionIndex]
-            lastActionIndex = (lastActionIndex+1)%len(RANDOMACTION)
-            if 'utcSecs' in notifParams:
-                notifParams.utcSecs = time.time()
+            # issues the next action
+            (func,notifName,notifParams) = SIMACTIONS[lastActionIndex]
+            lastActionIndex = (lastActionIndex+1)%len(SIMACTIONS)
+            try:
+                notifParams = notifParams._replace(utcSecs=int(time.time())-60+random.randint(0,60))
+            except ValueError as err:
+                pass
             func(notifName,notifParams)
             
-            # sleep some random time
-            #time.sleep(random.randint(1,6))
+            # sleep some time
             time.sleep(0.5)
     
     def runHardware(self):
@@ -812,6 +814,7 @@ class DustThread(threading.Thread):
             assert type(b)==int
         assert type(object['type'])==int
         assert type(object['timestamp'])==int
+        assert object['timestamp']>0
         assert type(object['value'])==list
         for b in object['value']:
             assert type(b)==int
@@ -829,6 +832,7 @@ class PublishThread(threading.Thread):
         self.goOn            = True
         self.objectsToCommit = []
         self.dataLock        = threading.RLock()
+        self.sol             = Sol.Sol()
         # start the thread
         threading.Thread.__init__(self)
         self.name            = 'PublishThread'
@@ -840,7 +844,7 @@ class PublishThread(threading.Thread):
                 self.currentDelay -= 1
                 if self.currentDelay==0:
                     self.commit()
-                    self.currentDelay = 60*AppData().getConfig('syncperiodminutes')
+                    self.currentDelay = 60*AppData().getConfig(self.periodvariable)
                 time.sleep(1)
         except Exception as err:
             logCrash(self.name,err)
@@ -851,12 +855,14 @@ class PublishThread(threading.Thread):
         self.goOn = False
     def publish(self,object):
         with self.dataLock:
-            # TODO: insert in order
             self.objectsToCommit += [object]
 
 class FileThread(PublishThread):
     _instance = None
     _init     = False
+    # we buffer objects for BUFFER_PERIOD second to ensure they are written to
+    # file chronologically
+    BUFFER_PERIOD = 60 
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(FileThread,cls).__new__(cls, *args, **kwargs)
@@ -865,19 +871,33 @@ class FileThread(PublishThread):
         if self._init:
             return
         self._init           = True
-        self.commitDelay     = DEFAULT_FILECOMMITDELAY_S
-        self.sol             = Sol.Sol()
+        self.periodvariable  = 'fileperiodminutes'
         PublishThread.__init__(self)
         self.name            = 'FileThread'
     def commit(self):
         # update stats
         AppData().incrStats(STAT_NUM_LOGFILE_UPDATES)
+        
         with self.dataLock:
+            # order objectsToCommit chronologically
+            self.objectsToCommit.sort(key=lambda i: i['timestamp'])
+            
+            # extract the objects heard more than BUFFER_PERIOD ago
+            now = time.time()
+            self.objectsToWrite = []
+            while True:
+                if not self.objectsToCommit:
+                    break
+                if now-self.objectsToCommit[0]['timestamp']<self.BUFFER_PERIOD:
+                    break
+                self.objectsToWrite += [self.objectsToCommit.pop(0)]
+        
+        # write those to file
+        if self.objectsToWrite:
             self.sol.dumpToFile(
-                self.objectsToCommit,
+                self.objectsToWrite,
                 DEFAULT_LOGFILE,
             )
-            self.objectsToCommit = []
 
 class SendThread(PublishThread):
     _instance = None
@@ -890,7 +910,7 @@ class SendThread(PublishThread):
         if self._init:
             return
         self._init           = True
-        self.sol             = Sol.Sol()
+        self.periodvariable  = 'sendperiodminutes'
         PublishThread.__init__(self)
         self.name       = 'SendThread'
     def commit(self):
