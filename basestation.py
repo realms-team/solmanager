@@ -42,59 +42,62 @@ import SolDefines
 
 #============================ defines =========================================
 
-FLOW_DEFAULT                      = 'default'
-FLOW_ON                           = 'on'
-FLOW_OFF                          = 'off'
+FLOW_DEFAULT                           = 'default'
+FLOW_ON                                = 'on'
+FLOW_OFF                               = 'off'
 
-DEFAULT_SERIALPORT                = 'COM14'
-DEFAULT_TCPPORT                   = 8080
-DEFAULT_FILECOMMITDELAY_S         = 60
+DEFAULT_SERIALPORT                     = 'COM14'
+DEFAULT_TCPPORT                        = 8080
+DEFAULT_FILECOMMITDELAY_S              = 60
 
-DEFAULT_CRASHLOG                  = 'basestation.crashlog'
-DEFAULT_BACKUPFILE                = 'basestation.backup'
+DEFAULT_CRASHLOG                       = 'basestation.crashlog'
+DEFAULT_BACKUPFILE                     = 'basestation.backup'
 # config
-DEFAULT_LOGFILE                   = 'basestation.sol'
-DEFAULT_SERVER                    = 'localhost:8081'
-DEFAULT_SERVERTOKEN               = 'DEFAULT_SERVERTOKEN'
-DEFAULT_BASESTATIONTOKEN          = 'DEFAULT_BASESTATIONTOKEN'
-DEFAULT_SENDPERIODMINUTES         = 1
-DEFAULT_FILEPERIODMINUTES         = 1
+DEFAULT_LOGFILE                        = 'basestation.sol'
+DEFAULT_SERVER                         = 'localhost:8081'
+DEFAULT_SERVERTOKEN                    = 'DEFAULT_SERVERTOKEN'
+DEFAULT_BASESTATIONTOKEN               = 'DEFAULT_BASESTATIONTOKEN'
+DEFAULT_SENDPERIODMINUTES              = 1
+DEFAULT_FILEPERIODMINUTES              = 1
 
 # stats
-STAT_NUM_JSON_UNAUTHORIZED        = 'NUM_JSON_UNAUTHORIZED'
-STAT_NUM_JSON_REQ                 = 'NUM_JSON_REQ'
-STAT_NUM_SNAPSHOT_STARTED         = 'NUM_SNAPSHOT_STARTED'
-STAT_NUM_SNAPSHOT_FAIL            = 'NUM_SNAPSHOT_FAIL'
-STAT_NUM_SNAPSHOT_OK              = 'NUM_SNAPSHOT_OK'
-STAT_TS_LAST_SNAPSHOT             = 'TS_LAST_SNAPSHOT'
-STAT_NUM_CRASHES                  = 'NUM_CRASHES'
-STAT_NUM_DUST_DISCONNECTS         = 'NUM_DUST_DISCONNECTS'
-STAT_NUM_DUST_NOTIFDATA           = 'NUM_DUST_NOTIFDATA'
-STAT_NUM_DUST_EVENTCOMMANDFINISHED= 'NUM_DUST_EVENTCOMMANDFINISHED'
-STAT_NUM_DUST_EVENTPATHCREATE     = 'NUM_DUST_EVENTPATHCREATE'
-STAT_NUM_DUST_EVENTPATHDELETE     = 'NUM_DUST_EVENTPATHDELETE'
-STAT_NUM_DUST_EVENTPINGRESPONSE   = 'NUM_DUST_EVENTPINGRESPONSE'
-STAT_NUM_DUST_EVENTNETWORKTIME    = 'NUM_DUST_EVENTNETWORKTIME'
-STAT_NUM_DUST_EVENTNETWORKRESET   = 'NUM_DUST_EVENTNETWORKRESET'
-STAT_NUM_DUST_EVENTMOTEJOIN       = 'NUM_DUST_EVENTMOTEJOIN'
-STAT_NUM_DUST_EVENTMOTECREATE     = 'NUM_DUST_EVENTMOTECREATE'
-STAT_NUM_DUST_EVENTMOTEDELETE     = 'NUM_DUST_EVENTMOTEDELETE'
-STAT_NUM_DUST_EVENTMOTELOST       = 'NUM_DUST_EVENTMOTELOST'
-STAT_NUM_DUST_EVENTMOTEOPERATIONAL= 'NUM_DUST_EVENTMOTEOPERATIONAL'
-STAT_NUM_DUST_EVENTMOTERESET      = 'NUM_DUST_EVENTMOTERESET'
-STAT_NUM_DUST_EVENTPACKETSENT     = 'NUM_DUST_EVENTPACKETSENT'
-STAT_NUM_DUST_NOTIFHEALTHREPORT   = 'NUM_DUST_NOTIFHEALTHREPORT'
-STAT_NUM_DUST_NOTIFIPDATA         = 'NUM_DUST_NOTIFIPDATA'
-STAT_NUM_DUST_NOTIFLOG            = 'NUM_DUST_NOTIFLOG'
-STAT_NUM_DUST_TIMESYNC            = 'NUM_DUST_TIMESYNC'
-STAT_NUM_OBJECTS_RECEIVED         = 'NUM_OBJECTS_RECEIVED'
-STAT_NUM_LOGFILE_UPDATES          = 'NUM_LOGFILE_UPDATES'
-STAT_NUM_SERVER_SENDATTEMPTS      = 'NUM_SERVER_SENDATTEMPTS'
-STAT_NUM_SERVER_UNREACHABLE       = 'NUM_SERVER_UNREACHABLE'
-STAT_NUM_SERVER_SENDOK            = 'NUM_SERVER_SENDOK'
-STAT_NUM_SERVER_STATUSFAIL        = 'NUM_SERVER_STATUSFAIL'
-STAT_BACKLOG_FILETHREAD           = 'BACKLOG_FILETHREAD'
-STAT_BACKLOG_SENDTHREAD           = 'BACKLOG_SENDTHREAD'
+STAT_NUM_JSON_UNAUTHORIZED             = 'NUM_JSON_UNAUTHORIZED'
+STAT_NUM_JSON_REQ                      = 'NUM_JSON_REQ'
+STAT_NUM_SNAPSHOT_STARTED              = 'NUM_SNAPSHOT_STARTED'
+STAT_NUM_SNAPSHOT_FAIL                 = 'NUM_SNAPSHOT_FAIL'
+STAT_NUM_SNAPSHOT_OK                   = 'NUM_SNAPSHOT_OK'
+STAT_TS_LAST_SNAPSHOT                  = 'TS_LAST_SNAPSHOT'
+STAT_NUM_CRASHES                       = 'NUM_CRASHES'
+STAT_NUM_DUST_DISCONNECTS              = 'NUM_DUST_DISCONNECTS'
+STAT_NUM_DUST_NOTIFDATA                = 'NUM_DUST_NOTIFDATA'
+STAT_NUM_DUST_EVENTCOMMANDFINISHED     = 'NUM_DUST_EVENTCOMMANDFINISHED'
+STAT_NUM_DUST_EVENTPATHCREATE          = 'NUM_DUST_EVENTPATHCREATE'
+STAT_NUM_DUST_EVENTPATHDELETE          = 'NUM_DUST_EVENTPATHDELETE'
+STAT_NUM_DUST_EVENTPINGRESPONSE        = 'NUM_DUST_EVENTPINGRESPONSE'
+STAT_NUM_DUST_EVENTNETWORKTIME         = 'NUM_DUST_EVENTNETWORKTIME'
+STAT_NUM_DUST_EVENTNETWORKRESET        = 'NUM_DUST_EVENTNETWORKRESET'
+STAT_NUM_DUST_EVENTMOTEJOIN            = 'NUM_DUST_EVENTMOTEJOIN'
+STAT_NUM_DUST_EVENTMOTECREATE          = 'NUM_DUST_EVENTMOTECREATE'
+STAT_NUM_DUST_EVENTMOTEDELETE          = 'NUM_DUST_EVENTMOTEDELETE'
+STAT_NUM_DUST_EVENTMOTELOST            = 'NUM_DUST_EVENTMOTELOST'
+STAT_NUM_DUST_EVENTMOTEOPERATIONAL     = 'NUM_DUST_EVENTMOTEOPERATIONAL'
+STAT_NUM_DUST_EVENTMOTERESET           = 'NUM_DUST_EVENTMOTERESET'
+STAT_NUM_DUST_EVENTPACKETSENT          = 'NUM_DUST_EVENTPACKETSENT'
+STAT_NUM_DUST_NOTIFHEALTHREPORT        = 'NUM_DUST_NOTIFHEALTHREPORT'
+STAT_NUM_DUST_HR_DEVICE                = 'NUM_DUST_HR_DEVICE'
+STAT_NUM_DUST_HR_NEIGHBORS             = 'NUM_DUST_HR_NEIGHBORS'
+STAT_NUM_DUST_HR_DISCOVERED            = 'NUM_DUST_HR_DISCOVERED'
+STAT_NUM_DUST_NOTIFIPDATA              = 'NUM_DUST_NOTIFIPDATA'
+STAT_NUM_DUST_NOTIFLOG                 = 'NUM_DUST_NOTIFLOG'
+STAT_NUM_DUST_TIMESYNC                 = 'NUM_DUST_TIMESYNC'
+STAT_NUM_OBJECTS_RECEIVED              = 'NUM_OBJECTS_RECEIVED'
+STAT_NUM_LOGFILE_UPDATES               = 'NUM_LOGFILE_UPDATES'
+STAT_NUM_SERVER_SENDATTEMPTS           = 'NUM_SERVER_SENDATTEMPTS'
+STAT_NUM_SERVER_UNREACHABLE            = 'NUM_SERVER_UNREACHABLE'
+STAT_NUM_SERVER_SENDOK                 = 'NUM_SERVER_SENDOK'
+STAT_NUM_SERVER_STATUSFAIL             = 'NUM_SERVER_STATUSFAIL'
+STAT_BACKLOG_FILETHREAD                = 'BACKLOG_FILETHREAD'
+STAT_BACKLOG_SENDTHREAD                = 'BACKLOG_SENDTHREAD'
 
 #============================ helpers =========================================
 
@@ -708,32 +711,64 @@ class DustThread(threading.Thread):
     
     def _notifHealthReport(self,notifName,notifParams):
         
-        print "TODO parse healthreport (#23)"
-        '''
         try:
+            
             # update stats
             AppData().incrStats(STAT_NUM_DUST_NOTIFHEALTHREPORT)
             
-            assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT 
+            assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT
             
             # extract the important data
             macAddress = notifParams.macAddress
-            payload    = notifParams.payload
+            hr         = self.hrParser.parseHr(notifParams.payload)
             
-            # create sensor object (SOL_TYPE_DUST_NOTIF_HEALTHREPORT)
-            sobject = {
-                'mac':       macAddress,
-                'timestamp': int(time.time()),
-                'type':      SolDefines.SOL_TYPE_DUST_NOTIF_HEALTHREPORT,
-                'value':     payload,
-            }
+            # create appropriate object
+            sobjects = []
+            
+            if 'Device' in hr:
+                # update stats
+                AppData().incrStats(STAT_NUM_DUST_HR_DEVICE)
+                
+                sobjects += [{
+                    'type':  SolDefines.SOL_TYPE_DUST_NOTIF_HR_DEVICE,
+                    'value': self.sol.create_value_SOL_TYPE_DUST_NOTIF_HR_DEVICE(
+                        macAddress    = macAddress,
+                        hr            = hr['Device'],
+                    ),
+                }]
+            if 'Neighbors' in hr:
+                # update stats
+                AppData().incrStats(STAT_NUM_DUST_HR_NEIGHBORS)
+                
+                sobjects += [{
+                    'type':  SolDefines.SOL_TYPE_DUST_NOTIF_HR_NEIGHBORS,
+                    'value': self.sol.create_value_SOL_TYPE_DUST_NOTIF_HR_NEIGHBORS(
+                        macAddress    = macAddress,
+                        hr            = hr['Neighbors'],
+                    ),
+                }]
+            if 'Discovered' in hr:
+                # update stats
+                AppData().incrStats(STAT_NUM_DUST_HR_DISCOVERED)
+                
+                sobjects += [{
+                    'type':  SolDefines.SOL_TYPE_DUST_NOTIF_HR_DISCOVERED,
+                    'value': self.sol.create_value_SOL_TYPE_DUST_NOTIF_HR_DISCOVERED(
+                        macAddress    = macAddress,
+                        hr            = hr['Discovered'],
+                    ),
+                }]
+            
+            # add common field(s)
+            for sobject in sobjects:
+                sobject['timestamp'] = int(time.time())
             
             # publish sensor object
-            self._publishObject(sobject)
+            for sobject in sobjects:
+                self._publishObject(sobject)
             
         except Exception as err:
             logCrash(self.name,err)
-        '''
     
     def _notifIPData(self, notifName, notifParams):
         
