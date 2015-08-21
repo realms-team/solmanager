@@ -708,7 +708,7 @@ class DustThread(threading.Thread):
     
     def _notifHealthReport(self,notifName,notifParams):
         
-        print "TODO: _notifHealthReport"
+        print "TODO parse healthreport (#23)"
         '''
         try:
             # update stats
@@ -952,13 +952,12 @@ class SnapshotThread(threading.Thread):
                             'rssiDestSrc':  res.rssiDestSrc,
                         }
             
-            print "TODO: _doSnapshot"
-            
         except Exception as err:
             AppData().incrStats(STAT_NUM_SNAPSHOT_FAIL)
             print "snapshot FAILED"
         else:
             AppData().incrStats(STAT_NUM_SNAPSHOT_OK)
+            # TODO send to server (#13)
             print returnVal
     
 class PublishThread(threading.Thread):
@@ -1344,7 +1343,7 @@ class JsonThread(threading.Thread):
             # authorize the client
             self._authorizeClient()
             
-            # TODO: implement (#13)
+            # TODO: implement (#22)
             raise bottle.HTTPResponse(
                 body   = json.dumps({'error': 'Not Implemented yet :-('}),
                 status = 501,
