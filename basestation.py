@@ -1187,9 +1187,9 @@ class JsonThread(threading.Thread):
             
             # send response
             raise bottle.HTTPResponse(
-                body   = json.dumps(returnVal),
-                status = 200,
-                headers= {'Content-Type': 'application/json'},
+                status  = 200,
+                headers = {'Content-Type': 'application/json'},
+                body    = json.dumps(returnVal),
             )
         
         except bottle.HTTPResponse:
@@ -1228,9 +1228,9 @@ class JsonThread(threading.Thread):
             # abort if malformed JSON body
             if bottle.request.json==None:
                 raise bottle.HTTPResponse(
-                    body   = json.dumps({'error': 'Malformed JSON body'}),
-                    status = 400,
-                    headers= {'Content-Type': 'application/json'},
+                    status  = 400,
+                    headers = {'Content-Type': 'application/json'},
+                    body    = json.dumps({'error': 'Malformed JSON body'}),
                 )
             
             # handle
@@ -1239,9 +1239,9 @@ class JsonThread(threading.Thread):
             
             # send response
             raise bottle.HTTPResponse(
-                body   = json.dumps({'status': 'config changed'}),
-                status = 200,
-                headers= {'Content-Type': 'application/json'},
+                status  = 200,
+                headers = {'Content-Type': 'application/json'},
+                body    = json.dumps({'status': 'config changed'}),
             )
         
         except bottle.HTTPResponse:
@@ -1276,9 +1276,9 @@ class JsonThread(threading.Thread):
             # abort if malformed JSON body
             if bottle.request.json==None:
                 raise bottle.HTTPResponse(
-                    body   = json.dumps({'error': 'Malformed JSON body'}),
-                    status = 400,
-                    headers= {'Content-Type': 'application/json'},
+                    status  = 400,
+                    headers = {'Content-Type': 'application/json'},
+                    body    = json.dumps({'error': 'Malformed JSON body'}),
                 )
             
             # handle
@@ -1292,9 +1292,9 @@ class JsonThread(threading.Thread):
             
             # send response
             raise bottle.HTTPResponse(
-                body   = json.dumps({'status': 'flows changed'}),
-                status = 200,
-                headers= {'Content-Type': 'application/json'},
+                status  = 200,
+                headers = {'Content-Type': 'application/json'},
+                body    = json.dumps({'status': 'flows changed'}),
             )
         
         except bottle.HTTPResponse:
@@ -1313,9 +1313,9 @@ class JsonThread(threading.Thread):
             
             print "TODO: implement (#12)"
             raise bottle.HTTPResponse(
-                body   = json.dumps({'error': 'Not Implemented yet :-('}),
-                status = 501,
-                headers= {'Content-Type': 'application/json'},
+                status  = 501,
+                headers = {'Content-Type': 'application/json'},
+                body    = json.dumps({'error': 'Not Implemented yet :-('}),
             )
 
         except bottle.HTTPResponse:
@@ -1337,9 +1337,9 @@ class JsonThread(threading.Thread):
             
             # send response
             raise bottle.HTTPResponse(
-                body   = json.dumps({'status': 'snapshot requested'}),
-                status = 200,
-                headers= {'Content-Type': 'application/json'},
+                status  = 200,
+                headers = {'Content-Type': 'application/json'},
+                body    = json.dumps({'status': 'snapshot requested'}),
             )
         
         except bottle.HTTPResponse:
@@ -1358,9 +1358,9 @@ class JsonThread(threading.Thread):
             
             print "TODO: implement (#22)"
             raise bottle.HTTPResponse(
-                body   = json.dumps({'error': 'Not Implemented yet :-('}),
-                status = 501,
-                headers= {'Content-Type': 'application/json'},
+                status  = 501,
+                headers = {'Content-Type': 'application/json'},
+                body    = json.dumps({'error': 'Not Implemented yet :-('}),
             )
         
         except bottle.HTTPResponse:
@@ -1375,9 +1375,9 @@ class JsonThread(threading.Thread):
         if bottle.request.headers.get('X-REALMS-Token')!=AppData().getConfig('basestationtoken'):
             AppData().incrStats(STAT_NUM_JSON_UNAUTHORIZED)
             raise bottle.HTTPResponse(
-                body   = json.dumps({'error': 'Unauthorized'}),
-                status = 401,
-                headers= {'Content-Type': 'application/json'},
+                status  = 401,
+                headers = {'Content-Type': 'application/json'},
+                body    = json.dumps({'error': 'Unauthorized'}),
             )
     
     def _exec_cmd(self,cmd):
