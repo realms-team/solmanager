@@ -942,7 +942,7 @@ class SnapshotThread(threading.Thread):
                 except ApiException.APIError:
                     continueAsking = False
                 else:
-                    returnVal[res.macAddress] = {
+                    returnVal[tuple(res.macAddress)] = {
                         'moteId':           res.moteId,
                         'isAP':             res.isAP,
                         'state':            res.state,
@@ -951,7 +951,7 @@ class SnapshotThread(threading.Thread):
                     currentMac = res.macAddress
             
             # getMoteInfo on all motes
-            for mac in macs:
+            for mac in returnVal.keys():
                 res = connector.dn_getMoteInfo(mac)
                 returnVal[mac].update({
                     'numNbrs':              res.numNbrs,
@@ -962,22 +962,21 @@ class SnapshotThread(threading.Thread):
                     'packetsReceived':      res.packetsReceived,
                     'packetsLost':          res.packetsLost,
                     'avgLatency':           res.avgLatency,
-                    'stateTime':            res.stateTime,
                     'paths':                {},
                 })
             
             # get path info on all paths of all motes
-            for mac in macs:
+            for mac in returnVal.keys():
                 currentPathId  = 0
                 continueAsking = True
                 while continueAsking:
                     try:
-                        connector.dn_getNextPathInfo(mac,0,currentPathId)
+                        res = connector.dn_getNextPathInfo(mac,0,currentPathId)
                     except ApiException.APIError:
                         continueAsking = False
                     else:
                         currentPathId  = res.pathId
-                        returnVal[mac]['paths'][res.dest] = {
+                        returnVal[mac]['paths'][tuple(res.dest)] = {
                             'direction':    res.direction,
                             'numLinks':     res.numLinks,
                             'quality':      res.quality,
@@ -987,10 +986,8 @@ class SnapshotThread(threading.Thread):
             
         except Exception as err:
             AppData().incrStats(STAT_NUM_SNAPSHOT_FAIL)
-            print "snapshot FAILED"
         else:
             AppData().incrStats(STAT_NUM_SNAPSHOT_OK)
-            print returnVal
             print "TODO send snapshot result to server (#13)"
     
 class PublishThread(threading.Thread):
