@@ -732,7 +732,6 @@ class DustThread(threading.Thread):
                 sobjects += [{
                     'type':  SolDefines.SOL_TYPE_DUST_NOTIF_HR_DEVICE,
                     'value': self.sol.create_value_SOL_TYPE_DUST_NOTIF_HR_DEVICE(
-                        macAddress    = macAddress,
                         hr            = hr['Device'],
                     ),
                 }]
@@ -743,7 +742,6 @@ class DustThread(threading.Thread):
                 sobjects += [{
                     'type':  SolDefines.SOL_TYPE_DUST_NOTIF_HR_NEIGHBORS,
                     'value': self.sol.create_value_SOL_TYPE_DUST_NOTIF_HR_NEIGHBORS(
-                        macAddress    = macAddress,
                         hr            = hr['Neighbors'],
                     ),
                 }]
@@ -754,14 +752,14 @@ class DustThread(threading.Thread):
                 sobjects += [{
                     'type':  SolDefines.SOL_TYPE_DUST_NOTIF_HR_DISCOVERED,
                     'value': self.sol.create_value_SOL_TYPE_DUST_NOTIF_HR_DISCOVERED(
-                        macAddress    = macAddress,
                         hr            = hr['Discovered'],
                     ),
                 }]
             
             # add common field(s)
             for sobject in sobjects:
-                sobject['timestamp'] = int(time.time())
+                sobject['timestamp']   = int(time.time())
+                sobject['mac']         = macAddress
             
             # publish sensor object
             for sobject in sobjects:
