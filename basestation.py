@@ -1392,7 +1392,7 @@ class Basestation(object):
     
     def __init__(self,serialport,tcpport):
         AppData()
-        self.dustThread      = DustThread(serialport,simulation=True)
+        self.dustThread      = DustThread(serialport,simulation=False)
         self.snapshotThread  = SnapshotThread(self.dustThread)
         self.fileThread      = FileThread()
         self.sendThread      = SendThread()
