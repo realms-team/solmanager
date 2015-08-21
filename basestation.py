@@ -25,7 +25,8 @@ import basestation_version
 # DustThread
 from   SmartMeshSDK                         import FormatUtils, \
                                                    HrParser,    \
-                                                   sdk_version
+                                                   sdk_version, \
+                                                   ApiException
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
 from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrConnectorMux, \
                                                    IpMgrSubscribe
@@ -56,12 +57,16 @@ DEFAULT_LOGFILE                   = 'basestation.sol'
 DEFAULT_SERVER                    = 'localhost:8081'
 DEFAULT_SERVERTOKEN               = 'DEFAULT_SERVERTOKEN'
 DEFAULT_BASESTATIONTOKEN          = 'DEFAULT_BASESTATIONTOKEN'
-DEFAULT_SENDPERIODMINUTES         = 0.1 # TODO change
-DEFAULT_FILEPERIODMINUTES         = 0.1 # TODO change
+DEFAULT_SENDPERIODMINUTES         = 1
+DEFAULT_FILEPERIODMINUTES         = 1
 
 # stats
 STAT_NUM_JSON_UNAUTHORIZED        = 'NUM_JSON_UNAUTHORIZED'
 STAT_NUM_JSON_REQ                 = 'NUM_JSON_REQ'
+STAT_NUM_SNAPSHOT_STARTED         = 'NUM_SNAPSHOT_STARTED'
+STAT_NUM_SNAPSHOT_FAIL            = 'NUM_SNAPSHOT_FAIL'
+STAT_NUM_SNAPSHOT_OK              = 'NUM_SNAPSHOT_OK'
+STAT_TS_LAST_SNAPSHOT             = 'TS_LAST_SNAPSHOT'
 STAT_NUM_CRASHES                  = 'NUM_CRASHES'
 STAT_NUM_DUST_DISCONNECTS         = 'NUM_DUST_DISCONNECTS'
 STAT_NUM_DUST_NOTIFDATA           = 'NUM_DUST_NOTIFDATA'
@@ -93,10 +98,13 @@ STAT_BACKLOG_SENDTHREAD           = 'BACKLOG_SENDTHREAD'
 
 #============================ helpers =========================================
 
+def currentUtcTime():
+    return time.strftime("%a, %d %b %Y %H:%M:%S UTC", time.gmtime())
+
 def logCrash(threadName,err):
     output  = []
     output += ["==============================================================="]
-    output += [time.strftime("%m/%d/%Y %H:%M:%S UTC",time.gmtime())]
+    output += [currentUtcTime()]
     output += [""]
     output += ["CRASH in Thread {0}!".format(threadName)]
     output += [""]
@@ -150,6 +158,9 @@ class AppData(object):
             if statName not in self.data['stats']:
                 self.data['stats'][statName] = 0
             self.data['stats'][statName] += 1
+    def updateStats(self,k,v):
+        with self.dataLock:
+            self.data['stats'][k] = v
     def getStats(self):
         with self.dataLock:
             stats = self.data['stats'].copy()
@@ -191,6 +202,7 @@ class DustThread(threading.Thread):
         self.hrParser        = HrParser.HrParser()
         self.sol             = Sol.Sol()
         self.dataLock        = threading.RLock()
+        self.connector       = None
         self.goOn            = True
         
         # start the thread
@@ -543,8 +555,8 @@ class DustThread(threading.Thread):
                 sobject = {
                     'mac':       macAddress,
                     'timestamp': self._netTsToEpoch(netTs),
-                    'type':      SolDefines.SOL_TYPE_NOTIF_DATA_RAW,
-                    'value':     self.sol.create_value_SOL_TYPE_NOTIF_DATA_RAW(
+                    'type':      SolDefines.SOL_TYPE_DUST_NOTIF_DATA_RAW,
+                    'value':     self.sol.create_value_SOL_TYPE_DUST_NOTIF_DATA_RAW(
                         srcPort = srcPort,
                         dstPort = dstPort,
                         payload = data,
@@ -570,8 +582,8 @@ class DustThread(threading.Thread):
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTCOMMANDFINISHED)
                 
-                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_COMMANDFINISHED
-                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_COMMANDFINISHED(
+                sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_COMMANDFINISHED
+                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_COMMANDFINISHED(
                     callbackId    = notifParams.callbackId,
                     rc            = notifParams.rc,
                 )
@@ -579,8 +591,8 @@ class DustThread(threading.Thread):
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTPATHCREATE)
                 
-                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_PATHCREATE
-                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_PATHCREATE(
+                sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_PATHCREATE
+                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_PATHCREATE(
                     source        = notifParams.source,
                     dest          = notifParams.dest,
                     direction     = notifParams.direction,
@@ -589,8 +601,8 @@ class DustThread(threading.Thread):
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTPATHDELETE)
                 
-                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_PATHDELETE
-                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_PATHDELETE(
+                sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_PATHDELETE
+                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_PATHDELETE(
                     source        = notifParams.source,
                     dest          = notifParams.dest,
                     direction     = notifParams.direction,
@@ -599,8 +611,8 @@ class DustThread(threading.Thread):
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTPINGRESPONSE)
                 
-                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_PING
-                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_PING(
+                sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_PING
+                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_PING(
                     callbackId    = notifParams.callbackId,
                     macAddress    = notifParams.macAddress,
                     delay         = notifParams.delay,
@@ -611,8 +623,8 @@ class DustThread(threading.Thread):
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTNETWORKTIME)
                 
-                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_NETWORKTIME
-                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_NETWORKTIME(
+                sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_NETWORKTIME
+                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_NETWORKTIME(
                     uptime        = notifParams.uptime,
                     utcSecs       = notifParams.utcSecs,
                     utcUsecs      = notifParams.utcUsecs,
@@ -623,23 +635,23 @@ class DustThread(threading.Thread):
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTNETWORKRESET)
                 
-                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_NETWORKRESET
-                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_NETWORKRESET(
+                sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_NETWORKRESET
+                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_NETWORKRESET(
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEJOIN:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTEJOIN)
                 
-                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTEJOIN
-                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_MOTEJOIN(
+                sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTEJOIN
+                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_MOTEJOIN(
                     macAddress    = notifParams.macAddress,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTECREATE:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTECREATE)
                 
-                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTECREATE
-                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_MOTECREATE(
+                sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTECREATE
+                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_MOTECREATE(
                     macAddress    = notifParams.macAddress,
                     moteId        = notifParams.moteId,
                 )
@@ -647,8 +659,8 @@ class DustThread(threading.Thread):
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTEDELETE)
                 
-                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTEDELETE
-                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_MOTEDELETE(
+                sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTEDELETE
+                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_MOTEDELETE(
                     macAddress    = notifParams.macAddress,
                     moteId        = notifParams.moteId,
                 )
@@ -656,32 +668,32 @@ class DustThread(threading.Thread):
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTELOST)
                 
-                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTELOST
-                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_MOTELOST(
+                sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTELOST
+                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_MOTELOST(
                     macAddress    = notifParams.macAddress,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEOPERATIONAL:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTEOPERATIONAL)
                 
-                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTEOPERATIONAL
-                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_MOTEOPERATIONAL(
+                sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTEOPERATIONAL
+                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_MOTEOPERATIONAL(
                     macAddress    = notifParams.macAddress,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTERESET:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTERESET)
                 
-                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_MOTERESET
-                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_MOTERESET(
+                sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTERESET
+                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_MOTERESET(
                     macAddress    = notifParams.macAddress,
                 )
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPACKETSENT:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTPACKETSENT)
                 
-                sobject['type']   = SolDefines.SOL_TYPE_NOTIF_EVENT_PACKETSENT
-                sobject['value']  = self.sol.create_value_SOL_TYPE_NOTIF_EVENT_PACKETSENT(
+                sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_PACKETSENT
+                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_PACKETSENT(
                     callbackId    = notifParams.callbackId,
                     rc            = notifParams.rc,
                 )
@@ -696,6 +708,8 @@ class DustThread(threading.Thread):
     
     def _notifHealthReport(self,notifName,notifParams):
         
+        print "TODO: _notifHealthReport"
+        '''
         try:
             # update stats
             AppData().incrStats(STAT_NUM_DUST_NOTIFHEALTHREPORT)
@@ -706,11 +720,11 @@ class DustThread(threading.Thread):
             macAddress = notifParams.macAddress
             payload    = notifParams.payload
             
-            # create sensor object (SOL_TYPE_NOTIF_HEALTHREPORT)
+            # create sensor object (SOL_TYPE_DUST_NOTIF_HEALTHREPORT)
             sobject = {
                 'mac':       macAddress,
                 'timestamp': int(time.time()),
-                'type':      SolDefines.SOL_TYPE_NOTIF_HEALTHREPORT,
+                'type':      SolDefines.SOL_TYPE_DUST_NOTIF_HEALTHREPORT,
                 'value':     payload,
             }
             
@@ -719,6 +733,7 @@ class DustThread(threading.Thread):
             
         except Exception as err:
             logCrash(self.name,err)
+        '''
     
     def _notifIPData(self, notifName, notifParams):
         
@@ -733,11 +748,11 @@ class DustThread(threading.Thread):
             macAddress = notifParams.macAddress
             data       = notifParams.data
             
-            # create sensor object (SOL_TYPE_NOTIF_IPDATA)
+            # create sensor object (SOL_TYPE_DUST_NOTIF_IPDATA)
             sobject = {
                 'mac':       macAddress,
                 'timestamp': self._netTsToEpoch(netTs),
-                'type':      SolDefines.SOL_TYPE_NOTIF_IPDATA,
+                'type':      SolDefines.SOL_TYPE_DUST_NOTIF_IPDATA,
                 'value':     data,
             }
             
@@ -759,11 +774,11 @@ class DustThread(threading.Thread):
             macAddress = notifParams.macAddress
             data       = notifParams.logMsg
             
-            # create sensor object (SOL_TYPE_NOTIF_LOG)
+            # create sensor object (SOL_TYPE_DUST_NOTIF_LOG)
             sobject = {
                 'mac':       macAddress,
                 'timestamp': int(time.time()),
-                'type':      SolDefines.SOL_TYPE_NOTIF_LOG,
+                'type':      SolDefines.SOL_TYPE_DUST_NOTIF_LOG,
                 'value':     data,
             }
             
@@ -827,6 +842,125 @@ class DustThread(threading.Thread):
         if self._isActiveFlow(object['type']):
             SendThread().publish(object)
 
+class SnapshotThread(threading.Thread):
+    _instance = None
+    _init     = False
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(SnapshotThread,cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+    def __init__(self,dustThread=None):
+        if self._init:
+            return
+        self._init      = True
+        
+        assert dustThread
+        
+        # store params
+        self.dustThread      = dustThread
+        
+        # local variables
+        self.doSnapshotSem   = threading.Semaphore(0)
+        self.goOn            = True
+        
+        # start thread
+        threading.Thread.__init__(self)
+        self.name            = 'SnapshotThread'
+        self.start()
+        
+    def run(self):
+        while self.goOn:
+            self.doSnapshotSem.acquire()
+            if not self.goOn:
+                break
+            self._doSnapshot()
+    
+    #======================== public ==========================================
+    
+    def doSnapshot(self):
+        self.doSnapshotSem.release()
+    
+    def close(self):
+        self.goOn = False
+        self.doSnapshotSem.release()
+    
+    #======================== private =========================================
+    
+    def _doSnapshot(self):
+        try:
+            # update stats
+            AppData().incrStats(STAT_NUM_SNAPSHOT_STARTED)
+            AppData().updateStats(
+                STAT_TS_LAST_SNAPSHOT,
+                currentUtcTime(),
+            )
+            
+            # retrieve connector from DustThread
+            connector = self.dustThread.connector
+            
+            returnVal = {}
+            
+            # get MAC addresses of all motes
+            currentMac     = (0,0,0,0,0,0,0,0) # start getMoteConfig() iteration with the 0 MAC address
+            continueAsking = True
+            while continueAsking:
+                try:
+                    res = connector.dn_getMoteConfig(currentMac,True)
+                except ApiException.APIError:
+                    continueAsking = False
+                else:
+                    returnVal[res.macAddress] = {
+                        'moteId':           res.moteId,
+                        'isAP':             res.isAP,
+                        'state':            res.state,
+                        'isRouting':        res.isRouting,
+                    }
+                    currentMac = res.macAddress
+            
+            # getMoteInfo on all motes
+            for mac in macs:
+                res = connector.dn_getMoteInfo(mac)
+                returnVal[mac].update({
+                    'numNbrs':              res.numNbrs,
+                    'numGoodNbrs':          res.numGoodNbrs,
+                    'requestedBw':          res.requestedBw,
+                    'totalNeededBw':        res.totalNeededBw,
+                    'assignedBw':           res.assignedBw,
+                    'packetsReceived':      res.packetsReceived,
+                    'packetsLost':          res.packetsLost,
+                    'avgLatency':           res.avgLatency,
+                    'stateTime':            res.stateTime,
+                    'paths':                {},
+                })
+            
+            # get path info on all paths of all motes
+            for mac in macs:
+                currentPathId  = 0
+                continueAsking = True
+                while continueAsking:
+                    try:
+                        connector.dn_getNextPathInfo(mac,0,currentPathId)
+                    except ApiException.APIError:
+                        continueAsking = False
+                    else:
+                        currentPathId  = res.pathId
+                        returnVal[mac]['paths'][res.dest] = {
+                            'direction':    res.direction,
+                            'numLinks':     res.numLinks,
+                            'quality':      res.quality,
+                            'rssiSrcDest':  res.rssiSrcDest,
+                            'rssiDestSrc':  res.rssiDestSrc,
+                        }
+            
+            print "TODO: _doSnapshot"
+            
+        except Exception as err:
+            AppData().incrStats(STAT_NUM_SNAPSHOT_FAIL)
+            print "snapshot FAILED"
+        else:
+            AppData().incrStats(STAT_NUM_SNAPSHOT_OK)
+            print returnVal
+    
 class PublishThread(threading.Thread):
     def __init__(self):
         self.goOn            = True
@@ -972,7 +1106,7 @@ class JsonThread(threading.Thread):
         self.tcpport    = tcpport
         
         # local variables
-        self.sol                  = Sol.Sol()
+        self.sol        = Sol.Sol()
         
         # initialize web server
         self.web        = bottle.Bottle()
@@ -1048,14 +1182,19 @@ class JsonThread(threading.Thread):
             returnVal['version Sol']            = SolVersion.VERSION
             returnVal['uptime computer']        = self._exec_cmd('uptime')
             returnVal['utc']                    = int(time.time())
-            returnVal['date']                   = time.strftime("%a, %d %b %Y %H:%M:%S UTC", time.gmtime())
+            returnVal['date']                   = currentUtcTime()
             returnVal['last reboot']            = self._exec_cmd('last reboot')
             returnVal['stats']                  = AppData().getStats()
             
             # send response
-            bottle.response.content_type        = 'application/json'
-            return json.dumps(returnVal)
+            raise bottle.HTTPResponse(
+                body   = json.dumps(returnVal),
+                status = 200,
+                headers= {'Content-Type': 'application/json'},
+            )
         
+        except bottle.HTTPResponse:
+            raise
         except Exception as err:
             logCrash(self.name,err)
             raise
@@ -1098,7 +1237,9 @@ class JsonThread(threading.Thread):
             # handle
             for (k,v) in bottle.request.json.items():
                 AppData().setConfig(k,v)
-            
+        
+        except bottle.HTTPResponse:
+            raise            
         except Exception as err:
             logCrash(self.name,err)
             raise
@@ -1142,7 +1283,9 @@ class JsonThread(threading.Thread):
                     pass
                 assert v in [FLOW_ON,FLOW_OFF]
                 AppData().setFlow(k,v)
-            
+        
+        except bottle.HTTPResponse:
+            raise        
         except Exception as err:
             logCrash(self.name,err)
             raise
@@ -1161,7 +1304,9 @@ class JsonThread(threading.Thread):
                 status = 501,
                 headers= {'Content-Type': 'application/json'},
             )
-            
+
+        except bottle.HTTPResponse:
+            raise            
         except Exception as err:
             logCrash(self.name,err)
             raise
@@ -1174,13 +1319,19 @@ class JsonThread(threading.Thread):
             # authorize the client
             self._authorizeClient()
             
-            # TODO: implement (#13)
+            # start the snapshot
+            SnapshotThread().doSnapshot()
+            
+            # send response
+            # send response
             raise bottle.HTTPResponse(
-                body   = json.dumps({'error': 'Not Implemented yet :-('}),
-                status = 501,
+                body   = json.dumps({'status': 'snapshot requested'}),
+                status = 200,
                 headers= {'Content-Type': 'application/json'},
             )
-            
+        
+        except bottle.HTTPResponse:
+            raise
         except Exception as err:
             logCrash(self.name,err)
             raise
@@ -1199,7 +1350,9 @@ class JsonThread(threading.Thread):
                 status = 501,
                 headers= {'Content-Type': 'application/json'},
             )
-            
+        
+        except bottle.HTTPResponse:
+            raise
         except Exception as err:
             logCrash(self.name,err)
             raise
@@ -1227,13 +1380,15 @@ class Basestation(object):
     
     def __init__(self,serialport,tcpport):
         AppData()
-        self.dustThread = DustThread(serialport,simulation=True)
-        self.fileThread = FileThread()
-        self.sendThread = SendThread()
-        self.jsonThread = JsonThread(tcpport)
+        self.dustThread      = DustThread(serialport,simulation=True)
+        self.snapshotThread  = SnapshotThread(self.dustThread)
+        self.fileThread      = FileThread()
+        self.sendThread      = SendThread()
+        self.jsonThread      = JsonThread(tcpport)
     
     def close(self):
         self.dustThread.close()
+        self.snapshotThread.close()
         self.fileThread.close()
         self.sendThread.close()
         self.jsonThread.close()
