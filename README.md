@@ -362,8 +362,8 @@ The HTTP body MUST be a JSON string of the following format:
 {
     "commandArray": ["getPathInfo"],
     "fields":       {
-        "source": [1,1,1,1,1,1,1,1],
-        "dest":   [2,2,2,2,2,2,2,2],
+        "dest":   [0, 23, 13, 0, 0, 56, 6, 201],
+        "source": [0, 23, 13, 0, 0, 56, 6, 103]
     }
 }
 ```
@@ -384,16 +384,28 @@ The HTTP reply contains the reply from SmartMesh IP manager, encoded as a JSON s
 
 ```
 {
-    'commandArray': ['getPathInfo'],
-    'fields':       {
-        'RC':          0,
-        'source':      [0x11,0x11,0x11,0x11,0x11,0x11,0x11,0x11],
-        'dest':        [0x22,0x22,0x22,0x22,0x22,0x22,0x22,0x22],
-        'direction':   3,
-        'numLinks':    4,
-        'quality':     74,
-        'rssiSrcDest': -78,
-        'rssiDestSrc': -79,
+    "commandArray": ["getPathInfo"],
+    "fields": {
+        "RC":           0,
+        "source":       [0, 23, 13, 0, 0, 56, 6, 103],
+        "dest":         [0, 23, 13, 0, 0, 56, 6, 201],
+        "direction":    3,
+        "rssiDestSrc":  -49,
+        "numLinks":     2,
+        "quality":      97,
+        "rssiSrcDest":  0
     }
+}
+```
+
+or, when an APIError happens (HTTP status code is still 200, as the command was issued correctly):
+
+```
+{
+    "commandArray": ["getPathInfo"],
+    "fields": {
+        "RC": 2
+    },
+    "desc": "Command getPathInfo returns RC=2 (RC_INVALID_ARGUMENT)\n[generic] Invalid argument"
 }
 ```

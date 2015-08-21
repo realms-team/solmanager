@@ -1132,10 +1132,11 @@ class CherryPySSL(bottle.ServerAdapter):
 
 class JsonThread(threading.Thread):
     
-    def __init__(self,tcpport):
+    def __init__(self,tcpport,dustThread):
         
         # store params
         self.tcpport    = tcpport
+        self.dustThread = dustThread
         
         # local variables
         self.sol        = Sol.Sol()
@@ -1389,11 +1390,61 @@ class JsonThread(threading.Thread):
             # authorize the client
             self._authorizeClient()
             
-            print "TODO: implement (#22)"
+            # abort if malformed JSON body
+            if bottle.request.json==None or sorted(bottle.request.json.keys())!=sorted(["commandArray","fields"]):
+                raise bottle.HTTPResponse(
+                    status  = 400,
+                    headers = {'Content-Type': 'application/json'},
+                    body    = json.dumps({'error': 'Malformed JSON body'}),
+                )
+            
+            # abort if trying to subscribe
+            if bottle.request.json["commandArray"]==["subscribe"]:
+                raise bottle.HTTPResponse(
+                    status  = 403,
+                    headers = {'Content-Type': 'application/json'},
+                    body    = json.dumps({'error': 'You cannot issue a "subscribe" command'}),
+                )
+            
+            # retrieve connector from DustThread
+            connector = self.dustThread.connector
+            
+            # issue command
+            try:
+                res = connector.send(
+                    commandArray = bottle.request.json["commandArray"],
+                    fields       = bottle.request.json["fields"],
+                )
+            except ApiException.CommandError as err:
+                raise bottle.HTTPResponse(
+                    status  = 400,
+                    headers = {'Content-Type': 'application/json'},
+                    body    = json.dumps({'error': str(err)}),
+                )
+            except ApiException.APIError as err:
+                raise bottle.HTTPResponse(
+                    status  = 200,
+                    headers = {'Content-Type': 'application/json'},
+                    body    = json.dumps(
+                        {
+                            'commandArray': bottle.request.json["commandArray"],
+                            'fields':       {
+                                'RC':          err.rc,
+                            },
+                            'desc': str(err),
+                        }
+                    ),
+                )
+            
             raise bottle.HTTPResponse(
-                status  = 501,
+                status  = 200,
                 headers = {'Content-Type': 'application/json'},
-                body    = json.dumps({'error': 'Not Implemented yet :-('}),
+                body    = json.dumps(
+                    {
+                        'commandArray': bottle.request.json["commandArray"],
+                        'fields': res,
+                    }
+                ),
             )
         
         except bottle.HTTPResponse:
@@ -1429,7 +1480,7 @@ class Basestation(object):
         self.snapshotThread  = SnapshotThread(self.dustThread)
         self.fileThread      = FileThread()
         self.sendThread      = SendThread()
-        self.jsonThread      = JsonThread(tcpport)
+        self.jsonThread      = JsonThread(tcpport,self.dustThread)
     
     def close(self):
         self.dustThread.close()
