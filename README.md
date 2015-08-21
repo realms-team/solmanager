@@ -360,10 +360,10 @@ The HTTP body MUST be a JSON string of the following format:
 
 ```
 {
-    'commandArray': ['getPathInfo'],
-    'fields':       {
-        'source': [0x11,0x11,0x11,0x11,0x11,0x11,0x11,0x11],
-        'dest':   [0x22,0x22,0x22,0x22,0x22,0x22,0x22,0x22],
+    "commandArray": ["getPathInfo"],
+    "fields":       {
+        "source": [1,1,1,1,1,1,1,1],
+        "dest":   [2,2,2,2,2,2,2,2],
     }
 }
 ```

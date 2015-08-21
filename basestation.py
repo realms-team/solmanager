@@ -957,8 +957,8 @@ class SnapshotThread(threading.Thread):
             print "snapshot FAILED"
         else:
             AppData().incrStats(STAT_NUM_SNAPSHOT_OK)
-            # TODO send to server (#13)
             print returnVal
+            print "TODO send snapshot result to server (#13)"
     
 class PublishThread(threading.Thread):
     def __init__(self):
@@ -1236,6 +1236,13 @@ class JsonThread(threading.Thread):
             # handle
             for (k,v) in bottle.request.json.items():
                 AppData().setConfig(k,v)
+            
+            # send response
+            raise bottle.HTTPResponse(
+                body   = json.dumps({'status': 'config changed'}),
+                status = 200,
+                headers= {'Content-Type': 'application/json'},
+            )
         
         except bottle.HTTPResponse:
             raise            
@@ -1282,6 +1289,13 @@ class JsonThread(threading.Thread):
                     pass
                 assert v in [FLOW_ON,FLOW_OFF]
                 AppData().setFlow(k,v)
+            
+            # send response
+            raise bottle.HTTPResponse(
+                body   = json.dumps({'status': 'flows changed'}),
+                status = 200,
+                headers= {'Content-Type': 'application/json'},
+            )
         
         except bottle.HTTPResponse:
             raise        
@@ -1297,7 +1311,7 @@ class JsonThread(threading.Thread):
             # authorize the client
             self._authorizeClient()
             
-            # TODO: implement (#12)
+            print "TODO: implement (#12)"
             raise bottle.HTTPResponse(
                 body   = json.dumps({'error': 'Not Implemented yet :-('}),
                 status = 501,
@@ -1322,7 +1336,6 @@ class JsonThread(threading.Thread):
             SnapshotThread().doSnapshot()
             
             # send response
-            # send response
             raise bottle.HTTPResponse(
                 body   = json.dumps({'status': 'snapshot requested'}),
                 status = 200,
@@ -1343,7 +1356,7 @@ class JsonThread(threading.Thread):
             # authorize the client
             self._authorizeClient()
             
-            # TODO: implement (#22)
+            print "TODO: implement (#22)"
             raise bottle.HTTPResponse(
                 body   = json.dumps({'error': 'Not Implemented yet :-('}),
                 status = 501,
