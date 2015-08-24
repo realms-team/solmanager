@@ -894,6 +894,7 @@ class SnapshotThread(threading.Thread):
         
         # local variables
         self.doSnapshotSem   = threading.Semaphore(0)
+        self.sol             = Sol.Sol()
         self.goOn            = True
         
         # start thread
@@ -931,7 +932,7 @@ class SnapshotThread(threading.Thread):
             # retrieve connector from DustThread
             connector = self.dustThread.connector
             
-            snapshotSummary = {}
+            snapshotSummary = []
             
             # get MAC addresses of all motes
             currentMac     = (0,0,0,0,0,0,0,0) # start getMoteConfig() iteration with the 0 MAC address
@@ -942,47 +943,53 @@ class SnapshotThread(threading.Thread):
                 except ApiException.APIError:
                     continueAsking = False
                 else:
-                    snapshotSummary[tuple(res.macAddress)] = {
-                        'moteId':           res.moteId,
-                        'isAP':             res.isAP,
-                        'state':            res.state,
-                        'isRouting':        res.isRouting,
-                    }
+                    snapshotSummary += [
+                        {
+                            'macAddress':       res.macAddress,
+                            'moteId':           res.moteId,
+                            'isAP':             res.isAP,
+                            'state':            res.state,
+                            'isRouting':        res.isRouting,
+                        }
+                    ]
                     currentMac = res.macAddress
             
             # getMoteInfo on all motes
-            for mac in snapshotSummary.keys():
-                res = connector.dn_getMoteInfo(mac)
-                snapshotSummary[mac].update({
-                    'numNbrs':              res.numNbrs,
-                    'numGoodNbrs':          res.numGoodNbrs,
-                    'requestedBw':          res.requestedBw,
-                    'totalNeededBw':        res.totalNeededBw,
-                    'assignedBw':           res.assignedBw,
-                    'packetsReceived':      res.packetsReceived,
-                    'packetsLost':          res.packetsLost,
-                    'avgLatency':           res.avgLatency,
-                    'paths':                {},
+            for s in snapshotSummary:
+                res = connector.dn_getMoteInfo(s['macAddress'])
+                s.update({
+                    'numNbrs':                   res.numNbrs,
+                    'numGoodNbrs':               res.numGoodNbrs,
+                    'requestedBw':               res.requestedBw,
+                    'totalNeededBw':             res.totalNeededBw,
+                    'assignedBw':                res.assignedBw,
+                    'packetsReceived':           res.packetsReceived,
+                    'packetsLost':               res.packetsLost,
+                    'avgLatency':                res.avgLatency,
                 })
             
             # get path info on all paths of all motes
-            for mac in snapshotSummary.keys():
+            for s in snapshotSummary:
+                s['paths'] = []
                 currentPathId  = 0
                 continueAsking = True
                 while continueAsking:
                     try:
-                        res = connector.dn_getNextPathInfo(mac,0,currentPathId)
+                        res = connector.dn_getNextPathInfo(s['macAddress'],0,currentPathId)
                     except ApiException.APIError:
                         continueAsking = False
                     else:
                         currentPathId  = res.pathId
-                        snapshotSummary[mac]['paths'][tuple(res.dest)] = {
-                            'direction':    res.direction,
-                            'numLinks':     res.numLinks,
-                            'quality':      res.quality,
-                            'rssiSrcDest':  res.rssiSrcDest,
-                            'rssiDestSrc':  res.rssiDestSrc,
-                        }
+                        s['paths'] += [
+                            {
+                                'dest':          res.dest,
+                                'direction':     res.direction,
+                                'numLinks':      res.numLinks,
+                                'quality':       res.quality,
+                                'rssiSrcDest':   res.rssiSrcDest,
+                                'rssiDestSrc':   res.rssiDestSrc,
+                            }
+                        ]
             
         except Exception as err:
             AppData().incrStats(STAT_NUM_SNAPSHOT_FAIL)
@@ -991,17 +998,17 @@ class SnapshotThread(threading.Thread):
             
             # create sensor object
             sobject = {
-                'mac':       macAddress,
+                'mac':       self.dustThread.managerMac,
                 'timestamp': int(time.time()),
                 'type':      SolDefines.SOL_TYPE_DUST_SNAPSHOT,
                 'value':     self.sol.create_value_SOL_TYPE_DUST_SNAPSHOT(
-                    snapshotSummary = snapshotSummary,
+                    summary = snapshotSummary,
                 ),
             }
             
             # publish sensor object
             self.dustThread._publishObject(sobject)
-
+            
 class PublishThread(threading.Thread):
     def __init__(self):
         self.goOn            = True
