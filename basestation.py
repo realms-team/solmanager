@@ -46,7 +46,7 @@ FLOW_DEFAULT                           = 'default'
 FLOW_ON                                = 'on'
 FLOW_OFF                               = 'off'
 
-DEFAULT_SERIALPORT                     = 'COM14'
+DEFAULT_SERIALPORT                     = '/dev/ttyUSB3'
 DEFAULT_TCPPORT                        = 8080
 DEFAULT_FILECOMMITDELAY_S              = 60
 
@@ -559,11 +559,11 @@ class DustThread(threading.Thread):
                     'mac':       macAddress,
                     'timestamp': self._netTsToEpoch(netTs),
                     'type':      SolDefines.SOL_TYPE_DUST_NOTIF_DATA_RAW,
-                    'value':     self.sol.create_value_SOL_TYPE_DUST_NOTIF_DATA_RAW(
-                        srcPort = srcPort,
-                        dstPort = dstPort,
-                        payload = data,
-                    ),
+                    'value':     self.sol.create_value( 
+                            "SOL_TYPE_DUST_NOTIF_DATA_RAW",
+                            srcPort = srcPort, 
+                            dstPort = dstPort, 
+                            payload = data),
                 }
             
             # publish sensor object
@@ -586,120 +586,133 @@ class DustThread(threading.Thread):
                 AppData().incrStats(STAT_NUM_DUST_EVENTCOMMANDFINISHED)
                 
                 sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_COMMANDFINISHED
-                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_COMMANDFINISHED(
-                    callbackId    = notifParams.callbackId,
-                    rc            = notifParams.rc,
-                )
+                sobject['value']  = self.sol.create_value(
+                        "SOL_TYPE_DUST_NOTIF_EVENT_COMMANDFINISHED",
+                        callbackId    = notifParams.callbackId,
+                        rc            = notifParams.rc)
+
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPATHCREATE:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTPATHCREATE)
                 
                 sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_PATHCREATE
-                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_PATHCREATE(
-                    source        = notifParams.source,
-                    dest          = notifParams.dest,
-                    direction     = notifParams.direction,
-                )
+                sobject['value']  = self.sol.create_value(
+                        "SOL_TYPE_DUST_NOTIF_EVENT_PATHCREATE",
+                        source        = notifParams.source,
+                        dest          = notifParams.dest,
+                        direction     = notifParams.direction)
+
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPATHDELETE:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTPATHDELETE)
                 
                 sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_PATHDELETE
-                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_PATHDELETE(
-                    source        = notifParams.source,
-                    dest          = notifParams.dest,
-                    direction     = notifParams.direction,
-                )
+                sobject['value']  = self.sol.create_value(
+                        "SOL_TYPE_DUST_NOTIF_EVENT_PATHDELETE",
+                        source        = notifParams.source,
+                        dest          = notifParams.dest,
+                        direction     = notifParams.direction)
+
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPINGRESPONSE:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTPINGRESPONSE)
                 
                 sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_PING
-                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_PING(
-                    callbackId    = notifParams.callbackId,
-                    macAddress    = notifParams.macAddress,
-                    delay         = notifParams.delay,
-                    voltage       = notifParams.voltage,
-                    temperature   = notifParams.temperature,
-                )
+                sobject['value']  = self.sol.create_value(
+                        "SOL_TYPE_DUST_NOTIF_EVENT_PING",
+                        callbackId    = notifParams.callbackId,
+                        macAddress    = notifParams.macAddress,
+                        delay         = notifParams.delay,
+                        voltage       = notifParams.voltage,
+                        temperature   = notifParams.temperature)
+
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTNETWORKTIME:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTNETWORKTIME)
                 
                 sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_NETWORKTIME
-                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_NETWORKTIME(
-                    uptime        = notifParams.uptime,
-                    utcSecs       = notifParams.utcSecs,
-                    utcUsecs      = notifParams.utcUsecs,
-                    asn           = notifParams.asn,
-                    asnOffset     = notifParams.asnOffset,
-                )
+                sobject['value']  = self.sol.create_value(
+                        "SOL_TYPE_DUST_NOTIF_EVENT_NETWORKTIME",
+                        uptime        = notifParams.uptime,
+                        utcSecs       = notifParams.utcSecs,
+                        utcUsecs      = notifParams.utcUsecs,
+                        asn           = notifParams.asn,
+                        asnOffset     = notifParams.asnOffset)
+
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTNETWORKRESET:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTNETWORKRESET)
                 
                 sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_NETWORKRESET
-                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_NETWORKRESET(
-                )
+                sobject['value']  = self.sol.create_value(
+                        "SOL_TYPE_DUST_NOTIF_EVENT_NETWORKRESET")
+
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEJOIN:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTEJOIN)
                 
                 sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTEJOIN
-                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_MOTEJOIN(
-                    macAddress    = notifParams.macAddress,
-                )
+                sobject['value']  = self.sol.create_value(
+                        "SOL_TYPE_DUST_NOTIF_EVENT_MOTEJOIN",
+                        macAddress    = notifParams.macAddress)
+
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTECREATE:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTECREATE)
                 
                 sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTECREATE
-                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_MOTECREATE(
-                    macAddress    = notifParams.macAddress,
-                    moteId        = notifParams.moteId,
-                )
+                sobject['value']  = self.sol.create_value(
+                        "SOL_TYPE_DUST_NOTIF_EVENT_MOTECREATE",
+                        macAddress    = notifParams.macAddress,
+                        moteId        = notifParams.moteId)
+
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEDELETE:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTEDELETE)
                 
                 sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTEDELETE
-                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_MOTEDELETE(
-                    macAddress    = notifParams.macAddress,
-                    moteId        = notifParams.moteId,
-                )
+                sobject['value']  = self.sol.create_value(
+                        "SOL_TYPE_DUST_NOTIF_EVENT_MOTEDELETE",
+                        macAddress    = notifParams.macAddress,
+                        moteId        = notifParams.moteId)
+
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTELOST:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTELOST)
                 
                 sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTELOST
-                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_MOTELOST(
-                    macAddress    = notifParams.macAddress,
-                )
+                sobject['value']  = self.sol.create_value(
+                        "SOL_TYPE_DUST_NOTIF_EVENT_MOTELOST",
+                        macAddress    = notifParams.macAddress)
+
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEOPERATIONAL:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTEOPERATIONAL)
                 
                 sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTEOPERATIONAL
-                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_MOTEOPERATIONAL(
-                    macAddress    = notifParams.macAddress,
-                )
+                sobject['value']  = self.sol.create_value(
+                        "SOL_TYPE_DUST_NOTIF_EVENT_MOTEOPERATIONAL",
+                        macAddress    = notifParams.macAddress)
+
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTERESET:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTERESET)
                 
                 sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTERESET
-                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_MOTERESET(
-                    macAddress    = notifParams.macAddress,
-                )
+                sobject['value']  = self.sol.create_value(
+                        "SOL_TYPE_DUST_NOTIF_EVENT_MOTERESET",
+                        macAddress    = notifParams.macAddress)
+
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPACKETSENT:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_EVENTPACKETSENT)
                 
                 sobject['type']   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_PACKETSENT
-                sobject['value']  = self.sol.create_value_SOL_TYPE_DUST_NOTIF_EVENT_PACKETSENT(
-                    callbackId    = notifParams.callbackId,
-                    rc            = notifParams.rc,
-                )
+                sobject['value']  = self.sol.create_value(
+                        "SOL_TYPE_DUST_NOTIF_EVENT_PACKETSENT",
+                        callbackId    = notifParams.callbackId,
+                        rc            = notifParams.rc)
+
             else:
                 raise SystemError("Unexpected notifName={0}".format(notifName))
             
