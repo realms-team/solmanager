@@ -8,6 +8,7 @@ This repo contains the software to run on the basestation. It:
 # Installing and Running
 
 * download a release of this repo as well as a release from the https://github.com/realms-team/sol repo side by side
+* install python required libraries: `pip install -r requirements.txt`
 * Generate a private key `basestation.ppk` and associated (self-signed) certification `basestation.cert` for SSL protection:
     * `openssl genrsa -out basestation.ppk 1024`
     * `openssl req -new -x509 -key basestation.ppk -out basestation.cert -days 1825` (you MUST enter the hostname in the entry "Common Name")
