@@ -1122,8 +1122,7 @@ class SendThread(PublishThread):
             # update stats
             AppData().incrStats(STAT_NUM_SERVER_UNREACHABLE)
             # happens when could not contact server
-            #pass
-            raise
+            pass
         else:
             # server answered
             
