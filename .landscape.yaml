@@ -1,4 +1,2 @@
-strictness: high
-
 ignore-paths:
   - smartmeshsdk-master
