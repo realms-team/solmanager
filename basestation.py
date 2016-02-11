@@ -1515,8 +1515,6 @@ class Basestation(object):
 basestation = None
 
 def quitCallback():
-    global basestation
-    
     basestation.close()
 
 def cli_cb_stats(params):
