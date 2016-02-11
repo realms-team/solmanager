@@ -24,8 +24,7 @@ import OpenCli
 import basestation_version
 
 # DustThread
-from   SmartMeshSDK                         import FormatUtils, \
-                                                   HrParser,    \
+from   SmartMeshSDK                         import HrParser,    \
                                                    sdk_version, \
                                                    ApiException
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
@@ -145,7 +144,7 @@ class AppData(object):
         try:
             with open(DEFAULT_BACKUPFILE,'r') as f:
                 self.data = pickle.load(f)
-        except:
+        except (EnvironmentError, pickle.PickleError):
             self.data = {
                 'stats' : {},
                 'config' : {
@@ -411,7 +410,7 @@ class DustThread(threading.Thread):
             lastActionIndex = (lastActionIndex+1)%len(SIMACTIONS)
             try:
                 notifParams = notifParams._replace(utcSecs=int(time.time())-60+random.randint(0,60))
-            except ValueError as err:
+            except ValueError:
                 pass
             func(notifName,notifParams)
             
@@ -497,7 +496,7 @@ class DustThread(threading.Thread):
                 
                 try:
                    self.connector.disconnect()
-                except:
+                except Exception:
                    pass
                 
                 # wait to reconnect
@@ -513,7 +512,7 @@ class DustThread(threading.Thread):
                 
                 try:
                    self.connector.disconnect()
-                except:
+                except Exception:
                    pass
     
     #======================== public ==========================================
@@ -522,7 +521,7 @@ class DustThread(threading.Thread):
         
         try:
             self.connector.disconnect()
-        except:
+        except Exception:
             pass
         
         self.goOn = False
@@ -854,9 +853,9 @@ class DustThread(threading.Thread):
         with self.dataLock:
             return int(netTs+self.tsDiff)
     
-    def _isActiveFlow(self,type):
+    def _isActiveFlow(self,flow_type):
         flows = AppData().getFlows()
-        returnVal = flows.get(type,flows['default'])
+        returnVal = flows.get(flow_type,flows['default'])
         return returnVal==FLOW_ON
     
     def _publishObject(self,object):
