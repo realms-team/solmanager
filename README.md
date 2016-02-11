@@ -1,3 +1,5 @@
+[![Code Health](https://landscape.io/github/realms-team/basestation-fw/master/landscape.svg?style=flat)](https://landscape.io/github/realms-team/basestation-fw/master)
+
 This repo contains the software to run on the basestation. It:
 * connects to the SmartMesh IP manager
 * formats received data/notifications as sensors objects
