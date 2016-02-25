@@ -7,7 +7,7 @@ import os
 if __name__ == "__main__":
     here = sys.path[0]
     sys.path.insert(0, os.path.join(here, 'smartmeshsdk-master'))
-    sys.path.insert(0, os.path.join(here, '..', 'Sol'))
+    sys.path.insert(0, os.path.join(here, '..', 'sol'))
 
 #============================ imports =========================================
 
@@ -41,25 +41,35 @@ import SolVersion
 import SolDefines
 
 #============================ defines =========================================
-
+MAC_LSB_LIST                           = [61, 53, 145, 188, 173]
 FLOW_DEFAULT                           = 'default'
 FLOW_ON                                = 'on'
 FLOW_OFF                               = 'off'
 
-DEFAULT_SERIALPORT                     = 'COM14'
+DEFAULT_SERIALPORT                     = '/dev/ttyS4'
+DEFAULT_TEMPDATA_FOLDER                = '/root/tempdata/'
 DEFAULT_TCPPORT                        = 8080
 DEFAULT_FILECOMMITDELAY_S              = 60
 
 DEFAULT_CRASHLOG                       = 'basestation.crashlog'
 DEFAULT_BACKUPFILE                     = 'basestation.backup'
+DEFAULT_FILE_SCP_INTERVAL_M            = 15 
+DEFAULT_SNAPSHOT_INTERVAL_M            = 43200 
 # config
 DEFAULT_LOGFILE                        = 'basestation.sol'
-DEFAULT_SERVER                         = 'localhost:8081'
+DEFAULT_TEMP_DATAFILE                  = 'basestation.sol.temp'
+DEFAULT_TEMP_SNAPSHOTFILE              = 'basestation.sol.snapshot.temp'    
+DEFAULT_SERVER                         = 'glaser.berkeley.edu:8081'
 DEFAULT_SERVERTOKEN                    = 'DEFAULT_SERVERTOKEN'
 DEFAULT_BASESTATIONTOKEN               = 'DEFAULT_BASESTATIONTOKEN'
 DEFAULT_SENDPERIODMINUTES              = 1
 DEFAULT_FILEPERIODMINUTES              = 1
-
+datafilename                           = 'basestation.sol.temp'
+localpath                              = '/root/basestation-fw/'
+remoteuser                             = 'ziran'
+remoteip                               = '169.229.144.58'
+remotepath                             = '/media/raid1/ziran/ARDataTemp/'
+remotepathtosnapshot                   = '/media/raid1/ziran/ARSnapshots/'
 # stats
 STAT_NUM_JSON_UNAUTHORIZED             = 'NUM_JSON_UNAUTHORIZED'
 STAT_NUM_JSON_REQ                      = 'NUM_JSON_REQ'
@@ -122,6 +132,29 @@ def logCrash(threadName,err):
     print output
     with open(DEFAULT_CRASHLOG,'a') as f:
         f.write(output)
+def scpOneFile(filename,orgLoc,destUser, destIP, destLoc):
+	# timestamp the file 
+    filenameTimestamped = filename+ '.' +str(int(time.time()))
+    copycommand= 'cp ' + orgLoc+filename + ' ' + orgLoc + filenameTimestamped
+    try: 
+        os.system(copycommand)
+        time.sleep(1)
+				# compression, quiet mode to reduce traffic			
+        scpcommand = 'scp Cvvv -P 5441 ' +orgLoc + filenameTimestamped + ' '+ destUser + '@' +destIP + ':' + destLoc 
+# output          scp Cv -P 5441 /root/basestation-fw/basestation.sol.temp ziran@169.229.144.58:/media/raid1/ziran/ARDataTemp/basestation.sol.temp.1444168604
+        scpOP = os.system(scpcommand)
+        print scpOP
+        if scpOP ==0:
+            print 'transfer done, now removing files'
+            os.remove(orgLoc+filename)
+            os.remove(orgLoc+filenameTimestamped)
+            print 'remove done, exiting'
+            exit()	
+        else: 
+            os.remove(orgLoc+filenameTimestamped)	
+    except Exception as err:
+        print err
+
 
 #============================ classes =========================================
 
@@ -150,6 +183,8 @@ class AppData(object):
                     'basestationtoken':     DEFAULT_BASESTATIONTOKEN,
                     'sendperiodminutes':    DEFAULT_SENDPERIODMINUTES,
                     'fileperiodminutes':    DEFAULT_FILEPERIODMINUTES,
+                    'scpperiodminutes' :    DEFAULT_FILE_SCP_INTERVAL_M,
+                    'snapshotperiodminiutes': DEFAULT_SNAPSHOT_INTERVAL_M 
                 },
                 'flows' : {
                     FLOW_DEFAULT:           FLOW_ON,
@@ -445,6 +480,7 @@ class DustThread(threading.Thread):
                     fun =           self._notifData,
                     isRlbl =        False,
                 )
+                '''
                 self.subscriber.subscribe(
                     notifTypes =    [
                                         IpMgrSubscribe.IpMgrSubscribe.NOTIFEVENT,
@@ -481,6 +517,7 @@ class DustThread(threading.Thread):
                     fun =           self._notifErrorFinish,
                     isRlbl =        True,
                 )
+                '''
                 
             except Exception as err:
                 
@@ -489,10 +526,12 @@ class DustThread(threading.Thread):
                 
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_DISCONNECTS)
-                
+                print 'Disconnecting...'
                 try:
                    self.connector.disconnect()
-                except:
+                except Exception as err:
+                   print 'Failed:'
+                   print err
                    pass
                 
                 # wait to reconnect
@@ -505,10 +544,12 @@ class DustThread(threading.Thread):
                 
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_DISCONNECTS)
-                
+                print 'Disconnecting...'
                 try:
                    self.connector.disconnect()
-                except:
+                except Exception as err:
+                   print 'Failed:'
+                   print err
                    pass
     
     #======================== public ==========================================
@@ -540,7 +581,11 @@ class DustThread(threading.Thread):
             srcPort    = notifParams.srcPort
             dstPort    = notifParams.dstPort
             data       = notifParams.data
-            
+            print macAddress[7]
+            if not(macAddress[7] in MAC_LSB_LIST):
+                return
+            #print 'this is a data pkt: '
+            #print data
             isSol = False
             
             if dstPort==SolDefines.SOL_PORT:
@@ -564,11 +609,13 @@ class DustThread(threading.Thread):
                         dstPort = dstPort,
                         payload = data,
                     ),
-                }
-            
+                }             
             # publish sensor object
+            print(sobject);
             self._publishObject(sobject)
-            
+            f= open(DEFAULT_TEMP_DATAFILE,'a')
+            pickle.dump(sobject,f)
+            f.close()
         except Exception as err:
             logCrash(self.name,err)
     
@@ -705,7 +752,7 @@ class DustThread(threading.Thread):
             
             # publish sensor object
             self._publishObject(sobject)
-            
+            #print sobject
         except Exception as err:
             logCrash(self.name,err)
     
@@ -764,6 +811,7 @@ class DustThread(threading.Thread):
             # publish sensor object
             for sobject in sobjects:
                 self._publishObject(sobject)
+            #print sobjects
             
         except Exception as err:
             logCrash(self.name,err)
@@ -791,6 +839,7 @@ class DustThread(threading.Thread):
             
             # publish sensor object
             self._publishObject(sobject)
+           
             
         except Exception as err:
             logCrash(self.name,err)
@@ -1005,7 +1054,11 @@ class SnapshotThread(threading.Thread):
                     summary = snapshotSummary,
                 ),
             }
-            
+            print 'this is a snapshot'
+            print sobject
+            f=open(DEFAULT_TEMP_SNAPSHOTFILE,'a')
+            pickle.dump(sobject,f)
+            f.close()
             # publish sensor object
             self.dustThread._publishObject(sobject)
             
@@ -1038,6 +1091,64 @@ class PublishThread(threading.Thread):
     def publish(self,object):
         with self.dataLock:
             self.objectsToCommit += [object]
+            
+class ScpThread(threading.Thread):
+    def __init__(self):
+        self.goOn            = True
+        self.objectsToCommit = []
+        self.dataLock        = threading.RLock()
+        self.sol             = Sol.Sol()
+        # start the thread
+        threading.Thread.__init__(self)
+        self.name            = 'ScpThread'
+        self.start()
+                 
+    def run(self):
+        try:
+            self.currentDelay = 60*DEFAULT_FILE_SCP_INTERVAL_M
+            while self.goOn:
+                self.currentDelay -= 1
+                if self.currentDelay==0:
+                    print 'scp timer timeout'
+                    scpOneFile(datafilename,localpath,remoteuser, remoteip, remotepath)
+                    self.currentDelay = 60*DEFAULT_FILE_SCP_INTERVAL_M # make it variable
+                time.sleep(1)
+        except Exception as err:
+            logCrash(self.name,err)
+	
+    def close(self):
+        self.goOn = False
+
+class DoSnapshotThread(threading.Thread):
+    def __init__(self):
+        self.goOn            = True
+        self.objectsToCommit = []
+        self.dataLock        = threading.RLock()
+        self.sol             = Sol.Sol()
+        # start the thread
+        threading.Thread.__init__(self)
+        self.name            = 'DoSnapshotThread'
+        self.start()
+    def run(self):
+        try:
+            self.currentDelay = 60
+            while self.goOn:
+                self.currentDelay -= 1
+                if self.currentDelay==0:
+                    print 'snapshot due'
+                    SnapshotThread().doSnapshot()
+                    time.sleep(15)
+                    scpOneFile(DEFAULT_TEMP_SNAPSHOTFILE,localpath,remoteuser, remoteip, remotepathtosnapshot)
+                    #print res
+                    self.currentDelay = 60*DEFAULT_SNAPSHOT_INTERVAL_M # make it variable
+                time.sleep(1)
+        except Exception as err:
+            logCrash(self.name,err)
+
+         
+    def close(self):
+        self.goOn = False
+
 
 class FileThread(PublishThread):
     _instance = None
@@ -1117,6 +1228,7 @@ class SendThread(PublishThread):
             )
         except requests.exceptions.RequestException as err:
             # update stats
+            print 'Error Contacting Server: ', err
             AppData().incrStats(STAT_NUM_SERVER_UNREACHABLE)
             # happens when could not contact server
             pass
@@ -1181,7 +1293,7 @@ class JsonThread(threading.Thread):
             time.sleep(0.5)
             
             self.web.run(
-                host   = 'localhost',
+                host   = '192.168.13.100',
                 port   = self.tcpport,
                 server = CherryPySSL,
                 quiet  = True,
@@ -1497,6 +1609,8 @@ class Basestation(object):
         self.fileThread      = FileThread()
         self.sendThread      = SendThread()
         self.jsonThread      = JsonThread(tcpport,self.dustThread)
+        self.scpThread       = ScpThread() 
+        self.dosnapshotThread= DoSnapshotThread()
     
     def close(self):
         self.dustThread.close()
@@ -1504,6 +1618,8 @@ class Basestation(object):
         self.fileThread.close()
         self.sendThread.close()
         self.jsonThread.close()
+        self.scpThread.close()
+        self.dosnapshotThread.close()
 
 #============================ main ============================================
 
