@@ -4,9 +4,9 @@
 
 import sys
 import os
+
 if __name__ == "__main__":
     here = sys.path[0]
-    sys.path.insert(0, os.path.join(here, '../sol/', 'smartmeshsdk'))
     sys.path.insert(0, os.path.join(here, '..', 'sol'))
 
 #============================ imports =========================================
@@ -24,10 +24,10 @@ import OpenCli
 import basestation_version
 
 # DustThread
-from   SmartMeshSDK                         import FormatUtils, \
-                                                   HrParser,    \
-                                                   sdk_version, \
+from   SmartMeshSDK                         import sdk_version, \
                                                    ApiException
+from   SmartMeshSDK.utils                   import FormatUtils
+from   SmartMeshSDK.protocols.Hr            import HrParser
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
 from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrConnectorMux, \
                                                    IpMgrSubscribe
