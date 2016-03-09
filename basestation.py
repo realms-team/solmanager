@@ -18,6 +18,8 @@ import json
 import pickle
 import random
 import traceback
+import pdb
+import array
 from   optparse                             import OptionParser
 from   ConfigParser                         import SafeConfigParser
 
@@ -32,6 +34,8 @@ from   SmartMeshSDK.protocols.Hr            import HrParser
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
 from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrConnectorMux, \
                                                    IpMgrSubscribe
+from SmartMeshSDK.protocols.oap             import OAPMessage, \
+                                                   OAPNotif
 
 # SendThread
 import requests
@@ -548,7 +552,7 @@ class DustThread(threading.Thread):
             data       = notifParams.data
             
             isSol = False
-            
+
             if dstPort==SolDefines.SOL_PORT:
                 # try to decode as objects
                 try:
@@ -557,9 +561,16 @@ class DustThread(threading.Thread):
                     pass
                 else:
                     isSol = True
-            
+            elif dstPort==SolDefines.OAP_PORT:
+                sobject = {
+                    'mac':       macAddress,
+                    'timestamp': self._netTsToEpoch(netTs),
+                    'type': SolDefines.SOL_TYPE_DUST_OAP,
+                    'value': data
+                }
+                isSol = True
+
             if not isSol:
-                
                 # create sensor object (NOTIF_DATA_RAW)
                 sobject = {
                     'mac':       macAddress,
