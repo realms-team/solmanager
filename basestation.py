@@ -4,10 +4,11 @@
 
 import sys
 import os
+
 if __name__ == "__main__":
     here = sys.path[0]
-    sys.path.insert(0, os.path.join(here, 'smartmeshsdk-master'))
     sys.path.insert(0, os.path.join(here, '..', 'sol'))
+    sys.path.insert(0, os.path.join(here, '..', 'sol','smartmeshsdk','libs'))
 
 #============================ imports =========================================
 
@@ -17,19 +18,24 @@ import json
 import pickle
 import random
 import traceback
+import pdb
+import array
 from   optparse                             import OptionParser
+from   ConfigParser                         import SafeConfigParser
 
 import OpenCli
 import basestation_version
 
 # DustThread
-from   SmartMeshSDK                         import FormatUtils, \
-                                                   HrParser,    \
-                                                   sdk_version, \
+from   SmartMeshSDK                         import sdk_version, \
                                                    ApiException
+from   SmartMeshSDK.utils                   import FormatUtils
+from   SmartMeshSDK.protocols.Hr            import HrParser
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
 from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrConnectorMux, \
                                                    IpMgrSubscribe
+from SmartMeshSDK.protocols.oap             import OAPMessage, \
+                                                   OAPNotif
 
 # SendThread
 import requests
@@ -46,7 +52,8 @@ FLOW_DEFAULT                           = 'default'
 FLOW_ON                                = 'on'
 FLOW_OFF                               = 'off'
 
-DEFAULT_SERIALPORT                     = '/dev/ttyUSB3'
+DEFAULT_CONFIGFILE                     = 'basestation.config'
+DEFAULT_SERIALPORT                     = 'COM14'
 DEFAULT_TCPPORT                        = 8080
 DEFAULT_FILECOMMITDELAY_S              = 60
 
@@ -57,6 +64,9 @@ DEFAULT_LOGFILE                        = 'basestation.sol'
 DEFAULT_SERVER                         = 'localhost:8081'
 DEFAULT_SERVERTOKEN                    = 'DEFAULT_SERVERTOKEN'
 DEFAULT_BASESTATIONTOKEN               = 'DEFAULT_BASESTATIONTOKEN'
+DEFAULT_BASESTATIONPRIVKEY             = 'basestation.ppk'
+DEFAULT_BASESTATIONCERT                = 'basestation.cert'
+DEFAULT_SERVERCERT                     = 'server.cert'
 DEFAULT_SENDPERIODMINUTES              = 1
 DEFAULT_FILEPERIODMINUTES              = 1
 
@@ -542,7 +552,7 @@ class DustThread(threading.Thread):
             data       = notifParams.data
             
             isSol = False
-            
+
             if dstPort==SolDefines.SOL_PORT:
                 # try to decode as objects
                 try:
@@ -551,9 +561,16 @@ class DustThread(threading.Thread):
                     pass
                 else:
                     isSol = True
-            
+            elif dstPort==SolDefines.OAP_PORT:
+                sobject = {
+                    'mac':       macAddress,
+                    'timestamp': self._netTsToEpoch(netTs),
+                    'type': SolDefines.SOL_TYPE_DUST_OAP,
+                    'value': data
+                }
+                isSol = True
+
             if not isSol:
-                
                 # create sensor object (NOTIF_DATA_RAW)
                 sobject = {
                     'mac':       macAddress,
@@ -1126,7 +1143,7 @@ class SendThread(PublishThread):
                 'https://{0}/api/v1/o.json'.format(AppData().getConfig('server')),
                 headers = {'X-REALMS-Token': AppData().getConfig('servertoken')},
                 json    = payload,
-                verify  = 'server.cert',
+                verify  = DEFAULT_SERVERCERT,
             )
         except requests.exceptions.RequestException as err:
             # update stats
@@ -1151,8 +1168,8 @@ class CherryPySSL(bottle.ServerAdapter):
         from cherrypy.wsgiserver.ssl_pyopenssl import pyOpenSSLAdapter
         server = wsgiserver.CherryPyWSGIServer((self.host, self.port), handler)
         server.ssl_adapter = pyOpenSSLAdapter(
-            certificate           = "basestation.cert",
-            private_key           = "basestation.ppk",
+            certificate           = DEFAULT_BASESTATIONCERT,
+            private_key           = DEFAULT_BASESTATIONPRIVKEY,
         )
         try:
             server.start()
@@ -1563,7 +1580,42 @@ def main(serialport,tcpport):
     )
 
 if __name__ == '__main__':
-    
+    # parse the config file
+    cf_parser = SafeConfigParser()
+    cf_parser.read(DEFAULT_CONFIGFILE)
+
+    if cf_parser.has_section('basestation'):
+        if cf_parser.has_option('basestation','serialport'):
+            DEFAULT_SERIALPORT = cf_parser.get('basestation','serialport')
+        if cf_parser.has_option('basestation','tcpport'):
+            DEFAULT_TCPPORT = cf_parser.get('basestation','tcpport')
+        if cf_parser.has_option('basestation','token'):
+            DEFAULT_BASESTATIONTOKEN = cf_parser.get('basestation','token')
+        if cf_parser.has_option('basestation','filecommitdelay'):
+            DEFAULT_FILECOMMITDELAY_S = cf_parser.getint(
+                    'basestation',
+                    'filecommitdelay')
+        if cf_parser.has_option('basestation','sendperiodminutes'):
+            DEFAULT_SENDPERIODMINUTES = cf_parser.getint(
+                    'basestation',
+                    'sendperiodminutes')
+        if cf_parser.has_option('basestation','fileperiodminutes'):
+            DEFAULT_FILEPERIODMINUTES = cf_parser.getint(
+                    'basestation',
+                    'fileperiodminutes')
+        if cf_parser.has_option('basestation','crashlog'):
+            DEFAULT_BASESTATIONTOKEN = cf_parser.get('basestation','crashlog')
+        if cf_parser.has_option('basestation','backup'):
+            DEFAULT_BASESTATIONTOKEN = cf_parser.get('basestation','backup')
+
+    if cf_parser.has_section('server'):
+        if cf_parser.has_option('server','host'):
+            DEFAULT_SERVER = cf_parser.get('server','host')
+        if cf_parser.has_option('server','token'):
+            DEFAULT_SERVERTOKEN = cf_parser.get('server','token')
+        if cf_parser.has_option('server','certfile'):
+            DEFAULT_SERVERCERT = cf_parser.get('server','certfile')
+
     # parse the command line
     parser = OptionParser("usage: %prog [options]")
     parser.add_option(

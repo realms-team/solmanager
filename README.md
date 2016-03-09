@@ -15,6 +15,35 @@ This repo contains the software to run on the basestation. It:
 * copy `basestation.cert` in the `server-sw` directory as well
 * double-click/run on `basestation.py` to start the basestation
 
+## Configuration
+* Create basestation configuration file: basestation.config
+* Uncomment to change default value
+```
+[basestation]
+### Connection
+#serialport = /dev/ttyUSB3
+#tcpport = 8080
+
+### Application
+#filecommitdelay = 60
+#sendperiodminutes = 1
+#fileperiodminutes = 1
+
+#token = DEFAULT_BASESTATIONTOKEN
+
+### Files
+#crashlogfile = basestation.crashlog
+#backupfile = basestation.backup
+
+[server]
+### Connection
+#host = localhost:8081
+
+### Security
+#token = DEFAULT_SERVERTOKEN
+#certfile = server.cert
+```
+
 # JSON API
 
 The basestation offers a JSON API for the server to issue commands.
