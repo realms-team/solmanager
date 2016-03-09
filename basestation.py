@@ -552,6 +552,7 @@ class DustThread(threading.Thread):
             data       = notifParams.data
             
             isSol = False
+            isOAP = False
 
             if dstPort==SolDefines.SOL_PORT:
                 # try to decode as objects
@@ -568,9 +569,9 @@ class DustThread(threading.Thread):
                     'type': SolDefines.SOL_TYPE_DUST_OAP,
                     'value': data
                 }
-                isSol = True
+                isOAP = True
 
-            if not isSol:
+            if (not isSol) and (not isOAP):
                 # create sensor object (NOTIF_DATA_RAW)
                 sobject = {
                     'mac':       macAddress,
