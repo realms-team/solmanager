@@ -537,55 +537,28 @@ class DustThread(threading.Thread):
     #=== Dust API notifications
     
     def _notifData(self, notifName, notifParams):
-        
+
         try:
             # update stats
             AppData().incrStats(STAT_NUM_DUST_NOTIFDATA)
-                
+
             assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFDATA
-            
-            # extract the important data
-            netTs      = self._calcNetTs(notifParams)
-            macAddress = notifParams.macAddress
-            srcPort    = notifParams.srcPort
-            dstPort    = notifParams.dstPort
-            data       = notifParams.data
-            
-            isSol = False
 
-            if dstPort==SolDefines.SOL_PORT:
-                # try to decode as objects
-                try:
-                    raise NotImplementedError()
-                except:
-                    pass
-                else:
-                    isSol = True
-            elif dstPort==SolDefines.OAP_PORT:
-                sobject = {
-                    'mac':       macAddress,
-                    'timestamp': self._netTsToEpoch(netTs),
-                    'type': SolDefines.SOL_TYPE_DUST_OAP,
-                    'value': data
-                }
-                isSol = True
+            # convert Dust Tuple_notifData to dict
+            dust_obj = {
+                "netTs":        self._netTsToEpoch(self._calcNetTs(notifParams)),
+                "macAddress":   notifParams.macAddress,
+                "srcPort":      notifParams.srcPort,
+                "dstPort":      notifParams.dstPort,
+                "data":         notifParams.data
+            }
 
-            if not isSol:
-                # create sensor object (NOTIF_DATA_RAW)
-                sobject = {
-                    'mac':       macAddress,
-                    'timestamp': self._netTsToEpoch(netTs),
-                    'type':      SolDefines.SOL_TYPE_DUST_NOTIF_DATA_RAW,
-                    'value':     self.sol.create_value(
-                            SolDefines.SOL_TYPE_DUST_NOTIF_DATA_RAW,
-                            srcPort,
-                            dstPort,
-                            data),
-                }
-            
+            # convert dust message to SOL Object
+            sobject = self.sol.dust_to_json(dust_obj)
+
             # publish sensor object
             self._publishObject(sobject)
-            
+
         except Exception as err:
             logCrash(self.name,err)
     
@@ -598,7 +571,7 @@ class DustThread(threading.Thread):
                 AppData().incrStats(STAT_NUM_DUST_EVENTCOMMANDFINISHED)
 
                 o_type  = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_COMMANDFINISHED
-                o_value = self.sol.create_value(
+                o_value = self.sol.pack_obj_value(
                             o_type,
                             notifParams.callbackId,
                             notifParams.rc)
@@ -608,7 +581,7 @@ class DustThread(threading.Thread):
                 AppData().incrStats(STAT_NUM_DUST_EVENTPATHCREATE)
 
                 o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_PATHCREATE
-                o_value  = self.sol.create_value(
+                o_value  = self.sol.pack_obj_value(
                         o_type,
                         notifParams.source,
                         notifParams.dest,
@@ -619,7 +592,7 @@ class DustThread(threading.Thread):
                 AppData().incrStats(STAT_NUM_DUST_EVENTPATHDELETE)
 
                 o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_PATHDELETE
-                o_value  = self.sol.create_value(
+                o_value  = self.sol.pack_obj_value(
                         o_type,
                         notifParams.source,
                         notifParams.dest,
@@ -630,7 +603,7 @@ class DustThread(threading.Thread):
                 AppData().incrStats(STAT_NUM_DUST_EVENTPINGRESPONSE)
 
                 o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_PING
-                o_value  = self.sol.create_value(
+                o_value  = self.sol.pack_obj_value(
                         o_type,
                         notifParams.callbackId,
                         notifParams.macAddress,
@@ -643,7 +616,7 @@ class DustThread(threading.Thread):
                 AppData().incrStats(STAT_NUM_DUST_EVENTNETWORKTIME)
 
                 o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_NETWORKTIME
-                o_value  = self.sol.create_value(
+                o_value  = self.sol.pack_obj_value(
                         o_type,
                         notifParams.uptime,
                         notifParams.utcSecs,
@@ -656,7 +629,7 @@ class DustThread(threading.Thread):
                 AppData().incrStats(STAT_NUM_DUST_EVENTNETWORKRESET)
 
                 o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_NETWORKRESET
-                o_value  = self.sol.create_value(
+                o_value  = self.sol.pack_obj_value(
                         o_type)
 
             elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEJOIN:
@@ -664,7 +637,7 @@ class DustThread(threading.Thread):
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTEJOIN)
 
                 o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTEJOIN
-                o_value  = self.sol.create_value(
+                o_value  = self.sol.pack_obj_value(
                         o_type,
                         notifParams.macAddress)
 
@@ -673,7 +646,7 @@ class DustThread(threading.Thread):
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTECREATE)
 
                 o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTECREATE
-                o_value  = self.sol.create_value(
+                o_value  = self.sol.pack_obj_value(
                         o_type,
                         notifParams.macAddress,
                         notifParams.moteId)
@@ -683,7 +656,7 @@ class DustThread(threading.Thread):
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTEDELETE)
 
                 o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTEDELETE
-                o_value  = self.sol.create_value(
+                o_value  = self.sol.pack_obj_value(
                         o_type,
                         notifParams.macAddress,
                         notifParams.moteId)
@@ -693,7 +666,7 @@ class DustThread(threading.Thread):
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTELOST)
 
                 o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTELOST
-                o_value  = self.sol.create_value(
+                o_value  = self.sol.pack_obj_value(
                         o_type,
                         notifParams.macAddress)
 
@@ -702,7 +675,7 @@ class DustThread(threading.Thread):
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTEOPERATIONAL)
 
                 o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTEOPERATIONAL
-                o_value  = self.sol.create_value(
+                o_value  = self.sol.pack_obj_value(
                         o_type,
                         notifParams.macAddress)
 
@@ -711,7 +684,7 @@ class DustThread(threading.Thread):
                 AppData().incrStats(STAT_NUM_DUST_EVENTMOTERESET)
 
                 o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTERESET
-                o_value  = self.sol.create_value(
+                o_value  = self.sol.pack_obj_value(
                         o_type,
                         notifParams.macAddress)
 
@@ -720,7 +693,7 @@ class DustThread(threading.Thread):
                 AppData().incrStats(STAT_NUM_DUST_EVENTPACKETSENT)
 
                 o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_PACKETSENT
-                o_value  = self.sol.create_value(
+                o_value  = self.sol.pack_obj_value(
                         o_type,
                         notifParams.callbackId,
                         notifParams.rc)
@@ -764,7 +737,8 @@ class DustThread(threading.Thread):
                 
                 sobjects += [{
                     'type':  SolDefines.SOL_TYPE_DUST_NOTIF_HR_DEVICE,
-                    'value': self.sol.create_value_SOL_TYPE_DUST_NOTIF_HR_DEVICE(
+                    'value': self.sol.pack_obj_value(
+                        SolDefines.SOL_TYPE_DUST_NOTIF_HR_DEVICE,
                         hr            = hr['Device'],
                     ),
                 }]
@@ -774,7 +748,8 @@ class DustThread(threading.Thread):
                 
                 sobjects += [{
                     'type':  SolDefines.SOL_TYPE_DUST_NOTIF_HR_NEIGHBORS,
-                    'value': self.sol.create_value_SOL_TYPE_DUST_NOTIF_HR_NEIGHBORS(
+                    'value': self.sol.pack_obj_value(
+                        SolDefines.SOL_TYPE_DUST_NOTIF_HR_NEIGHBORS,
                         hr            = hr['Neighbors'],
                     ),
                 }]
@@ -784,7 +759,8 @@ class DustThread(threading.Thread):
                 
                 sobjects += [{
                     'type':  SolDefines.SOL_TYPE_DUST_NOTIF_HR_DISCOVERED,
-                    'value': self.sol.create_value_SOL_TYPE_DUST_NOTIF_HR_DISCOVERED(
+                    'value': self.sol.pack_obj_value(
+                        SolDefines.SOL_TYPE_DUST_NOTIF_HR_DISCOVERED,
                         hr            = hr['Discovered'],
                     ),
                 }]
@@ -1034,7 +1010,8 @@ class SnapshotThread(threading.Thread):
                 'mac':       self.dustThread.managerMac,
                 'timestamp': int(time.time()),
                 'type':      SolDefines.SOL_TYPE_DUST_SNAPSHOT,
-                'value':     self.sol.create_value_SOL_TYPE_DUST_SNAPSHOT(
+                'value':     self.sol.pack_obj_value(
+                    SolDefines.SOL_TYPE_DUST_SNAPSHOT,
                     summary = snapshotSummary,
                 ),
             }
@@ -1135,7 +1112,7 @@ class SendThread(PublishThread):
         
         # prepare payload
         with self.dataLock:
-            payload = self.sol.dicts_to_json(self.objectsToCommit,mode="minimal")
+            payload = self.sol.bin_to_contenttype(self.objectsToCommit)
         
         # send payload to server
         try:
