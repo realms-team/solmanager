@@ -739,7 +739,7 @@ class DustThread(threading.Thread):
                     'type':  SolDefines.SOL_TYPE_DUST_NOTIF_HR_DEVICE,
                     'value': self.sol.pack_obj_value(
                         SolDefines.SOL_TYPE_DUST_NOTIF_HR_DEVICE,
-                        hr            = hr['Device'],
+                        hr['Device'],
                     ),
                 }]
             if 'Neighbors' in hr:
@@ -749,8 +749,8 @@ class DustThread(threading.Thread):
                 sobjects += [{
                     'type':  SolDefines.SOL_TYPE_DUST_NOTIF_HR_NEIGHBORS,
                     'value': self.sol.pack_obj_value(
-                        SolDefines.SOL_TYPE_DUST_NOTIF_HR_NEIGHBORS,
-                        hr            = hr['Neighbors'],
+                        SOL_TYPE_DUST_NOTIF_HR_NEIGHBORS,
+                        hr['Neighbors'],
                     ),
                 }]
             if 'Discovered' in hr:
@@ -761,7 +761,7 @@ class DustThread(threading.Thread):
                     'type':  SolDefines.SOL_TYPE_DUST_NOTIF_HR_DISCOVERED,
                     'value': self.sol.pack_obj_value(
                         SolDefines.SOL_TYPE_DUST_NOTIF_HR_DISCOVERED,
-                        hr            = hr['Discovered'],
+                        hr['Discovered'],
                     ),
                 }]
             
@@ -1129,7 +1129,7 @@ class SendThread(PublishThread):
             # update stats
             AppData().incrStats(STAT_NUM_SERVER_UNREACHABLE)
             # happens when could not contact server
-            pass
+            print err
         else:
             # server answered
             
