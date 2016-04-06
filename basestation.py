@@ -749,7 +749,7 @@ class DustThread(threading.Thread):
                 sobjects += [{
                     'type':  SolDefines.SOL_TYPE_DUST_NOTIF_HR_NEIGHBORS,
                     'value': self.sol.pack_obj_value(
-                        SOL_TYPE_DUST_NOTIF_HR_NEIGHBORS,
+                        SolDefines.SOL_TYPE_DUST_NOTIF_HR_NEIGHBORS,
                         hr['Neighbors'],
                     ),
                 }]
