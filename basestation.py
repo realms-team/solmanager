@@ -734,49 +734,40 @@ class DustThread(threading.Thread):
             if 'Device' in hr:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_HR_DEVICE)
-                
-                sobjects += [{
-                    'type':  SolDefines.SOL_TYPE_DUST_NOTIF_HR_DEVICE,
-                    'value': self.sol.pack_obj_value(
-                        SolDefines.SOL_TYPE_DUST_NOTIF_HR_DEVICE,
-                        hr['Device'],
-                    ),
-                }]
+                obj_type =  SolDefines.SOL_TYPE_DUST_NOTIF_HR_DEVICE
+                obj_val  =  self.sol.pack_obj_value(obj_type, hr['Device'])
+
             if 'Neighbors' in hr:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_HR_NEIGHBORS)
-                
-                sobjects += [{
-                    'type':  SolDefines.SOL_TYPE_DUST_NOTIF_HR_NEIGHBORS,
-                    'value': self.sol.pack_obj_value(
-                        SolDefines.SOL_TYPE_DUST_NOTIF_HR_NEIGHBORS,
-                        hr['Neighbors'],
-                    ),
-                }]
+                obj_type =  SolDefines.SOL_TYPE_DUST_NOTIF_HR_NEIGHBORS
+                obj_val  =  self.sol.pack_obj_value(obj_type, hr['Neighbors'])
+
             if 'Discovered' in hr:
                 # update stats
                 AppData().incrStats(STAT_NUM_DUST_HR_DISCOVERED)
-                
+                obj_type = SolDefines.SOL_TYPE_DUST_NOTIF_HR_DISCOVERED
+                obj_val = self.sol.pack_obj_value(obj_type, hr['Discovered'])
+
+            # build object
                 sobjects += [{
-                    'type':  SolDefines.SOL_TYPE_DUST_NOTIF_HR_DISCOVERED,
-                    'value': self.sol.pack_obj_value(
-                        SolDefines.SOL_TYPE_DUST_NOTIF_HR_DISCOVERED,
-                        hr['Discovered'],
-                    ),
+                    'type':     obj_type,
+                    'length':   len(obj_val),
+                    'value':    obj_val,
                 }]
-            
+
             # add common field(s)
             for sobject in sobjects:
                 sobject['timestamp']   = int(time.time())
                 sobject['mac']         = macAddress
-            
+
             # publish sensor object
             for sobject in sobjects:
                 self._publishObject(sobject)
-            
+
         except Exception as err:
             logCrash(self.name,err)
-    
+
     def _notifIPData(self, notifName, notifParams):
         
         try:
@@ -865,7 +856,6 @@ class DustThread(threading.Thread):
     
     def _publishObject(self,object):
         
-        assert sorted(object.keys()) == sorted(['mac','type','timestamp','value'])
         assert type(object['mac'])==list
         for b in object['mac']:
             assert type(b)==int
@@ -1109,11 +1099,11 @@ class SendThread(PublishThread):
         # stop if nothing to publish
         if not self.objectsToCommit:
             return
-        
+
         # prepare payload
         with self.dataLock:
             payload = self.sol.bin_to_contenttype(self.objectsToCommit)
-        
+
         # send payload to server
         try:
             # update stats
