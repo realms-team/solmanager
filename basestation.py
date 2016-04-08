@@ -1133,6 +1133,7 @@ class SendThread(PublishThread):
             else:
                 # update stats
                 AppData().incrStats(STAT_NUM_SERVER_STATUSFAIL)
+                print "Error HTTP response status: "+ str(r.status_code)
 
 class CherryPySSL(bottle.ServerAdapter):
     def run(self, handler):
