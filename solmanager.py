@@ -24,7 +24,7 @@ from   optparse                             import OptionParser
 from   ConfigParser                         import SafeConfigParser
 
 import OpenCli
-import basestation_version
+import solmanager_version
 
 # DustThread
 from   SmartMeshSDK                         import sdk_version, \
@@ -52,20 +52,20 @@ FLOW_DEFAULT                           = 'default'
 FLOW_ON                                = 'on'
 FLOW_OFF                               = 'off'
 
-DEFAULT_CONFIGFILE                     = 'basestation.config'
+DEFAULT_CONFIGFILE                     = 'solmanager.config'
 DEFAULT_SERIALPORT                     = 'COM14'
 DEFAULT_TCPPORT                        = 8080
 DEFAULT_FILECOMMITDELAY_S              = 60
 
-DEFAULT_CRASHLOG                       = 'basestation.crashlog'
-DEFAULT_BACKUPFILE                     = 'basestation.backup'
+DEFAULT_CRASHLOG                       = 'solmanager.crashlog'
+DEFAULT_BACKUPFILE                     = 'solmanager.backup'
 # config
-DEFAULT_LOGFILE                        = 'basestation.sol'
+DEFAULT_LOGFILE                        = 'solmanager.sol'
 DEFAULT_SERVER                         = 'localhost:8081'
 DEFAULT_SERVERTOKEN                    = 'DEFAULT_SERVERTOKEN'
 DEFAULT_BASESTATIONTOKEN               = 'DEFAULT_BASESTATIONTOKEN'
-DEFAULT_BASESTATIONPRIVKEY             = 'basestation.ppk'
-DEFAULT_BASESTATIONCERT                = 'basestation.cert'
+DEFAULT_BASESTATIONPRIVKEY             = 'solmanager.ppk'
+DEFAULT_BASESTATIONCERT                = 'solmanager.cert'
 DEFAULT_SERVERCERT                     = 'server.cert'
 DEFAULT_SENDPERIODMINUTES              = 1
 DEFAULT_FILEPERIODMINUTES              = 1
@@ -157,7 +157,7 @@ class AppData(object):
                     'logfile':              DEFAULT_LOGFILE,
                     'server':               DEFAULT_SERVER,
                     'servertoken':          DEFAULT_SERVERTOKEN,
-                    'basestationtoken':     DEFAULT_BASESTATIONTOKEN,
+                    'solmanagertoken':     DEFAULT_BASESTATIONTOKEN,
                     'sendperiodminutes':    DEFAULT_SENDPERIODMINUTES,
                     'fileperiodminutes':    DEFAULT_FILEPERIODMINUTES,
                 },
@@ -1229,7 +1229,7 @@ class JsonThread(threading.Thread):
             
             # format response
             returnVal = {}
-            returnVal['version basestation']    = basestation_version.VERSION
+            returnVal['version solmanager']    = solmanager_version.VERSION
             returnVal['version SmartMesh SDK']  = sdk_version.VERSION
             returnVal['version Sol']            = SolVersion.VERSION
             returnVal['uptime computer']        = self._exec_cmd('uptime')
@@ -1261,7 +1261,7 @@ class JsonThread(threading.Thread):
             
             # handle
             allConfig = AppData().getAllConfig()
-            for hidden in ['logfile','servertoken','basestationtoken']:
+            for hidden in ['logfile','servertoken','solmanagertoken']:
                 if hidden in allConfig.keys():
                     del allConfig[hidden]
             return allConfig
@@ -1475,7 +1475,7 @@ class JsonThread(threading.Thread):
     #=== misc
     
     def _authorizeClient(self):
-        if bottle.request.headers.get('X-REALMS-Token')!=AppData().getConfig('basestationtoken'):
+        if bottle.request.headers.get('X-REALMS-Token')!=AppData().getConfig('solmanagertoken'):
             AppData().incrStats(STAT_NUM_JSON_UNAUTHORIZED)
             raise bottle.HTTPResponse(
                 status  = 401,
@@ -1510,12 +1510,12 @@ class Basestation(object):
 
 #============================ main ============================================
 
-basestation = None
+solmanager = None
 
 def quitCallback():
-    global basestation
+    global solmanager
     
-    basestation.close()
+    solmanager.close()
 
 def cli_cb_stats(params):
     stats = AppData().getStats()
@@ -1526,10 +1526,10 @@ def cli_cb_stats(params):
     print output
 
 def main(serialport,tcpport):
-    global basestation
+    global solmanager
     
-    # create the basestation instance
-    basestation = Basestation(
+    # create the solmanager instance
+    solmanager = Basestation(
         serialport,
         tcpport,
     )
@@ -1537,7 +1537,7 @@ def main(serialport,tcpport):
     # start the CLI interface
     cli = OpenCli.OpenCli(
         "Basestation",
-        basestation_version.VERSION,
+        solmanager_version.VERSION,
         quitCallback,
         [
             ("SmartMesh SDK",sdk_version.VERSION),
@@ -1557,29 +1557,29 @@ if __name__ == '__main__':
     cf_parser = SafeConfigParser()
     cf_parser.read(DEFAULT_CONFIGFILE)
 
-    if cf_parser.has_section('basestation'):
-        if cf_parser.has_option('basestation','serialport'):
-            DEFAULT_SERIALPORT = cf_parser.get('basestation','serialport')
-        if cf_parser.has_option('basestation','tcpport'):
-            DEFAULT_TCPPORT = cf_parser.get('basestation','tcpport')
-        if cf_parser.has_option('basestation','token'):
-            DEFAULT_BASESTATIONTOKEN = cf_parser.get('basestation','token')
-        if cf_parser.has_option('basestation','filecommitdelay'):
+    if cf_parser.has_section('solmanager'):
+        if cf_parser.has_option('solmanager','serialport'):
+            DEFAULT_SERIALPORT = cf_parser.get('solmanager','serialport')
+        if cf_parser.has_option('solmanager','tcpport'):
+            DEFAULT_TCPPORT = cf_parser.get('solmanager','tcpport')
+        if cf_parser.has_option('solmanager','token'):
+            DEFAULT_BASESTATIONTOKEN = cf_parser.get('solmanager','token')
+        if cf_parser.has_option('solmanager','filecommitdelay'):
             DEFAULT_FILECOMMITDELAY_S = cf_parser.getint(
-                    'basestation',
+                    'solmanager',
                     'filecommitdelay')
-        if cf_parser.has_option('basestation','sendperiodminutes'):
+        if cf_parser.has_option('solmanager','sendperiodminutes'):
             DEFAULT_SENDPERIODMINUTES = cf_parser.getint(
-                    'basestation',
+                    'solmanager',
                     'sendperiodminutes')
-        if cf_parser.has_option('basestation','fileperiodminutes'):
+        if cf_parser.has_option('solmanager','fileperiodminutes'):
             DEFAULT_FILEPERIODMINUTES = cf_parser.getint(
-                    'basestation',
+                    'solmanager',
                     'fileperiodminutes')
-        if cf_parser.has_option('basestation','crashlog'):
-            DEFAULT_BASESTATIONTOKEN = cf_parser.get('basestation','crashlog')
-        if cf_parser.has_option('basestation','backup'):
-            DEFAULT_BASESTATIONTOKEN = cf_parser.get('basestation','backup')
+        if cf_parser.has_option('solmanager','crashlog'):
+            DEFAULT_BASESTATIONTOKEN = cf_parser.get('solmanager','crashlog')
+        if cf_parser.has_option('solmanager','backup'):
+            DEFAULT_BASESTATIONTOKEN = cf_parser.get('solmanager','backup')
 
     if cf_parser.has_section('server'):
         if cf_parser.has_option('server','host'):
