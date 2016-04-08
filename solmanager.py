@@ -61,12 +61,12 @@ DEFAULT_CRASHLOG                       = 'solmanager.crashlog'
 DEFAULT_BACKUPFILE                     = 'solmanager.backup'
 # config
 DEFAULT_LOGFILE                        = 'solmanager.sol'
-DEFAULT_SERVER                         = 'localhost:8081'
-DEFAULT_SERVERTOKEN                    = 'DEFAULT_SERVERTOKEN'
-DEFAULT_BASESTATIONTOKEN               = 'DEFAULT_BASESTATIONTOKEN'
-DEFAULT_BASESTATIONPRIVKEY             = 'solmanager.ppk'
-DEFAULT_BASESTATIONCERT                = 'solmanager.cert'
-DEFAULT_SERVERCERT                     = 'server.cert'
+DEFAULT_SOLSERVER                      = 'localhost:8081'
+DEFAULT_SOLSERVERTOKEN                 = 'DEFAULT_SOLSERVERTOKEN'
+DEFAULT_SOLMANAGERTOKEN                = 'DEFAULT_SOLMANAGERTOKEN'
+DEFAULT_SOLMANAGERPRIVKEY              = 'solmanager.ppk'
+DEFAULT_SOLMANAGERCERT                 = 'solmanager.cert'
+DEFAULT_SOLSERVERCERT                  = 'server.cert'
 DEFAULT_SENDPERIODMINUTES              = 1
 DEFAULT_FILEPERIODMINUTES              = 1
 
@@ -102,10 +102,10 @@ STAT_NUM_DUST_NOTIFLOG                 = 'NUM_DUST_NOTIFLOG'
 STAT_NUM_DUST_TIMESYNC                 = 'NUM_DUST_TIMESYNC'
 STAT_NUM_OBJECTS_RECEIVED              = 'NUM_OBJECTS_RECEIVED'
 STAT_NUM_LOGFILE_UPDATES               = 'NUM_LOGFILE_UPDATES'
-STAT_NUM_SERVER_SENDATTEMPTS           = 'NUM_SERVER_SENDATTEMPTS'
-STAT_NUM_SERVER_UNREACHABLE            = 'NUM_SERVER_UNREACHABLE'
-STAT_NUM_SERVER_SENDOK                 = 'NUM_SERVER_SENDOK'
-STAT_NUM_SERVER_STATUSFAIL             = 'NUM_SERVER_STATUSFAIL'
+STAT_NUM_SOLSERVER_SENDATTEMPTS        = 'NUM_SOLSERVER_SENDATTEMPTS'
+STAT_NUM_SOLSERVER_UNREACHABLE         = 'NUM_SOLSERVER_UNREACHABLE'
+STAT_NUM_SOLSERVER_SENDOK              = 'NUM_SOLSERVER_SENDOK'
+STAT_NUM_SOLSERVER_STATUSFAIL          = 'NUM_SOLSERVER_STATUSFAIL'
 STAT_BACKLOG_FILETHREAD                = 'BACKLOG_FILETHREAD'
 STAT_BACKLOG_SENDTHREAD                = 'BACKLOG_SENDTHREAD'
 
@@ -155,9 +155,9 @@ class AppData(object):
                 'stats' : {},
                 'config' : {
                     'logfile':              DEFAULT_LOGFILE,
-                    'server':               DEFAULT_SERVER,
-                    'servertoken':          DEFAULT_SERVERTOKEN,
-                    'solmanagertoken':     DEFAULT_BASESTATIONTOKEN,
+                    'server':               DEFAULT_SOLSERVER,
+                    'servertoken':          DEFAULT_SOLSERVERTOKEN,
+                    'solmanagertoken':      DEFAULT_SOLMANAGERTOKEN,
                     'sendperiodminutes':    DEFAULT_SENDPERIODMINUTES,
                     'fileperiodminutes':    DEFAULT_FILEPERIODMINUTES,
                 },
@@ -1107,17 +1107,17 @@ class SendThread(PublishThread):
         # send payload to server
         try:
             # update stats
-            AppData().incrStats(STAT_NUM_SERVER_SENDATTEMPTS)
+            AppData().incrStats(STAT_NUM_SOLSERVER_SENDATTEMPTS)
             requests.packages.urllib3.disable_warnings()
             r = requests.put(
                 'https://{0}/api/v1/o.json'.format(AppData().getConfig('server')),
                 headers = {'X-REALMS-Token': AppData().getConfig('servertoken')},
                 json    = payload,
-                verify  = DEFAULT_SERVERCERT,
+                verify  = DEFAULT_SOLSERVERCERT,
             )
         except requests.exceptions.RequestException as err:
             # update stats
-            AppData().incrStats(STAT_NUM_SERVER_UNREACHABLE)
+            AppData().incrStats(STAT_NUM_SOLSERVER_UNREACHABLE)
             # happens when could not contact server
             if type(err) == requests.exceptions.SSLError:
                 print "Error: "+ str(err)
@@ -1128,11 +1128,11 @@ class SendThread(PublishThread):
             # clear objects
             if r.status_code==200:
                 # update stats
-                AppData().incrStats(STAT_NUM_SERVER_SENDOK)
+                AppData().incrStats(STAT_NUM_SOLSERVER_SENDOK)
                 self.objectsToCommit = []
             else:
                 # update stats
-                AppData().incrStats(STAT_NUM_SERVER_STATUSFAIL)
+                AppData().incrStats(STAT_NUM_SOLSERVER_STATUSFAIL)
                 print "Error HTTP response status: "+ str(r.status_code)
 
 class CherryPySSL(bottle.ServerAdapter):
@@ -1141,8 +1141,8 @@ class CherryPySSL(bottle.ServerAdapter):
         from cherrypy.wsgiserver.ssl_pyopenssl import pyOpenSSLAdapter
         server = wsgiserver.CherryPyWSGIServer((self.host, self.port), handler)
         server.ssl_adapter = pyOpenSSLAdapter(
-            certificate           = DEFAULT_BASESTATIONCERT,
-            private_key           = DEFAULT_BASESTATIONPRIVKEY,
+            certificate           = DEFAULT_SOLMANAGERCERT,
+            private_key           = DEFAULT_SOLMANAGERPRIVKEY,
         )
         try:
             server.start()
@@ -1229,7 +1229,7 @@ class JsonThread(threading.Thread):
             
             # format response
             returnVal = {}
-            returnVal['version solmanager']    = solmanager_version.VERSION
+            returnVal['version solmanager']     = solmanager_version.VERSION
             returnVal['version SmartMesh SDK']  = sdk_version.VERSION
             returnVal['version Sol']            = SolVersion.VERSION
             returnVal['uptime computer']        = self._exec_cmd('uptime')
@@ -1563,7 +1563,7 @@ if __name__ == '__main__':
         if cf_parser.has_option('solmanager','tcpport'):
             DEFAULT_TCPPORT = cf_parser.get('solmanager','tcpport')
         if cf_parser.has_option('solmanager','token'):
-            DEFAULT_BASESTATIONTOKEN = cf_parser.get('solmanager','token')
+            DEFAULT_SOLMANAGERTOKEN = cf_parser.get('solmanager','token')
         if cf_parser.has_option('solmanager','filecommitdelay'):
             DEFAULT_FILECOMMITDELAY_S = cf_parser.getint(
                     'solmanager',
@@ -1577,17 +1577,17 @@ if __name__ == '__main__':
                     'solmanager',
                     'fileperiodminutes')
         if cf_parser.has_option('solmanager','crashlog'):
-            DEFAULT_BASESTATIONTOKEN = cf_parser.get('solmanager','crashlog')
+            DEFAULT_SOLMANAGERTOKEN = cf_parser.get('solmanager','crashlog')
         if cf_parser.has_option('solmanager','backup'):
-            DEFAULT_BASESTATIONTOKEN = cf_parser.get('solmanager','backup')
+            DEFAULT_SOLMANAGERTOKEN = cf_parser.get('solmanager','backup')
 
     if cf_parser.has_section('server'):
         if cf_parser.has_option('server','host'):
-            DEFAULT_SERVER = cf_parser.get('server','host')
+            DEFAULT_SOLSERVER = cf_parser.get('server','host')
         if cf_parser.has_option('server','token'):
-            DEFAULT_SERVERTOKEN = cf_parser.get('server','token')
+            DEFAULT_SOLSERVERTOKEN = cf_parser.get('server','token')
         if cf_parser.has_option('server','certfile'):
-            DEFAULT_SERVERCERT = cf_parser.get('server','certfile')
+            DEFAULT_SOLSERVERCERT = cf_parser.get('server','certfile')
 
     # parse the command line
     parser = OptionParser("usage: %prog [options]")

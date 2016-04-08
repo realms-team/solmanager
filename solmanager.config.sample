@@ -9,7 +9,7 @@ sendperiodminutes = 1
 fileperiodminutes = 1
 
 # Security
-token = DEFAULT_BASESTATIONTOKEN
+token = DEFAULT_SOLMANAGERTOKEN
 
 # Files
 crashlogfile = solmanager.crashlog
@@ -20,5 +20,5 @@ backupfile = solmanager.backup
 host = localhost:8081
 
 # Security
-token = DEFAULT_SERVERTOKEN
+token = DEFAULT_SOLSERVERTOKEN
 certfile = server.cert
