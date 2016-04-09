@@ -1,10 +1,10 @@
-[program:sol_bs]
-directory=#BASESTATION_ABS_PATH
-command=/usr/bin/python basestation.py
+[program:solmanager]
+;directory=#SOL_MANAGER_DIRECTORY
+command=/usr/bin/python solmanager.py
 autostart=true
 autorestart=true
-user:#YOUR_USER
-chown=#YOUR_USER:#YOUR_GROUP
+;user:#YOUR_USER
+;chown=#YOUR_USER:#YOUR_GROUP
 stderr_logfile=sol.err.log
 stdout_logfile=sol.out.log
 
