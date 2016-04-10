@@ -5,3 +5,6 @@
 /solmanager.cert
 /solmanager.ppk
 /solmanager.crashlog
+/sol.err.log
+/sol.out.log
+/supervisord.conf
