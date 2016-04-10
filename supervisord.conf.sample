@@ -28,7 +28,7 @@ stderr_logfile=sol.err.log
 stdout_logfile=sol.out.log
 
 [program:autossh]
-command=/usr/bin/bash #SOL_MANAGER_PATH/autossh/autossh.sh
+command=/bin/bash #SOL_MANAGER_PATH/autossh/autossh.sh
 autostart=true
 autorestart=true
 stderr_logfile=sol.err.log
