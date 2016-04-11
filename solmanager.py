@@ -32,8 +32,7 @@ from   SmartMeshSDK                         import sdk_version, \
 from   SmartMeshSDK.utils                   import FormatUtils
 from   SmartMeshSDK.protocols.Hr            import HrParser
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
-from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrConnectorMux, \
-                                                   IpMgrSubscribe
+from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrSubscribe
 from SmartMeshSDK.protocols.oap             import OAPMessage, \
                                                    OAPNotif
 
@@ -53,7 +52,7 @@ FLOW_ON                                = 'on'
 FLOW_OFF                               = 'off'
 
 DEFAULT_CONFIGFILE                     = 'solmanager.config'
-DEFAULT_SERIALPORT                     = 'COM14'
+DEFAULT_SERIALPORT                     = 'COM18'
 DEFAULT_TCPPORT                        = 8080
 DEFAULT_FILECOMMITDELAY_S              = 60
 
@@ -79,28 +78,9 @@ STAT_NUM_SNAPSHOT_OK                   = 'NUM_SNAPSHOT_OK'
 STAT_TS_LAST_SNAPSHOT                  = 'TS_LAST_SNAPSHOT'
 STAT_NUM_CRASHES                       = 'NUM_CRASHES'
 STAT_NUM_DUST_DISCONNECTS              = 'NUM_DUST_DISCONNECTS'
-STAT_NUM_DUST_NOTIFDATA                = 'NUM_DUST_NOTIFDATA'
-STAT_NUM_DUST_EVENTCOMMANDFINISHED     = 'NUM_DUST_EVENTCOMMANDFINISHED'
-STAT_NUM_DUST_EVENTPATHCREATE          = 'NUM_DUST_EVENTPATHCREATE'
-STAT_NUM_DUST_EVENTPATHDELETE          = 'NUM_DUST_EVENTPATHDELETE'
-STAT_NUM_DUST_EVENTPINGRESPONSE        = 'NUM_DUST_EVENTPINGRESPONSE'
-STAT_NUM_DUST_EVENTNETWORKTIME         = 'NUM_DUST_EVENTNETWORKTIME'
-STAT_NUM_DUST_EVENTNETWORKRESET        = 'NUM_DUST_EVENTNETWORKRESET'
-STAT_NUM_DUST_EVENTMOTEJOIN            = 'NUM_DUST_EVENTMOTEJOIN'
-STAT_NUM_DUST_EVENTMOTECREATE          = 'NUM_DUST_EVENTMOTECREATE'
-STAT_NUM_DUST_EVENTMOTEDELETE          = 'NUM_DUST_EVENTMOTEDELETE'
-STAT_NUM_DUST_EVENTMOTELOST            = 'NUM_DUST_EVENTMOTELOST'
-STAT_NUM_DUST_EVENTMOTEOPERATIONAL     = 'NUM_DUST_EVENTMOTEOPERATIONAL'
-STAT_NUM_DUST_EVENTMOTERESET           = 'NUM_DUST_EVENTMOTERESET'
-STAT_NUM_DUST_EVENTPACKETSENT          = 'NUM_DUST_EVENTPACKETSENT'
-STAT_NUM_DUST_NOTIFHEALTHREPORT        = 'NUM_DUST_NOTIFHEALTHREPORT'
-STAT_NUM_DUST_HR_DEVICE                = 'NUM_DUST_HR_DEVICE'
-STAT_NUM_DUST_HR_NEIGHBORS             = 'NUM_DUST_HR_NEIGHBORS'
-STAT_NUM_DUST_HR_DISCOVERED            = 'NUM_DUST_HR_DISCOVERED'
-STAT_NUM_DUST_NOTIFIPDATA              = 'NUM_DUST_NOTIFIPDATA'
-STAT_NUM_DUST_NOTIFLOG                 = 'NUM_DUST_NOTIFLOG'
+# note: we count the number of notifications, e.g. NUM_DUST_NOTIFDATA
 STAT_NUM_DUST_TIMESYNC                 = 'NUM_DUST_TIMESYNC'
-STAT_NUM_OBJECTS_RECEIVED              = 'NUM_OBJECTS_RECEIVED'
+STAT_NUM_OBJECTS_TOPUBLISH             = 'NUM_OBJECTS_TOPUBLISH'
 STAT_NUM_LOGFILE_UPDATES               = 'NUM_LOGFILE_UPDATES'
 STAT_NUM_SOLSERVER_SENDATTEMPTS        = 'NUM_SOLSERVER_SENDATTEMPTS'
 STAT_NUM_SOLSERVER_UNREACHABLE         = 'NUM_SOLSERVER_UNREACHABLE'
@@ -245,7 +225,7 @@ class DustThread(threading.Thread):
             (
                 self._notifData,
                 IpMgrSubscribe.IpMgrSubscribe.NOTIFDATA,
-                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_notifData(
+                IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_notifData(
                     utcSecs       = 0,
                     utcUsecs      = 0,
                     macAddress    = FAKEMAC_MGR,
@@ -257,7 +237,7 @@ class DustThread(threading.Thread):
             (
                 self._notifEvent,
                 IpMgrSubscribe.IpMgrSubscribe.EVENTCOMMANDFINISHED,
-                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventCommandFinished(
+                IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_eventCommandFinished(
                     eventId       = 0x11,
                     callbackId    = 0x22,
                     rc            = 0x33,
@@ -266,7 +246,7 @@ class DustThread(threading.Thread):
             (
                 self._notifEvent,
                 IpMgrSubscribe.IpMgrSubscribe.EVENTPATHCREATE,
-                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventPathCreate(
+                IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_eventPathCreate(
                     eventId       = 0x11,
                     source        = FAKEMAC_MOTE_1,
                     dest          = FAKEMAC_MOTE_2,
@@ -276,7 +256,7 @@ class DustThread(threading.Thread):
             (
                 self._notifEvent,
                 IpMgrSubscribe.IpMgrSubscribe.EVENTPATHDELETE,
-                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventPathDelete(
+                IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_eventPathDelete(
                     eventId       = 0x11,
                     source        = FAKEMAC_MOTE_1,
                     dest          = FAKEMAC_MOTE_2,
@@ -286,7 +266,7 @@ class DustThread(threading.Thread):
             (
                 self._notifEvent,
                 IpMgrSubscribe.IpMgrSubscribe.EVENTPINGRESPONSE,
-                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventPingResponse(
+                IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_eventPingResponse(
                     eventId       = 0x11,
                     callbackId    = 0x22,
                     macAddress    = FAKEMAC_MOTE_1,
@@ -298,7 +278,7 @@ class DustThread(threading.Thread):
             (
                 self._notifEvent,
                 IpMgrSubscribe.IpMgrSubscribe.EVENTNETWORKTIME,
-                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventNetworkTime(
+                IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_eventNetworkTime(
                     eventId       = 0x11,
                     uptime        = 0x22,
                     utcSecs       = 0,
@@ -310,14 +290,14 @@ class DustThread(threading.Thread):
             (
                 self._notifEvent,
                 IpMgrSubscribe.IpMgrSubscribe.EVENTNETWORKRESET,
-                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventNetworkReset(
+                IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_eventNetworkReset(
                     eventId       = 0x11,
                 ),
             ),
             (
                 self._notifEvent,
                 IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEJOIN,
-                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventMoteJoin(
+                IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_eventMoteJoin(
                     eventId       = 0x11,
                     macAddress    = FAKEMAC_MOTE_1,
                 ),
@@ -325,7 +305,7 @@ class DustThread(threading.Thread):
             (
                 self._notifEvent,
                 IpMgrSubscribe.IpMgrSubscribe.EVENTMOTECREATE,
-                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventMoteCreate(
+                IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_eventMoteCreate(
                     eventId       = 0x11,
                     macAddress    = FAKEMAC_MOTE_1,
                     moteId        = 0x22,
@@ -334,7 +314,7 @@ class DustThread(threading.Thread):
             (
                 self._notifEvent,
                 IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEDELETE,
-                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventMoteDelete(
+                IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_eventMoteDelete(
                     eventId       = 0x11,
                     macAddress    = FAKEMAC_MOTE_1,
                     moteId        = 0x22,
@@ -343,7 +323,7 @@ class DustThread(threading.Thread):
             (
                 self._notifEvent,
                 IpMgrSubscribe.IpMgrSubscribe.EVENTMOTELOST,
-                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventMoteLost(
+                IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_eventMoteLost(
                     eventId       = 0x11,
                     macAddress    = FAKEMAC_MOTE_1,
                 ),
@@ -351,7 +331,7 @@ class DustThread(threading.Thread):
             (
                 self._notifEvent,
                 IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEOPERATIONAL,
-                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventMoteOperational(
+                IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_eventMoteOperational(
                     eventId       = 0x11,
                     macAddress    = FAKEMAC_MOTE_1,
                 ),
@@ -359,7 +339,7 @@ class DustThread(threading.Thread):
             (
                 self._notifEvent,
                 IpMgrSubscribe.IpMgrSubscribe.EVENTMOTERESET,
-                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventMoteReset(
+                IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_eventMoteReset(
                     eventId       = 0x11,
                     macAddress    = FAKEMAC_MOTE_1,
                 ),
@@ -367,7 +347,7 @@ class DustThread(threading.Thread):
             (
                 self._notifEvent,
                 IpMgrSubscribe.IpMgrSubscribe.EVENTPACKETSENT,
-                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_eventPacketSent(
+                IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_eventPacketSent(
                     eventId       = 0x11,
                     callbackId    = 0x22,
                     rc            = 0x33,
@@ -376,7 +356,7 @@ class DustThread(threading.Thread):
             (
                 self._notifHealthReport,
                 IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT,
-                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_notifHealthReport(
+                IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_notifHealthReport(
                     macAddress    = FAKEMAC_MOTE_1,
                     payload       = [1]*10,
                 ),
@@ -384,7 +364,7 @@ class DustThread(threading.Thread):
             (
                 self._notifIPData,
                 IpMgrSubscribe.IpMgrSubscribe.NOTIFIPDATA,
-                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_notifIpData(
+                IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_notifIpData(
                     utcSecs       = 0,
                     utcUsecs      = 0,
                     macAddress    = FAKEMAC_MOTE_1,
@@ -394,7 +374,7 @@ class DustThread(threading.Thread):
             (
                 self._notifLog,
                 IpMgrSubscribe.IpMgrSubscribe.NOTIFLOG,
-                IpMgrConnectorMux.IpMgrConnectorMux.Tuple_notifLog(
+                IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_notifLog(
                     macAddress    = FAKEMAC_MOTE_1,
                     logMsg        = [1]*10,
                 ),
@@ -402,7 +382,7 @@ class DustThread(threading.Thread):
         ]
         
         # get (fake) MAC address of manager
-        self.managerMac = FAKEMAC_MGR
+        self.macManager = FAKEMAC_MGR
         
         # sync (fake) network-UTC time
         self._syncNetTsToUtc(time.time())
@@ -438,7 +418,7 @@ class DustThread(threading.Thread):
                 
                 # get MAC address of manager
                 temp = self.connector.dn_getSystemInfo()
-                self.managerMac = temp.macAddress
+                self.macManager = temp.macAddress
                 
                 # sync network-UTC time
                 temp  = self.connector.dn_getTime()
@@ -452,35 +432,17 @@ class DustThread(threading.Thread):
                     notifTypes =    [
                                         IpMgrSubscribe.IpMgrSubscribe.NOTIFDATA,
                                     ],
-                    fun =           self._notifData,
+                    fun =           self._notifAll,
                     isRlbl =        False,
                 )
                 self.subscriber.subscribe(
                     notifTypes =    [
                                         IpMgrSubscribe.IpMgrSubscribe.NOTIFEVENT,
-                                    ],
-                    fun =           self._notifEvent,
-                    isRlbl =        True,
-                )
-                self.subscriber.subscribe(
-                    notifTypes =    [
                                         IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT,
-                                    ],
-                    fun =           self._notifHealthReport,
-                    isRlbl =        True,
-                )
-                self.subscriber.subscribe(
-                    notifTypes =    [
                                         IpMgrSubscribe.IpMgrSubscribe.NOTIFIPDATA,
-                                    ],
-                    fun =           self._notifIPData,
-                    isRlbl =        False,
-                )
-                self.subscriber.subscribe(
-                    notifTypes =    [
                                         IpMgrSubscribe.IpMgrSubscribe.NOTIFLOG,
                                     ],
-                    fun =           self._notifLog,
+                    fun =           self._notifAll,
                     isRlbl =        True,
                 )
                 self.subscriber.subscribe(
@@ -536,292 +498,49 @@ class DustThread(threading.Thread):
     
     #=== Dust API notifications
     
-    def _notifData(self, notifName, notifParams):
+    def _notifAll(self, notifName, dust_notif):
 
         try:
-            # update stats
-            AppData().incrStats(STAT_NUM_DUST_NOTIFDATA)
-
-            assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFDATA
-
-            # convert Dust Tuple_notifData to dict
-            dust_obj = {
-                "netTs":        self._netTsToEpoch(self._calcNetTs(notifParams)),
-                "macAddress":   notifParams.macAddress,
-                "srcPort":      notifParams.srcPort,
-                "dstPort":      notifParams.dstPort,
-                "data":         notifParams.data
-            }
-
-            # convert dust message to SOL Object
-            sobject = self.sol.dust_to_json(dust_obj)
-
-            # publish sensor object
-            self._publishObject(sobject)
-
-        except Exception as err:
-            logCrash(self.name,err)
-    
-    def _notifEvent(self,notifName,notifParams):
-
-        try:
-
-            if   notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTCOMMANDFINISHED:
-                # update stats
-                AppData().incrStats(STAT_NUM_DUST_EVENTCOMMANDFINISHED)
-
-                o_type  = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_COMMANDFINISHED
-                o_value = self.sol.pack_obj_value(
-                            o_type,
-                            notifParams.callbackId,
-                            notifParams.rc)
-
-            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPATHCREATE:
-                # update stats
-                AppData().incrStats(STAT_NUM_DUST_EVENTPATHCREATE)
-
-                o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_PATHCREATE
-                o_value  = self.sol.pack_obj_value(
-                        o_type,
-                        notifParams.source,
-                        notifParams.dest,
-                        notifParams.direction)
-
-            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPATHDELETE:
-                # update stats
-                AppData().incrStats(STAT_NUM_DUST_EVENTPATHDELETE)
-
-                o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_PATHDELETE
-                o_value  = self.sol.pack_obj_value(
-                        o_type,
-                        notifParams.source,
-                        notifParams.dest,
-                        notifParams.direction)
-
-            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPINGRESPONSE:
-                # update stats
-                AppData().incrStats(STAT_NUM_DUST_EVENTPINGRESPONSE)
-
-                o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_PING
-                o_value  = self.sol.pack_obj_value(
-                        o_type,
-                        notifParams.callbackId,
-                        notifParams.macAddress,
-                        notifParams.delay,
-                        notifParams.voltage,
-                        notifParams.temperature)
-
-            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTNETWORKTIME:
-                # update stats
-                AppData().incrStats(STAT_NUM_DUST_EVENTNETWORKTIME)
-
-                o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_NETWORKTIME
-                o_value  = self.sol.pack_obj_value(
-                        o_type,
-                        notifParams.uptime,
-                        notifParams.utcSecs,
-                        notifParams.utcUsecs,
-                        notifParams.asn,
-                        notifParams.asnOffset)
-
-            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTNETWORKRESET:
-                # update stats
-                AppData().incrStats(STAT_NUM_DUST_EVENTNETWORKRESET)
-
-                o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_NETWORKRESET
-                o_value  = self.sol.pack_obj_value(
-                        o_type)
-
-            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEJOIN:
-                # update stats
-                AppData().incrStats(STAT_NUM_DUST_EVENTMOTEJOIN)
-
-                o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTEJOIN
-                o_value  = self.sol.pack_obj_value(
-                        o_type,
-                        notifParams.macAddress)
-
-            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTECREATE:
-                # update stats
-                AppData().incrStats(STAT_NUM_DUST_EVENTMOTECREATE)
-
-                o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTECREATE
-                o_value  = self.sol.pack_obj_value(
-                        o_type,
-                        notifParams.macAddress,
-                        notifParams.moteId)
-
-            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEDELETE:
-                # update stats
-                AppData().incrStats(STAT_NUM_DUST_EVENTMOTEDELETE)
-
-                o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTEDELETE
-                o_value  = self.sol.pack_obj_value(
-                        o_type,
-                        notifParams.macAddress,
-                        notifParams.moteId)
-
-            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTELOST:
-                # update stats
-                AppData().incrStats(STAT_NUM_DUST_EVENTMOTELOST)
-
-                o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTELOST
-                o_value  = self.sol.pack_obj_value(
-                        o_type,
-                        notifParams.macAddress)
-
-            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTEOPERATIONAL:
-                # update stats
-                AppData().incrStats(STAT_NUM_DUST_EVENTMOTEOPERATIONAL)
-
-                o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTEOPERATIONAL
-                o_value  = self.sol.pack_obj_value(
-                        o_type,
-                        notifParams.macAddress)
-
-            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTMOTERESET:
-                # update stats
-                AppData().incrStats(STAT_NUM_DUST_EVENTMOTERESET)
-
-                o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_MOTERESET
-                o_value  = self.sol.pack_obj_value(
-                        o_type,
-                        notifParams.macAddress)
-
-            elif notifName==IpMgrSubscribe.IpMgrSubscribe.EVENTPACKETSENT:
-                # update stats
-                AppData().incrStats(STAT_NUM_DUST_EVENTPACKETSENT)
-
-                o_type   = SolDefines.SOL_TYPE_DUST_NOTIF_EVENT_PACKETSENT
-                o_value  = self.sol.pack_obj_value(
-                        o_type,
-                        notifParams.callbackId,
-                        notifParams.rc)
-
+            if notifName==IpMgrConnectorSerial.IpMgrConnectorSerial.NOTIFHEALTHREPORT:
+                if dust_notif.payload[0]==HrParser.HrParser.HR_ID_DEVICE:
+                    # dust_notif contains 2 HRs (HR_ID_DEVICE and HR_ID_DISCOVERED), cut it in half
+                    # payload=[
+                    #    128, 24, 0, 0, 0, 252, 33, 21, 11, 253, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, <- HR_ID_DEVICE
+                    #    130, 34, 8, 8, 0, 2, 215, 2, 0, 3, 221, 2, 0, 5, 200, 2, 0, 6, 211, 2, 0, 8, 214, 2, 0, 9, 220, 2, 0, 10, 199, 2, 0, 11, 214, 2 <- HR_ID_DISCOVERED
+                    #]
+                    dust_notifs = [
+                        IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_notifHealthReport(
+                            macAddress = dust_notif.macAddress,
+                            payload    = dust_notif.payload[:dust_notif.payload[2]+2],
+                        ),
+                        IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_notifHealthReport(
+                            macAddress = dust_notif.macAddress,
+                            payload    = dust_notif.payload[dust_notif.payload[2]+2:],
+                        )
+                    ]
+                else:
+                    dust_notifs = [dust_notif]
             else:
-                raise SystemError("Unexpected notifName={0}".format(notifName))
-
-            # create appropriate object
-            sobject = {
-                'mac':          self.managerMac,
-                'timestamp':    int(time.time()),
-                'type':         o_type,
-                'value':        o_value,
-            }
-
-            # publish sensor object
-            self._publishObject(sobject)
+                dust_notifs = [dust_notif]
             
+            for d_n in dust_notifs:
+                
+                # update stats
+                AppData().incrStats('NUM_DUST_{0}'.format(notifName.upper()))
+                
+                # convert dust notification to JSON SOL Object
+                sol_json = self.sol.dust_to_json(
+                    d_n,
+                    macManager = self.macManager,
+                )
+
+                # publish JSON SOL Object
+                self._publishSolJson(sol_json)
+
         except Exception as err:
             logCrash(self.name,err)
     
-    def _notifHealthReport(self,notifName,notifParams):
-        
-        try:
-            
-            # update stats
-            AppData().incrStats(STAT_NUM_DUST_NOTIFHEALTHREPORT)
-            
-            assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFHEALTHREPORT
-            
-            # extract the important data
-            macAddress = notifParams.macAddress
-            hr         = self.hrParser.parseHr(notifParams.payload)
-            
-            # create appropriate object
-            sobjects = []
-            
-            if 'Device' in hr:
-                # update stats
-                AppData().incrStats(STAT_NUM_DUST_HR_DEVICE)
-                obj_type =  SolDefines.SOL_TYPE_DUST_NOTIF_HR_DEVICE
-                obj_val  =  self.sol.pack_obj_value(obj_type, hr['Device'])
-
-            if 'Neighbors' in hr:
-                # update stats
-                AppData().incrStats(STAT_NUM_DUST_HR_NEIGHBORS)
-                obj_type =  SolDefines.SOL_TYPE_DUST_NOTIF_HR_NEIGHBORS
-                obj_val  =  self.sol.pack_obj_value(obj_type, hr['Neighbors'])
-
-            if 'Discovered' in hr:
-                # update stats
-                AppData().incrStats(STAT_NUM_DUST_HR_DISCOVERED)
-                obj_type = SolDefines.SOL_TYPE_DUST_NOTIF_HR_DISCOVERED
-                obj_val = self.sol.pack_obj_value(obj_type, hr['Discovered'])
-
-            # build object
-                sobjects += [{
-                    'type':     obj_type,
-                    'length':   len(obj_val),
-                    'value':    obj_val,
-                }]
-
-            # add common field(s)
-            for sobject in sobjects:
-                sobject['timestamp']   = int(time.time())
-                sobject['mac']         = macAddress
-
-            # publish sensor object
-            for sobject in sobjects:
-                self._publishObject(sobject)
-
-        except Exception as err:
-            logCrash(self.name,err)
-
-    def _notifIPData(self, notifName, notifParams):
-        
-        try:
-            # update stats
-            AppData().incrStats(STAT_NUM_DUST_NOTIFIPDATA)
-            
-            assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFIPDATA
-            
-            # extract the important data
-            netTs      = self._calcNetTs(notifParams)
-            macAddress = notifParams.macAddress
-            data       = notifParams.data
-            
-            # create sensor object (SOL_TYPE_DUST_NOTIF_IPDATA)
-            sobject = {
-                'mac':       macAddress,
-                'timestamp': self._netTsToEpoch(netTs),
-                'type':      SolDefines.SOL_TYPE_DUST_NOTIF_IPDATA,
-                'value':     data,
-            }
-            
-            # publish sensor object
-            self._publishObject(sobject)
-            
-        except Exception as err:
-            logCrash(self.name,err)
-    
-    def _notifLog(self, notifName, notifParams):
-        
-        try:
-            # update stats
-            AppData().incrStats(STAT_NUM_DUST_NOTIFLOG)
-            
-            assert notifName==IpMgrSubscribe.IpMgrSubscribe.NOTIFLOG
-            
-            # extract the important data
-            macAddress = notifParams.macAddress
-            data       = notifParams.logMsg
-            
-            # create sensor object (SOL_TYPE_DUST_NOTIF_LOG)
-            sobject = {
-                'mac':       macAddress,
-                'timestamp': int(time.time()),
-                'type':      SolDefines.SOL_TYPE_DUST_NOTIF_LOG,
-                'value':     data,
-            }
-            
-            # publish sensor object
-            self._publishObject(sobject)
-            
-        except Exception as err:
-            logCrash(self.name,err)
-    
-    def _notifErrorFinish(self,notifName,notifParams):
+    def _notifErrorFinish(self,notifName,dust_notif):
         
         try:
             assert notifName in [
@@ -851,28 +570,18 @@ class DustThread(threading.Thread):
     
     def _isActiveFlow(self,flow_type):
         flows = AppData().getFlows()
-        returnVal = flows.get(flow_type,flows['default'])
-        return returnVal==FLOW_ON
+        flowState = flows.get(flow_type,flows['default'])
+        return flowState==FLOW_ON
     
-    def _publishObject(self,object):
-        
-        assert type(object['mac'])==list
-        for b in object['mac']:
-            assert type(b)==int
-        assert type(object['type'])==int
-        assert type(object['timestamp'])==int
-        assert object['timestamp']>0
-        assert type(object['value'])==list
-        for b in object['value']:
-            assert type(b)==int
+    def _publishSolJson(self,sol_json):
         
         # update stats
-        AppData().incrStats(STAT_NUM_OBJECTS_RECEIVED)
+        AppData().incrStats(STAT_NUM_OBJECTS_TOPUBLISH)
         
         # publish
-        FileThread().publish(object)
-        if self._isActiveFlow(object['type']):
-            SendThread().publish(object)
+        FileThread().publish(sol_json)
+        if self._isActiveFlow(sol_json['type']):
+            SendThread().publish(sol_json)
 
 class SnapshotThread(threading.Thread):
     _instance = None
@@ -997,7 +706,7 @@ class SnapshotThread(threading.Thread):
             
             # create sensor object
             sobject = {
-                'mac':       self.dustThread.managerMac,
+                'mac':       self.dustThread.macManager,
                 'timestamp': int(time.time()),
                 'type':      SolDefines.SOL_TYPE_DUST_SNAPSHOT,
                 'value':     self.sol.pack_obj_value(
@@ -1007,17 +716,17 @@ class SnapshotThread(threading.Thread):
             }
             
             # publish sensor object
-            self.dustThread._publishObject(sobject)
+            self.dustThread._publishSolJson(sobject)
             
 class PublishThread(threading.Thread):
     def __init__(self):
-        self.goOn            = True
-        self.objectsToCommit = []
-        self.dataLock        = threading.RLock()
-        self.sol             = Sol.Sol()
+        self.goOn                      = True
+        self.solJsonObjectsToPublish   = []
+        self.dataLock                  = threading.RLock()
+        self.sol                       = Sol.Sol()
         # start the thread
         threading.Thread.__init__(self)
-        self.name            = 'PublishThread'
+        self.name                      = 'PublishThread'
         self.start()
     def run(self):
         try:
@@ -1025,19 +734,19 @@ class PublishThread(threading.Thread):
             while self.goOn:
                 self.currentDelay -= 1
                 if self.currentDelay==0:
-                    self.commit()
+                    self.publishNow()
                     self.currentDelay = 60*AppData().getConfig(self.periodvariable)
                 time.sleep(1)
         except Exception as err:
             logCrash(self.name,err)
     def getBacklogLength(self):
         with self.dataLock:
-            return len(self.objectsToCommit)
+            return len(self.solJsonObjectsToPublish)
     def close(self):
         self.goOn = False
-    def publish(self,object):
+    def publish(self,sol_json):
         with self.dataLock:
-            self.objectsToCommit += [object]
+            self.solJsonObjectsToPublish += [sol_json]
 
 class FileThread(PublishThread):
     _instance = None
@@ -1056,28 +765,28 @@ class FileThread(PublishThread):
         self.periodvariable  = 'fileperiodminutes'
         PublishThread.__init__(self)
         self.name            = 'FileThread'
-    def commit(self):
+    def publishNow(self):
         # update stats
         AppData().incrStats(STAT_NUM_LOGFILE_UPDATES)
         
         with self.dataLock:
-            # order objectsToCommit chronologically
-            self.objectsToCommit.sort(key=lambda i: i['timestamp'])
+            # order solJsonObjectsToPublish chronologically
+            self.solJsonObjectsToPublish.sort(key=lambda i: i['timestamp'])
             
-            # extract the objects heard more than BUFFER_PERIOD ago
+            # extract the JSON SOL objects heard more than BUFFER_PERIOD ago
             now = time.time()
-            self.objectsToWrite = []
+            solJsonObjectsToWrite = []
             while True:
-                if not self.objectsToCommit:
+                if not self.solJsonObjectsToPublish:
                     break
-                if now-self.objectsToCommit[0]['timestamp']<self.BUFFER_PERIOD:
+                if now-self.solJsonObjectsToPublish[0]['timestamp']<self.BUFFER_PERIOD:
                     break
-                self.objectsToWrite += [self.objectsToCommit.pop(0)]
+                solJsonObjectsToWrite += [self.solJsonObjectsToPublish.pop(0)]
         
         # write those to file
-        if self.objectsToWrite:
+        if solJsonObjectsToWrite:
             self.sol.dumpToFile(
-                self.objectsToWrite,
+                solJsonObjectsToWrite,
                 DEFAULT_LOGFILE,
             )
 
@@ -1094,17 +803,21 @@ class SendThread(PublishThread):
         self._init           = True
         self.periodvariable  = 'sendperiodminutes'
         PublishThread.__init__(self)
-        self.name       = 'SendThread'
-    def commit(self):
+        self.name            = 'SendThread'
+    def publishNow(self):
         # stop if nothing to publish
-        if not self.objectsToCommit:
-            return
-
-        # prepare payload
         with self.dataLock:
-            payload = self.sol.bin_to_contenttype(self.objectsToCommit)
+            if not self.solJsonObjectsToPublish:
+                return
 
-        # send payload to server
+        # convert all objects to publish to binary
+        with self.dataLock:
+            solBinObjectsToPublish = [self.sol.json_to_bin(o) for o in self.solJsonObjectsToPublish]
+        
+        # prepare http_payload
+        http_payload = self.sol.bin_to_http(solBinObjectsToPublish)
+
+        # send http_payload to server
         try:
             # update stats
             AppData().incrStats(STAT_NUM_SOLSERVER_SENDATTEMPTS)
@@ -1112,7 +825,7 @@ class SendThread(PublishThread):
             r = requests.put(
                 'https://{0}/api/v1/o.json'.format(AppData().getConfig('server')),
                 headers = {'X-REALMS-Token': AppData().getConfig('servertoken')},
-                json    = payload,
+                json    = http_payload,
                 verify  = DEFAULT_SOLSERVERCERT,
             )
         except requests.exceptions.RequestException as err:
@@ -1129,7 +842,8 @@ class SendThread(PublishThread):
             if r.status_code==200:
                 # update stats
                 AppData().incrStats(STAT_NUM_SOLSERVER_SENDOK)
-                self.objectsToCommit = []
+                with self.dataLock:
+                    self.solJsonObjectsToPublish = []
             else:
                 # update stats
                 AppData().incrStats(STAT_NUM_SOLSERVER_STATUSFAIL)
@@ -1491,7 +1205,7 @@ class JsonThread(threading.Thread):
             returnVal = "ERROR"
         return returnVal
 
-class Basestation(object):
+class SolManager(object):
     
     def __init__(self,serialport,tcpport):
         AppData()
@@ -1529,14 +1243,14 @@ def main(serialport,tcpport):
     global solmanager
     
     # create the solmanager instance
-    solmanager = Basestation(
+    solmanager = SolManager(
         serialport,
         tcpport,
     )
     
     # start the CLI interface
     cli = OpenCli.OpenCli(
-        "Basestation",
+        "SolManager",
         solmanager_version.VERSION,
         quitCallback,
         [
