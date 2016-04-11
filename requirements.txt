@@ -1,2 +1,6 @@
 bottle==0.12.8
 requests==2.7.0
+cherrypy==4.0.0
+pyopenssl
+pyserial
+supervisor

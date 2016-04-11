@@ -1,8 +1,10 @@
 *.pyc
-/basestation.sol
-/basestation.config
-/basestation.backup
-/basestation.cert
-/basestation.ppk
-/server.cert
-/basestation.crashlog
+/solmanager.sol
+/solmanager.config
+/solmanager.backup
+/solmanager.cert
+/solmanager.ppk
+/solmanager.crashlog
+/sol.err.log
+/sol.out.log
+/supervisord.conf

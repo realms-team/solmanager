@@ -1,0 +1,9 @@
+#!/bin/bash
+
+export PORTTUN=6050
+export PORTLOC=22
+export REMOTEHOST=#YOUR_SERVER
+export REMOTEUSER=#YOUR_USER
+export REMOTEPORT=2200
+export TUNNEL=${PORTTUN}:localhost:${PORTLOC}
+export MYSSHCMD="ssh -TR ${TUNNEL} -p ${REMOTEPORT} ${REMOTEUSER}@${REMOTEHOST}"

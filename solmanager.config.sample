@@ -1,0 +1,24 @@
+[solmanager]
+# Connection
+serialport = /dev/ttyUSB3
+tcpport = 8080
+
+# Application
+filecommitdelay = 60
+sendperiodminutes = 1
+fileperiodminutes = 1
+
+# Security
+token = DEFAULT_SOLMANAGERTOKEN
+
+# Files
+crashlogfile = solmanager.crashlog
+backupfile = solmanager.backup
+
+[server]
+# Connection
+host = localhost:8081
+
+# Security
+token = DEFAULT_SOLSERVERTOKEN
+certfile = server.cert
