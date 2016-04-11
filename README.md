@@ -1,6 +1,8 @@
-[![Code Health](https://landscape.io/github/realms-team/basestation-fw/master/landscape.svg?style=flat)](https://landscape.io/github/realms-team/basestation-fw/master)
+| Master branch  | Develop branch |
+| -------------- | ------------- |
+| [![Code Health](https://landscape.io/github/realms-team/basestation-fw/master/landscape.svg?style=flat)](https://landscape.io/github/realms-team/basestation-fw/master) | [![Code Health](https://landscape.io/github/realms-team/basestation-fw/develop/landscape.svg?style=flat)](https://landscape.io/github/realms-team/basestation-fw/develop) |
 
-This repo contains the software to run on the basestation. It:
+This repo contains the software to run on the manager. It:
 * connects to the SmartMesh IP manager
 * formats received data/notifications as sensors objects
 * stores objects locally
@@ -10,13 +12,16 @@ This repo contains the software to run on the basestation. It:
 # Installing and Running
 
 * download a release of this repo as well as a release from the https://github.com/realms-team/sol repo side by side
-* install python required libraries: `pip install -r requirements.txt`
-* Generate a private key `basestation.ppk` and associated (self-signed) certification `basestation.cert` for SSL protection:
-    * `openssl genrsa -out basestation.ppk 1024`
-    * `openssl req -new -x509 -key basestation.ppk -out basestation.cert -days 1825` (you MUST enter the hostname in the entry "Common Name")
-* place both `basestation.ppk` and `basestation.cert` files in the `basestation-fw` directory
-* copy `basestation.cert` in the `server-sw` directory as well
-* double-click/run on `basestation.py` to start the basestation
+* Generate a private key `solmanager.ppk` and associated (self-signed) certification `solmanager.cert` for SSL protection:
+    * `openssl genrsa -out solmanager.ppk 1024`
+    * `openssl req -new -x509 -key solmanager.ppk -out solmanager.cert -days 1825` (you MUST enter the hostname in the entry "Common Name")
+* place both `solmanager.ppk` and `solmanager.cert` files in the `solmanager` directory
+* copy `solmanager.cert` in the `solserver` directory as well
+* double-click/run on `solmanager.py` to start the manager
+
+## Configuration
+* Create a copy of `solmanager.config.sample`, name it `solmanager.config`
+* Modify the configuration fields you need to
 
 # JSON API
 
@@ -26,7 +31,10 @@ The JSON API is available over HTTP, secured using SSL.
 
 ## Security
 
-Access over HTTPS is REQUIRED (i.e. non-encrypted HTTP access is not allowed). HTTPS ensures that the communication is encrypted. To authenticate, the client connecting to this API MUST provide a token in each JSON API command. This token (a string) is passed as the custom HTTP header `X-REALMS-Token`.
+Access over HTTPS is REQUIRED (i.e. non-encrypted HTTP access is not allowed).
+HTTPS ensures that the communication is encrypted.
+To authenticate, the client connecting to this API MUST provide a token in each JSON API command.
+This token (a string) is passed as the custom HTTP header `X-REALMS-Token`.
 
 Before taking any action, the server `MUST` verify that this token is authorized, and issue a 401 "Unauthorized" HTTP status code with no body.
 
