@@ -21,4 +21,4 @@ host = localhost:8081
 
 # Security
 token = DEFAULT_SOLSERVERTOKEN
-certfile = server.cert
+certfile = solserver.cert
