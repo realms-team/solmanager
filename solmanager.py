@@ -69,7 +69,7 @@ DEFAULT_SOLSERVERTOKEN                 = 'DEFAULT_SOLSERVERTOKEN'
 DEFAULT_SOLMANAGERTOKEN                = 'DEFAULT_SOLMANAGERTOKEN'
 DEFAULT_SOLMANAGERPRIVKEY              = 'solmanager.ppk'
 DEFAULT_SOLMANAGERCERT                 = 'solmanager.cert'
-DEFAULT_SOLSERVERCERT                  = 'server.cert'
+DEFAULT_SOLSERVERCERT                  = 'solserver.cert'
 DEFAULT_SENDPERIODMINUTES              = 1
 DEFAULT_FILEPERIODMINUTES              = 1
 
