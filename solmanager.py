@@ -47,6 +47,8 @@ import SolDefines
 
 #============================ defines =========================================
 
+#===== defines
+
 FLOW_DEFAULT                           = 'default'
 FLOW_ON                                = 'on'
 FLOW_OFF                               = 'off'
@@ -58,7 +60,9 @@ DEFAULT_FILECOMMITDELAY_S              = 60
 
 DEFAULT_CRASHLOG                       = 'solmanager.crashlog'
 DEFAULT_BACKUPFILE                     = 'solmanager.backup'
-# config
+
+#===== configuration (TODO: only read from file)
+
 DEFAULT_LOGFILE                        = 'solmanager.sol'
 DEFAULT_SOLSERVER                      = 'localhost:8081'
 DEFAULT_SOLSERVERTOKEN                 = 'DEFAULT_SOLSERVERTOKEN'
@@ -69,25 +73,36 @@ DEFAULT_SOLSERVERCERT                  = 'server.cert'
 DEFAULT_SENDPERIODMINUTES              = 1
 DEFAULT_FILEPERIODMINUTES              = 1
 
-# stats
-STAT_NUM_JSON_UNAUTHORIZED             = 'NUM_JSON_UNAUTHORIZED'
-STAT_NUM_JSON_REQ                      = 'NUM_JSON_REQ'
-STAT_NUM_SNAPSHOT_STARTED              = 'NUM_SNAPSHOT_STARTED'
-STAT_NUM_SNAPSHOT_FAIL                 = 'NUM_SNAPSHOT_FAIL'
-STAT_NUM_SNAPSHOT_OK                   = 'NUM_SNAPSHOT_OK'
-STAT_TS_LAST_SNAPSHOT                  = 'TS_LAST_SNAPSHOT'
-STAT_NUM_CRASHES                       = 'NUM_CRASHES'
-STAT_NUM_DUST_DISCONNECTS              = 'NUM_DUST_DISCONNECTS'
-# note: we count the number of notifications, e.g. NUM_DUST_NOTIFDATA
-STAT_NUM_DUST_TIMESYNC                 = 'NUM_DUST_TIMESYNC'
-STAT_NUM_OBJECTS_TOPUBLISH             = 'NUM_OBJECTS_TOPUBLISH'
-STAT_NUM_LOGFILE_UPDATES               = 'NUM_LOGFILE_UPDATES'
-STAT_NUM_SOLSERVER_SENDATTEMPTS        = 'NUM_SOLSERVER_SENDATTEMPTS'
-STAT_NUM_SOLSERVER_UNREACHABLE         = 'NUM_SOLSERVER_UNREACHABLE'
-STAT_NUM_SOLSERVER_SENDOK              = 'NUM_SOLSERVER_SENDOK'
-STAT_NUM_SOLSERVER_STATUSFAIL          = 'NUM_SOLSERVER_STATUSFAIL'
-STAT_BACKLOG_FILETHREAD                = 'BACKLOG_FILETHREAD'
-STAT_BACKLOG_SENDTHREAD                = 'BACKLOG_SENDTHREAD'
+#===== stats
+#== admin
+STAT_ADM_NUM_CRASHES                   = 'ADM_NUM_CRASHES'
+#== connection to manager
+STAT_MGR_NUM_CONNECT_ATTEMPTS          = 'MGR_NUM_CONNECT_ATTEMPTS'
+STAT_MGR_NUM_CONNECT_OK                = 'MGR_NUM_CONNECT_OK'
+STAT_MGR_NUM_DISCONNECTS               = 'MGR_NUM_DISCONNECTS'
+STAT_MGR_NUM_TIMESYNC                  = 'MGR_NUM_TIMESYNC'
+#== notifications from manager
+# note: we count the number of notifications form the manager, for each time, e.g. NUMRX_NOTIFDATA
+# all stats start with "NUMRX_"
+#== publication
+STAT_PUB_TOTAL_SENTTOPUBLISH           = 'PUB_TOTAL_SENTTOPUBLISH'
+# to file
+STAT_PUBFILE_BACKLOG                   = 'PUBFILE_BACKLOG'
+STAT_PUBFILE_WRITES                    = 'PUBFILE_WRITES'
+# to server
+STAT_PUBSERVER_BACKLOG                 = 'PUBSERVER_BACKLOG'
+STAT_PUBSERVER_SENDATTEMPTS            = 'PUBSERVER_SENDATTEMPTS'
+STAT_PUBSERVER_UNREACHABLE             = 'PUBSERVER_UNREACHABLE'
+STAT_PUBSERVER_SENDOK                  = 'PUBSERVER_SENDOK'
+STAT_PUBSERVER_SENDFAIL                = 'PUBSERVER_SENDFAIL'
+#== snapshot
+STAT_SNAPSHOT_NUM_STARTED              = 'SNAPSHOT_NUM_STARTED'
+STAT_SNAPSHOT_LASTSTARTED              = 'SNAPSHOT_LASTSTARTED'
+STAT_SNAPSHOT_NUM_OK                   = 'SNAPSHOT_NUM_OK'
+STAT_SNAPSHOT_NUM_FAIL                 = 'SNAPSHOT_NUM_FAIL'
+#== JSON interface
+STAT_JSON_NUM_REQ                      = 'JSON_NUM_REQ'
+STAT_JSON_NUM_UNAUTHORIZED             = 'JSON_NUM_UNAUTHORIZED'
 
 #============================ helpers =========================================
 
@@ -108,7 +123,7 @@ def logCrash(threadName,err):
     output += [traceback.format_exc()]
     output  = '\n'.join(output)
     # update stats
-    AppData().incrStats(STAT_NUM_CRASHES)
+    AppData().incrStats(STAT_ADM_NUM_CRASHES)
     print output
     with open(DEFAULT_CRASHLOG,'a') as f:
         f.write(output)
@@ -157,8 +172,8 @@ class AppData(object):
     def getStats(self):
         with self.dataLock:
             stats = self.data['stats'].copy()
-        stats[STAT_BACKLOG_FILETHREAD] = FileThread().getBacklogLength()
-        stats[STAT_BACKLOG_SENDTHREAD] = SendThread().getBacklogLength()
+        stats[STAT_PUBFILE_BACKLOG]   = FileThread().getBacklogLength()
+        stats[STAT_PUBSERVER_BACKLOG] = SendThread().getBacklogLength()
         return stats
     def getConfig(self,key):
         with self.dataLock:
@@ -408,6 +423,9 @@ class DustThread(threading.Thread):
         while self.goOn:
             
             try:
+                # update stats
+                AppData().incrStats(STAT_MGR_NUM_CONNECT_ATTEMPTS)
+                
                 print 'Connecting to {0}...'.format(self.serialport),
                 
                 # connect to the manager
@@ -415,6 +433,9 @@ class DustThread(threading.Thread):
                 self.connector.connect({
                     'port': self.serialport,
                 })
+                
+                # update stats
+                AppData().incrStats(STAT_MGR_NUM_CONNECT_OK)
                 
                 # get MAC address of manager
                 temp = self.connector.dn_getSystemInfo()
@@ -460,7 +481,7 @@ class DustThread(threading.Thread):
                 print 'FAIL.'
                 
                 # update stats
-                AppData().incrStats(STAT_NUM_DUST_DISCONNECTS)
+                AppData().incrStats(STAT_MGR_NUM_DISCONNECTS)
                 
                 try:
                    self.connector.disconnect()
@@ -476,7 +497,7 @@ class DustThread(threading.Thread):
                 self.reconnectEvent.wait()
                 
                 # update stats
-                AppData().incrStats(STAT_NUM_DUST_DISCONNECTS)
+                AppData().incrStats(STAT_MGR_NUM_DISCONNECTS)
                 
                 try:
                    self.connector.disconnect()
@@ -511,11 +532,11 @@ class DustThread(threading.Thread):
                     dust_notifs = [
                         IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_notifHealthReport(
                             macAddress = dust_notif.macAddress,
-                            payload    = dust_notif.payload[:dust_notif.payload[2]+2],
+                            payload    = dust_notif.payload[:dust_notif.payload[1]+2],
                         ),
                         IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_notifHealthReport(
                             macAddress = dust_notif.macAddress,
-                            payload    = dust_notif.payload[dust_notif.payload[2]+2:],
+                            payload    = dust_notif.payload[dust_notif.payload[1]+2:],
                         )
                     ]
                 else:
@@ -526,7 +547,7 @@ class DustThread(threading.Thread):
             for d_n in dust_notifs:
                 
                 # update stats
-                AppData().incrStats('NUM_DUST_{0}'.format(notifName.upper()))
+                AppData().incrStats('NUMRX_{0}'.format(notifName.upper()))
                 
                 # convert dust notification to JSON SOL Object
                 sol_json = self.sol.dust_to_json(
@@ -560,7 +581,7 @@ class DustThread(threading.Thread):
     
     def _syncNetTsToUtc(self,netTs):
         # update stats
-        AppData().incrStats(STAT_NUM_DUST_TIMESYNC)
+        AppData().incrStats(STAT_MGR_NUM_TIMESYNC)
         with self.dataLock:
             self.tsDiff = time.time()-netTs
     
@@ -576,7 +597,7 @@ class DustThread(threading.Thread):
     def _publishSolJson(self,sol_json):
         
         # update stats
-        AppData().incrStats(STAT_NUM_OBJECTS_TOPUBLISH)
+        AppData().incrStats(STAT_PUB_TOTAL_SENTTOPUBLISH)
         
         # publish
         FileThread().publish(sol_json)
@@ -631,9 +652,9 @@ class SnapshotThread(threading.Thread):
     def _doSnapshot(self):
         try:
             # update stats
-            AppData().incrStats(STAT_NUM_SNAPSHOT_STARTED)
+            AppData().incrStats(STAT_SNAPSHOT_NUM_STARTED)
             AppData().updateStats(
-                STAT_TS_LAST_SNAPSHOT,
+                STAT_SNAPSHOT_LASTSTARTED,
                 currentUtcTime(),
             )
             
@@ -700,9 +721,9 @@ class SnapshotThread(threading.Thread):
                         ]
             
         except Exception as err:
-            AppData().incrStats(STAT_NUM_SNAPSHOT_FAIL)
+            AppData().incrStats(STAT_SNAPSHOT_NUM_FAIL)
         else:
-            AppData().incrStats(STAT_NUM_SNAPSHOT_OK)
+            AppData().incrStats(STAT_SNAPSHOT_NUM_OK)
             
             # create sensor object
             sobject = {
@@ -767,7 +788,7 @@ class FileThread(PublishThread):
         self.name            = 'FileThread'
     def publishNow(self):
         # update stats
-        AppData().incrStats(STAT_NUM_LOGFILE_UPDATES)
+        AppData().incrStats(STAT_PUBFILE_WRITES)
         
         with self.dataLock:
             # order solJsonObjectsToPublish chronologically
@@ -820,7 +841,7 @@ class SendThread(PublishThread):
         # send http_payload to server
         try:
             # update stats
-            AppData().incrStats(STAT_NUM_SOLSERVER_SENDATTEMPTS)
+            AppData().incrStats(STAT_PUBSERVER_SENDATTEMPTS)
             requests.packages.urllib3.disable_warnings()
             r = requests.put(
                 'https://{0}/api/v1/o.json'.format(AppData().getConfig('server')),
@@ -830,7 +851,7 @@ class SendThread(PublishThread):
             )
         except requests.exceptions.RequestException as err:
             # update stats
-            AppData().incrStats(STAT_NUM_SOLSERVER_UNREACHABLE)
+            AppData().incrStats(STAT_PUBSERVER_UNREACHABLE)
             # happens when could not contact server
             if type(err) == requests.exceptions.SSLError:
                 print "Error: "+ str(err)
@@ -841,12 +862,12 @@ class SendThread(PublishThread):
             # clear objects
             if r.status_code==200:
                 # update stats
-                AppData().incrStats(STAT_NUM_SOLSERVER_SENDOK)
+                AppData().incrStats(STAT_PUBSERVER_SENDOK)
                 with self.dataLock:
                     self.solJsonObjectsToPublish = []
             else:
                 # update stats
-                AppData().incrStats(STAT_NUM_SOLSERVER_STATUSFAIL)
+                AppData().incrStats(STAT_PUBSERVER_SENDFAIL)
                 print "Error HTTP response status: "+ str(r.status_code)
 
 class CherryPySSL(bottle.ServerAdapter):
@@ -920,7 +941,7 @@ class JsonThread(threading.Thread):
     def _cb_echo_POST(self):
         try:
             # update stats
-            AppData().incrStats(STAT_NUM_JSON_REQ)
+            AppData().incrStats(STAT_JSON_NUM_REQ)
             
             # authorize the client
             self._authorizeClient()
@@ -936,7 +957,7 @@ class JsonThread(threading.Thread):
     def _cb_status_GET(self):
         try:
             # update stats
-            AppData().incrStats(STAT_NUM_JSON_REQ)
+            AppData().incrStats(STAT_JSON_NUM_REQ)
             
             # authorize the client
             self._authorizeClient()
@@ -968,7 +989,7 @@ class JsonThread(threading.Thread):
     def _cb_config_GET(self):
         try:
             # update stats
-            AppData().incrStats(STAT_NUM_JSON_REQ)
+            AppData().incrStats(STAT_JSON_NUM_REQ)
             
             # authorize the client
             self._authorizeClient()
@@ -987,7 +1008,7 @@ class JsonThread(threading.Thread):
     def _cb_config_POST(self):
         try:
             # update stats
-            AppData().incrStats(STAT_NUM_JSON_REQ)
+            AppData().incrStats(STAT_JSON_NUM_REQ)
             
             # authorize the client
             self._authorizeClient()
@@ -1020,7 +1041,7 @@ class JsonThread(threading.Thread):
     def _cb_flows_GET(self):
         try:
             # update stats
-            AppData().incrStats(STAT_NUM_JSON_REQ)
+            AppData().incrStats(STAT_JSON_NUM_REQ)
             
             # authorize the client
             self._authorizeClient()
@@ -1035,7 +1056,7 @@ class JsonThread(threading.Thread):
     def _cb_flows_POST(self):
         try:
             # update stats
-            AppData().incrStats(STAT_NUM_JSON_REQ)
+            AppData().incrStats(STAT_JSON_NUM_REQ)
             
             # authorize the client
             self._authorizeClient()
@@ -1073,7 +1094,7 @@ class JsonThread(threading.Thread):
     def _cb_resend_POST(self):
         try:
             # update stats
-            AppData().incrStats(STAT_NUM_JSON_REQ)
+            AppData().incrStats(STAT_JSON_NUM_REQ)
             
             # authorize the client
             self._authorizeClient()
@@ -1094,7 +1115,7 @@ class JsonThread(threading.Thread):
     def _cb_snapshot_POST(self):
         try:
             # update stats
-            AppData().incrStats(STAT_NUM_JSON_REQ)
+            AppData().incrStats(STAT_JSON_NUM_REQ)
             
             # authorize the client
             self._authorizeClient()
@@ -1118,7 +1139,7 @@ class JsonThread(threading.Thread):
     def _cb_smartmeshipapi_POST(self):
         try:
             # update stats
-            AppData().incrStats(STAT_NUM_JSON_REQ)
+            AppData().incrStats(STAT_JSON_NUM_REQ)
             
             # authorize the client
             self._authorizeClient()
@@ -1190,7 +1211,7 @@ class JsonThread(threading.Thread):
     
     def _authorizeClient(self):
         if bottle.request.headers.get('X-REALMS-Token')!=AppData().getConfig('solmanagertoken'):
-            AppData().incrStats(STAT_NUM_JSON_UNAUTHORIZED)
+            AppData().incrStats(STAT_JSON_NUM_UNAUTHORIZED)
             raise bottle.HTTPResponse(
                 status  = 401,
                 headers = {'Content-Type': 'application/json'},
@@ -1231,11 +1252,35 @@ def quitCallback():
     
     solmanager.close()
 
+def returnStatsGroup(stats,prefix):
+    keys = []
+    for (k,v) in stats.items():
+        if k.startswith(prefix):
+            keys+=[k]
+    returnVal = []
+    for k in sorted(keys):
+        returnVal += ['   {0:<30}: {1}'.format(k,stats[k])]
+    return returnVal
+
 def cli_cb_stats(params):
     stats = AppData().getStats()
-    output = []
-    for k in sorted(stats.keys()):
-        output += ['{0:<30}: {1}'.format(k,stats[k])]
+    output  = []
+    output += ['#== admin']
+    output += returnStatsGroup(stats,'ADM_')
+    output += ['#== connection to manager']
+    output += returnStatsGroup(stats,'MGR_')
+    output += ['#== notifications from manager']
+    output += returnStatsGroup(stats,'NUMRX_')
+    output += ['#== publication']
+    output += returnStatsGroup(stats,'PUB_')
+    output += ['# to file']
+    output += returnStatsGroup(stats,'PUBFILE_')
+    output += ['# to server']
+    output += returnStatsGroup(stats,'PUBSERVER_')
+    output += ['#== snapshot']
+    output += returnStatsGroup(stats,'SNAPSHOT_')
+    output += ['#== JSON interface']
+    output += returnStatsGroup(stats,'JSON_')
     output = '\n'.join(output)
     print output
 
