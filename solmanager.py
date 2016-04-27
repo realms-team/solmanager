@@ -854,7 +854,7 @@ class SendThread(PublishThread):
             AppData().incrStats(STAT_PUBSERVER_UNREACHABLE)
             # happens when could not contact server
             if type(err) == requests.exceptions.SSLError:
-                print "Error: "+ str(err)
+                traceback.print_exc()
             pass
         else:
             # server answered
