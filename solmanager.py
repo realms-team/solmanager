@@ -108,7 +108,7 @@ def currentUtcTime():
 
 def logCrash(threadName,err):
     output  = []
-    output += ["==============================================================="]
+    output += ["============================================================="]
     output += [currentUtcTime()]
     output += [""]
     output += ["CRASH in Thread {0}!".format(threadName)]
@@ -407,7 +407,8 @@ class DustThread(threading.Thread):
             (func,notifName,notifParams) = SIMACTIONS[lastActionIndex]
             lastActionIndex = (lastActionIndex+1)%len(SIMACTIONS)
             try:
-                notifParams = notifParams._replace(utcSecs=int(time.time())-60+random.randint(0,60))
+                notifParams = notifParams._replace(
+                                utcSecs=int(time.time())-60+random.randint(0,60))
             except ValueError:
                 pass
             func(notifName,notifParams)
@@ -426,7 +427,7 @@ class DustThread(threading.Thread):
                 print 'Connecting to {0}...'.format(self.serialport),
                 
                 # connect to the manager
-                self.connector          = IpMgrConnectorSerial.IpMgrConnectorSerial()
+                self.connector = IpMgrConnectorSerial.IpMgrConnectorSerial()
                 self.connector.connect({
                     'port': self.serialport,
                 })
@@ -481,9 +482,9 @@ class DustThread(threading.Thread):
                 AppData().incrStats(STAT_MGR_NUM_DISCONNECTS)
                 
                 try:
-                   self.connector.disconnect()
+                    self.connector.disconnect()
                 except Exception:
-                   pass
+                    pass
                 
                 # wait to reconnect
                 time.sleep(1)
@@ -497,9 +498,9 @@ class DustThread(threading.Thread):
                 AppData().incrStats(STAT_MGR_NUM_DISCONNECTS)
                 
                 try:
-                   self.connector.disconnect()
+                    self.connector.disconnect()
                 except Exception:
-                   pass
+                    pass
     
     #======================== public ==========================================
     
@@ -523,8 +524,10 @@ class DustThread(threading.Thread):
                 if dust_notif.payload[0]==HrParser.HrParser.HR_ID_DEVICE:
                     # dust_notif contains 2 HRs (HR_ID_DEVICE and HR_ID_DISCOVERED), cut it in half
                     # payload=[
-                    #    128, 24, 0, 0, 0, 252, 33, 21, 11, 253, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, <- HR_ID_DEVICE
-                    #    130, 34, 8, 8, 0, 2, 215, 2, 0, 3, 221, 2, 0, 5, 200, 2, 0, 6, 211, 2, 0, 8, 214, 2, 0, 9, 220, 2, 0, 10, 199, 2, 0, 11, 214, 2 <- HR_ID_DISCOVERED
+                    #   128, 24, 0, 0, 0, 252, 33, 21, 11, 253, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    #   0, 0, 0, 0, 0, <- HR_ID_DEVICE
+                    #   130, 34, 8, 8, 0, 2, 215, 2, 0, 3, 221, 2, 0, 5, 200, 2, 0, 6, 211, 2, 0,
+                    #   8, 214, 2, 0, 9, 220, 2, 0, 10, 199, 2, 0, 11, 214, 2 <- HR_ID_DISCOVERED
                     #]
                     dust_notifs = [
                         IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_notifHealthReport(
@@ -661,7 +664,7 @@ class SnapshotThread(threading.Thread):
             snapshotSummary = []
             
             # get MAC addresses of all motes
-            currentMac     = (0,0,0,0,0,0,0,0) # start getMoteConfig() iteration with the 0 MAC address
+            currentMac     = (0,0,0,0,0,0,0,0) # start getMoteConfig() iteration with the 0 MAC addr
             continueAsking = True
             while continueAsking:
                 try:
@@ -1141,7 +1144,8 @@ class JsonThread(threading.Thread):
             self._authorizeClient()
             
             # abort if malformed JSON body
-            if bottle.request.json==None or sorted(bottle.request.json.keys())!=sorted(["commandArray","fields"]):
+            if bottle.request.json==None or
+                    sorted(bottle.request.json.keys())!=sorted(["commandArray","fields"]):
                 raise bottle.HTTPResponse(
                     status  = 400,
                     headers = {'Content-Type': 'application/json'},
@@ -1345,17 +1349,17 @@ if __name__ == '__main__':
     # parse the command line
     parser = OptionParser("usage: %prog [options]")
     parser.add_option(
-        "-s", "--serialport", dest="serialport", 
+        "-s", "--serialport", dest="serialport",
         default=DEFAULT_SERIALPORT,
         help="Serial port of the SmartMesh IP manager."
     )
     parser.add_option(
-        "-t", "--tcpport", dest="tcpport", 
+        "-t", "--tcpport", dest="tcpport",
         default=DEFAULT_TCPPORT,
         help="TCP port to start the JSON API on."
     )
     (options, args) = parser.parse_args()
-    
+
     main(
         options.serialport,
         options.tcpport,
