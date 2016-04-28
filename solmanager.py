@@ -15,11 +15,10 @@ if __name__ == "__main__":
 import time
 import threading
 import json
+import subprocess
 import pickle
 import random
 import traceback
-import pdb
-import array
 from   optparse                             import OptionParser
 from   ConfigParser                         import SafeConfigParser
 
@@ -29,12 +28,10 @@ import solmanager_version
 # DustThread
 from   SmartMeshSDK                         import sdk_version, \
                                                    ApiException
-from   SmartMeshSDK.utils                   import FormatUtils
 from   SmartMeshSDK.protocols.Hr            import HrParser
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
 from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrSubscribe
-from SmartMeshSDK.protocols.oap             import OAPMessage, \
-                                                   OAPNotif
+from SmartMeshSDK.protocols.oap             import OAPNotif
 
 # SendThread
 import requests
@@ -855,7 +852,6 @@ class SendThread(PublishThread):
             # happens when could not contact server
             if type(err) == requests.exceptions.SSLError:
                 traceback.print_exc()
-            pass
         else:
             # server answered
             
@@ -1248,8 +1244,6 @@ class SolManager(object):
 solmanager = None
 
 def quitCallback():
-    global solmanager
-    
     solmanager.close()
 
 def returnStatsGroup(stats,prefix):
