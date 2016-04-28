@@ -1144,7 +1144,7 @@ class JsonThread(threading.Thread):
             self._authorizeClient()
             
             # abort if malformed JSON body
-            if bottle.request.json==None or
+            if bottle.request.json==None or \
                     sorted(bottle.request.json.keys())!=sorted(["commandArray","fields"]):
                 raise bottle.HTTPResponse(
                     status  = 400,
