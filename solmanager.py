@@ -521,34 +521,35 @@ class DustThread(threading.Thread):
 
         try:
             if notifName==IpMgrConnectorSerial.IpMgrConnectorSerial.NOTIFHEALTHREPORT:
-                if dust_notif.payload[0]==HrParser.HrParser.HR_ID_DEVICE:
-                    # dust_notif contains 2 HRs (HR_ID_DEVICE and HR_ID_DISCOVERED), cut it in half
-                    # payload=[
-                    #   128, 24, 0, 0, 0, 252, 33, 21, 11, 253, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    #   0, 0, 0, 0, 0, <- HR_ID_DEVICE
-                    #   130, 34, 8, 8, 0, 2, 215, 2, 0, 3, 221, 2, 0, 5, 200, 2, 0, 6, 211, 2, 0,
-                    #   8, 214, 2, 0, 9, 220, 2, 0, 10, 199, 2, 0, 11, 214, 2 <- HR_ID_DISCOVERED
-                    #]
-                    dust_notifs = [
+                hr_exists       = True
+                dust_notifs     = []
+                hr_currptr  = 0
+                hr_nextptr  = dust_notif.payload[1]+2
+                while hr_exists:
+                    # add HR notification to list
+                    dust_notifs.append(
                         IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_notifHealthReport(
                             macAddress = dust_notif.macAddress,
-                            payload    = dust_notif.payload[:dust_notif.payload[1]+2],
-                        ),
-                        IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_notifHealthReport(
-                            macAddress = dust_notif.macAddress,
-                            payload    = dust_notif.payload[dust_notif.payload[1]+2:],
+                            payload    = dust_notif.payload[hr_currptr:hr_nextptr],
                         )
-                    ]
+                    )
+                    # check if other notifs are present
+                    hr_currptr = hr_nextptr
+                    if (hr_currptr+2 in dust_notif.payload and
+                            len(dust_notif.payload) >= dust_notif.payload[hr_currptr+1:1]+2):
+                        hr_nextptr = hr_nextptr + dust_notif.payload[hr_currptr+1] + 2
+                    else:
+                        hr_exists = False
+
                 else:
                     dust_notifs = [dust_notif]
             else:
                 dust_notifs = [dust_notif]
-            
+
             for d_n in dust_notifs:
-                
                 # update stats
                 AppData().incrStats('NUMRX_{0}'.format(notifName.upper()))
-                
+
                 # convert dust notification to JSON SOL Object
                 sol_json = self.sol.dust_to_json(
                     d_n,
@@ -560,7 +561,7 @@ class DustThread(threading.Thread):
 
         except Exception as err:
             logCrash(self.name,err)
-    
+
     def _notifErrorFinish(self,notifName,dust_notif):
         
         try:
