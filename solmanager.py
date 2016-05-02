@@ -21,6 +21,8 @@ import random
 import traceback
 from   optparse                             import OptionParser
 from   ConfigParser                         import SafeConfigParser
+import logging
+import logging.config
 
 import OpenCli
 import solmanager_version
@@ -41,6 +43,12 @@ import bottle
 import Sol
 import SolVersion
 import SolDefines
+
+#============================ logging =========================================
+
+logging.config.fileConfig('logging.conf')
+log = logging.getLogger('solserver')
+log.setLevel(logging.DEBUG)
 
 #============================ defines =========================================
 
@@ -1335,9 +1343,9 @@ if __name__ == '__main__':
                     'solmanager',
                     'fileperiodminutes')
         if cf_parser.has_option('solmanager','crashlog'):
-            DEFAULT_SOLMANAGERTOKEN = cf_parser.get('solmanager','crashlog')
+            DEFAULT_CRASHLOG = cf_parser.get('solmanager','crashlog')
         if cf_parser.has_option('solmanager','backup'):
-            DEFAULT_SOLMANAGERTOKEN = cf_parser.get('solmanager','backup')
+            DEFAULT_BACKUPFILE = cf_parser.get('solmanager','backup')
 
     if cf_parser.has_section('server'):
         if cf_parser.has_option('server','host'):
@@ -1346,6 +1354,21 @@ if __name__ == '__main__':
             DEFAULT_SOLSERVERTOKEN = cf_parser.get('server','token')
         if cf_parser.has_option('server','certfile'):
             DEFAULT_SOLSERVERCERT = cf_parser.get('server','certfile')
+
+    log.debug("Configuration:\n" +\
+            "\tDEFAULT_SERIALPORT: %s\n"            +\
+            "\tDEFAULT_TCPPORT: %s\n"               +\
+            "\tDEFAULT_SOLMANAGERTOKEN: '%s'\n"     +\
+            "\tSOL_SERVER_HOST: '%s'\n"             +\
+            "\tDEFAULT_SOLSERVERTOKEN: '%s'\n"      +\
+            "\tDEFAULT_SOLSERVERCERT:  '%s'\n"      ,
+            DEFAULT_SERIALPORT,
+            DEFAULT_TCPPORT,
+            DEFAULT_SOLMANAGERTOKEN,
+            DEFAULT_SOLSERVER,
+            DEFAULT_SOLSERVERTOKEN,
+            DEFAULT_SOLSERVERCERT,
+            )
 
     # parse the command line
     parser = OptionParser("usage: %prog [options]")
