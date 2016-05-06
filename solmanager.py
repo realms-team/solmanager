@@ -200,13 +200,13 @@ class AppData(object):
                 pickle.dump(self.data,f)
 
 class DustThread(threading.Thread):
-    
+
     def __init__(self,serialport,simulation=False):
-        
+
         # store params
         self.serialport      = serialport
         self.simulation      = simulation
-        
+
         # local variables
         self.reconnectEvent  = threading.Event()
         self.hrParser        = HrParser.HrParser()
@@ -214,30 +214,30 @@ class DustThread(threading.Thread):
         self.dataLock        = threading.RLock()
         self.connector       = None
         self.goOn            = True
-        
+
         # start the thread
         threading.Thread.__init__(self)
         self.name            = 'DustThread'
         self.start()
-    
+
     def run(self):
-        try:        
+        try:
             # wait for banner
             time.sleep(0.5)
-            
+
             if self.simulation:
                 self.runSimulation()
             else:
                 self.runHardware()
         except Exception as err:
             logCrash(self.name,err)
-    
+
     def runSimulation(self):
-        
+
         FAKEMAC_MGR     = [0x0a]*8
         FAKEMAC_MOTE_1  = [1]*8
         FAKEMAC_MOTE_2  = [2]*8
-        
+
         SIMACTIONS = [
             (
                 self._notifData,
@@ -397,17 +397,17 @@ class DustThread(threading.Thread):
                 ),
             ),
         ]
-        
+
         # get (fake) MAC address of manager
         self.macManager = FAKEMAC_MGR
-        
+
         # sync (fake) network-UTC time
         self._syncNetTsToUtc(time.time())
-        
+
         lastActionIndex = 0
-        
+
         while self.goOn:
-            
+
             # issues the next action
             (func,notifName,notifParams) = SIMACTIONS[lastActionIndex]
             lastActionIndex = (lastActionIndex+1)%len(SIMACTIONS)
@@ -417,38 +417,38 @@ class DustThread(threading.Thread):
             except ValueError:
                 pass
             func(notifName,notifParams)
-            
+
             # sleep some time
             time.sleep(0.5)
-    
+
     def runHardware(self):
-        
+
         while self.goOn:
-            
+
             try:
                 # update stats
                 AppData().incrStats(STAT_MGR_NUM_CONNECT_ATTEMPTS)
-                
+
                 print 'Connecting to {0}...'.format(self.serialport),
-                
+
                 # connect to the manager
                 self.connector = IpMgrConnectorSerial.IpMgrConnectorSerial()
                 self.connector.connect({
                     'port': self.serialport,
                 })
-                
+
                 # update stats
                 AppData().incrStats(STAT_MGR_NUM_CONNECT_OK)
-                
+
                 # get MAC address of manager
                 temp = self.connector.dn_getSystemInfo()
                 self.macManager = temp.macAddress
-                
+
                 # sync network-UTC time
                 temp  = self.connector.dn_getTime()
                 netTs = self._calcNetTs(temp)
                 self._syncNetTsToUtc(netTs)
-                
+
                 # subscribe to notifications
                 self.subscriber = IpMgrSubscribe.IpMgrSubscribe(self.connector)
                 self.subscriber.start()
@@ -477,51 +477,51 @@ class DustThread(threading.Thread):
                     fun =           self._notifErrorFinish,
                     isRlbl =        True,
                 )
-                
+
             except Exception as err:
-                
+
                 print err
                 print 'FAIL.'
-                
+
                 # update stats
                 AppData().incrStats(STAT_MGR_NUM_DISCONNECTS)
-                
+
                 try:
                     self.connector.disconnect()
                 except Exception:
                     pass
-                
+
                 # wait to reconnect
                 time.sleep(1)
-                
+
             else:
                 print 'PASS.'
                 self.reconnectEvent.clear()
                 self.reconnectEvent.wait()
-                
+
                 # update stats
                 AppData().incrStats(STAT_MGR_NUM_DISCONNECTS)
-                
+
                 try:
                     self.connector.disconnect()
                 except Exception:
                     pass
-    
+
     #======================== public ==========================================
-    
+
     def close(self):
-        
+
         try:
             self.connector.disconnect()
         except Exception:
             pass
-        
+
         self.goOn = False
-    
+
     #======================== private =========================================
-    
+
     #=== Dust API notifications
-    
+
     def _notifAll(self, notifName, dust_notif):
 
         try:
@@ -568,43 +568,43 @@ class DustThread(threading.Thread):
             logCrash(self.name,err)
 
     def _notifErrorFinish(self,notifName,dust_notif):
-        
+
         try:
             assert notifName in [
                 IpMgrSubscribe.IpMgrSubscribe.ERROR,
                 IpMgrSubscribe.IpMgrSubscribe.FINISH,
             ]
-            
+
             if not self.reconnectEvent.isSet():
                 self.reconnectEvent.set()
         except Exception as err:
             logCrash(self.name,err)
-    
+
     #=== misc
-    
+
     def _calcNetTs(self,notif):
         return int(float(notif.utcSecs)+float(notif.utcUsecs/1000000.0))
-    
+
     def _syncNetTsToUtc(self,netTs):
         # update stats
         AppData().incrStats(STAT_MGR_NUM_TIMESYNC)
         with self.dataLock:
             self.tsDiff = time.time()-netTs
-    
+
     def _netTsToEpoch(self,netTs):
         with self.dataLock:
             return int(netTs+self.tsDiff)
-    
+
     def _isActiveFlow(self,flow_type):
         flows = AppData().getFlows()
         flowState = flows.get(flow_type,flows['default'])
         return flowState==FLOW_ON
-    
+
     def _publishSolJson(self,sol_json):
-        
+
         # update stats
         AppData().incrStats(STAT_PUB_TOTAL_SENTTOPUBLISH)
-        
+
         # publish
         FileThread().publish(sol_json)
         if self._isActiveFlow(sol_json['type']):
@@ -621,40 +621,40 @@ class SnapshotThread(threading.Thread):
         if self._init:
             return
         self._init      = True
-        
+
         assert dustThread
-        
+
         # store params
         self.dustThread      = dustThread
-        
+
         # local variables
         self.doSnapshotSem   = threading.Semaphore(0)
         self.sol             = Sol.Sol()
         self.goOn            = True
-        
+
         # start thread
         threading.Thread.__init__(self)
         self.name            = 'SnapshotThread'
         self.start()
-        
+
     def run(self):
         while self.goOn:
             self.doSnapshotSem.acquire()
             if not self.goOn:
                 break
             self._doSnapshot()
-    
+
     #======================== public ==========================================
-    
+
     def doSnapshot(self):
         self.doSnapshotSem.release()
-    
+
     def close(self):
         self.goOn = False
         self.doSnapshotSem.release()
-    
+
     #======================== private =========================================
-    
+
     def _doSnapshot(self):
         try:
             # update stats
@@ -663,12 +663,12 @@ class SnapshotThread(threading.Thread):
                 STAT_SNAPSHOT_LASTSTARTED,
                 currentUtcTime(),
             )
-            
+
             # retrieve connector from DustThread
             connector = self.dustThread.connector
-            
+
             snapshotSummary = []
-            
+
             # get MAC addresses of all motes
             currentMac     = (0,0,0,0,0,0,0,0) # start getMoteConfig() iteration with the 0 MAC addr
             continueAsking = True
@@ -688,7 +688,7 @@ class SnapshotThread(threading.Thread):
                         }
                     ]
                     currentMac = res.macAddress
-            
+
             # getMoteInfo on all motes
             for s in snapshotSummary:
                 res = connector.dn_getMoteInfo(s['macAddress'])
@@ -702,7 +702,7 @@ class SnapshotThread(threading.Thread):
                     'packetsLost':               res.packetsLost,
                     'avgLatency':                res.avgLatency,
                 })
-            
+
             # get path info on all paths of all motes
             for s in snapshotSummary:
                 s['paths'] = []
@@ -725,12 +725,12 @@ class SnapshotThread(threading.Thread):
                                 'rssiDestSrc':   res.rssiDestSrc,
                             }
                         ]
-            
+
         except Exception as err:
             AppData().incrStats(STAT_SNAPSHOT_NUM_FAIL)
         else:
             AppData().incrStats(STAT_SNAPSHOT_NUM_OK)
-            
+
             # create sensor object
             sobject = {
                 'mac':       self.dustThread.macManager,
@@ -741,10 +741,10 @@ class SnapshotThread(threading.Thread):
                     summary = snapshotSummary,
                 ),
             }
-            
+
             # publish sensor object
             self.dustThread._publishSolJson(sobject)
-            
+
 class PublishThread(threading.Thread):
     def __init__(self):
         self.goOn                      = True
@@ -780,7 +780,7 @@ class FileThread(PublishThread):
     _init     = False
     # we buffer objects for BUFFER_PERIOD second to ensure they are written to
     # file chronologically
-    BUFFER_PERIOD = 60 
+    BUFFER_PERIOD = 60
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(FileThread,cls).__new__(cls, *args, **kwargs)
@@ -795,11 +795,11 @@ class FileThread(PublishThread):
     def publishNow(self):
         # update stats
         AppData().incrStats(STAT_PUBFILE_WRITES)
-        
+
         with self.dataLock:
             # order solJsonObjectsToPublish chronologically
             self.solJsonObjectsToPublish.sort(key=lambda i: i['timestamp'])
-            
+
             # extract the JSON SOL objects heard more than BUFFER_PERIOD ago
             now = time.time()
             solJsonObjectsToWrite = []
@@ -809,7 +809,7 @@ class FileThread(PublishThread):
                 if now-self.solJsonObjectsToPublish[0]['timestamp']<self.BUFFER_PERIOD:
                     break
                 solJsonObjectsToWrite += [self.solJsonObjectsToPublish.pop(0)]
-        
+
         # write those to file
         if solJsonObjectsToWrite:
             self.sol.dumpToFile(
@@ -840,7 +840,7 @@ class SendThread(PublishThread):
         # convert all objects to publish to binary
         with self.dataLock:
             solBinObjectsToPublish = [self.sol.json_to_bin(o) for o in self.solJsonObjectsToPublish]
-        
+
         # prepare http_payload
         http_payload = self.sol.bin_to_http(solBinObjectsToPublish)
 
@@ -863,7 +863,7 @@ class SendThread(PublishThread):
                 traceback.print_exc()
         else:
             # server answered
-            
+
             # clear objects
             if r.status_code==200:
                 # update stats
@@ -890,16 +890,16 @@ class CherryPySSL(bottle.ServerAdapter):
             server.stop()
 
 class JsonThread(threading.Thread):
-    
+
     def __init__(self,tcpport,dustThread):
-        
+
         # store params
         self.tcpport    = tcpport
         self.dustThread = dustThread
-        
+
         # local variables
         self.sol        = Sol.Sol()
-        
+
         # initialize web server
         self.web        = bottle.Bottle()
         self.web.route(path='/api/v1/echo.json',           method='POST', callback=self._cb_echo_POST)
@@ -911,18 +911,18 @@ class JsonThread(threading.Thread):
         self.web.route(path='/api/v1/resend.json',         method='POST', callback=self._cb_resend_POST)
         self.web.route(path='/api/v1/snapshot.json',       method='POST', callback=self._cb_snapshot_POST)
         self.web.route(path='/api/v1/smartmeshipapi.json', method='POST', callback=self._cb_smartmeshipapi_POST)
-        
+
         # start the thread
         threading.Thread.__init__(self)
         self.name       = 'JsonThread'
         self.daemon     = True
         self.start()
-    
+
     def run(self):
         try:
             # wait for banner
             time.sleep(0.5)
-            
+
             self.web.run(
                 host   = 'localhost',
                 port   = self.tcpport,
@@ -932,41 +932,41 @@ class JsonThread(threading.Thread):
             )
         except Exception as err:
             logCrash(self.name,err)
-    
+
     #======================== public ==========================================
-    
+
     def close(self):
         # bottle thread is daemon, it will close when main thread closes
         pass
-    
+
     #======================== private ==========================================
-    
+
     #=== JSON request handler
-    
+
     def _cb_echo_POST(self):
         try:
             # update stats
             AppData().incrStats(STAT_JSON_NUM_REQ)
-            
+
             # authorize the client
             self._authorizeClient()
-            
+
             # answer with same Content-Type/body
             bottle.response.content_type = bottle.request.content_type
             return bottle.request.body.read()
-        
+
         except Exception as err:
             logCrash(self.name,err)
             raise
-    
+
     def _cb_status_GET(self):
         try:
             # update stats
             AppData().incrStats(STAT_JSON_NUM_REQ)
-            
+
             # authorize the client
             self._authorizeClient()
-            
+
             # format response
             returnVal = {}
             returnVal['version solmanager']     = solmanager_version.VERSION
@@ -977,47 +977,47 @@ class JsonThread(threading.Thread):
             returnVal['date']                   = currentUtcTime()
             returnVal['last reboot']            = self._exec_cmd('last reboot')
             returnVal['stats']                  = AppData().getStats()
-            
+
             # send response
             raise bottle.HTTPResponse(
                 status  = 200,
                 headers = {'Content-Type': 'application/json'},
                 body    = json.dumps(returnVal),
             )
-        
+
         except bottle.HTTPResponse:
             raise
         except Exception as err:
             logCrash(self.name,err)
             raise
-    
+
     def _cb_config_GET(self):
         try:
             # update stats
             AppData().incrStats(STAT_JSON_NUM_REQ)
-            
+
             # authorize the client
             self._authorizeClient()
-            
+
             # handle
             allConfig = AppData().getAllConfig()
             for hidden in ['logfile','servertoken','solmanagertoken']:
                 if hidden in allConfig.keys():
                     del allConfig[hidden]
             return allConfig
-            
+
         except Exception as err:
             logCrash(self.name,err)
             raise
-    
+
     def _cb_config_POST(self):
         try:
             # update stats
             AppData().incrStats(STAT_JSON_NUM_REQ)
-            
+
             # authorize the client
             self._authorizeClient()
-            
+
             # abort if malformed JSON body
             if bottle.request.json==None:
                 raise bottle.HTTPResponse(
@@ -1025,47 +1025,47 @@ class JsonThread(threading.Thread):
                     headers = {'Content-Type': 'application/json'},
                     body    = json.dumps({'error': 'Malformed JSON body'}),
                 )
-            
+
             # handle
             for (k,v) in bottle.request.json.items():
                 AppData().setConfig(k,v)
-            
+
             # send response
             raise bottle.HTTPResponse(
                 status  = 200,
                 headers = {'Content-Type': 'application/json'},
                 body    = json.dumps({'status': 'config changed'}),
             )
-        
+
         except bottle.HTTPResponse:
-            raise            
+            raise
         except Exception as err:
             logCrash(self.name,err)
             raise
-    
+
     def _cb_flows_GET(self):
         try:
             # update stats
             AppData().incrStats(STAT_JSON_NUM_REQ)
-            
+
             # authorize the client
             self._authorizeClient()
-            
+
             # handle
             return AppData().getFlows()
-            
+
         except Exception as err:
             logCrash(self.name,err)
             raise
-    
+
     def _cb_flows_POST(self):
         try:
             # update stats
             AppData().incrStats(STAT_JSON_NUM_REQ)
-            
+
             # authorize the client
             self._authorizeClient()
-            
+
             # abort if malformed JSON body
             if bottle.request.json==None:
                 raise bottle.HTTPResponse(
@@ -1073,7 +1073,7 @@ class JsonThread(threading.Thread):
                     headers = {'Content-Type': 'application/json'},
                     body    = json.dumps({'error': 'Malformed JSON body'}),
                 )
-            
+
             # handle
             for (k,v) in bottle.request.json.items():
                 try:
@@ -1082,28 +1082,28 @@ class JsonThread(threading.Thread):
                     pass
                 assert v in [FLOW_ON,FLOW_OFF]
                 AppData().setFlow(k,v)
-            
+
             # send response
             raise bottle.HTTPResponse(
                 status  = 200,
                 headers = {'Content-Type': 'application/json'},
                 body    = json.dumps({'status': 'flows changed'}),
             )
-        
+
         except bottle.HTTPResponse:
-            raise        
+            raise
         except Exception as err:
             logCrash(self.name,err)
             raise
-    
+
     def _cb_resend_POST(self):
         try:
             # update stats
             AppData().incrStats(STAT_JSON_NUM_REQ)
-            
+
             # authorize the client
             self._authorizeClient()
-            
+
             print "TODO: implement (#12)"
             raise bottle.HTTPResponse(
                 status  = 501,
@@ -1112,43 +1112,43 @@ class JsonThread(threading.Thread):
             )
 
         except bottle.HTTPResponse:
-            raise            
+            raise
         except Exception as err:
             logCrash(self.name,err)
             raise
-    
+
     def _cb_snapshot_POST(self):
         try:
             # update stats
             AppData().incrStats(STAT_JSON_NUM_REQ)
-            
+
             # authorize the client
             self._authorizeClient()
-            
+
             # start the snapshot
             SnapshotThread().doSnapshot()
-            
+
             # send response
             raise bottle.HTTPResponse(
                 status  = 200,
                 headers = {'Content-Type': 'application/json'},
                 body    = json.dumps({'status': 'snapshot requested'}),
             )
-        
+
         except bottle.HTTPResponse:
             raise
         except Exception as err:
             logCrash(self.name,err)
             raise
-    
+
     def _cb_smartmeshipapi_POST(self):
         try:
             # update stats
             AppData().incrStats(STAT_JSON_NUM_REQ)
-            
+
             # authorize the client
             self._authorizeClient()
-            
+
             # abort if malformed JSON body
             if bottle.request.json==None or \
                     sorted(bottle.request.json.keys())!=sorted(["commandArray","fields"]):
@@ -1157,7 +1157,7 @@ class JsonThread(threading.Thread):
                     headers = {'Content-Type': 'application/json'},
                     body    = json.dumps({'error': 'Malformed JSON body'}),
                 )
-            
+
             # abort if trying to subscribe
             if bottle.request.json["commandArray"]==["subscribe"]:
                 raise bottle.HTTPResponse(
@@ -1165,10 +1165,10 @@ class JsonThread(threading.Thread):
                     headers = {'Content-Type': 'application/json'},
                     body    = json.dumps({'error': 'You cannot issue a "subscribe" command'}),
                 )
-            
+
             # retrieve connector from DustThread
             connector = self.dustThread.connector
-            
+
             # issue command
             try:
                 res = connector.send(
@@ -1195,7 +1195,7 @@ class JsonThread(threading.Thread):
                         }
                     ),
                 )
-            
+
             raise bottle.HTTPResponse(
                 status  = 200,
                 headers = {'Content-Type': 'application/json'},
@@ -1206,15 +1206,15 @@ class JsonThread(threading.Thread):
                     }
                 ),
             )
-        
+
         except bottle.HTTPResponse:
             raise
         except Exception as err:
             logCrash(self.name,err)
             raise
-    
+
     #=== misc
-    
+
     def _authorizeClient(self):
         if bottle.request.headers.get('X-REALMS-Token')!=AppData().getConfig('solmanagertoken'):
             AppData().incrStats(STAT_JSON_NUM_UNAUTHORIZED)
@@ -1223,7 +1223,7 @@ class JsonThread(threading.Thread):
                 headers = {'Content-Type': 'application/json'},
                 body    = json.dumps({'error': 'Unauthorized'}),
             )
-    
+
     def _exec_cmd(self,cmd):
         returnVal = None
         try:
@@ -1233,7 +1233,7 @@ class JsonThread(threading.Thread):
         return returnVal
 
 class SolManager(object):
-    
+
     def __init__(self,serialport,tcpport):
         AppData()
         self.dustThread      = DustThread(serialport,simulation=False)
@@ -1241,7 +1241,7 @@ class SolManager(object):
         self.fileThread      = FileThread()
         self.sendThread      = SendThread()
         self.jsonThread      = JsonThread(tcpport,self.dustThread)
-    
+
     def close(self):
         self.dustThread.close()
         self.snapshotThread.close()
@@ -1290,13 +1290,13 @@ def cli_cb_stats(params):
 
 def main(serialport,tcpport):
     global solmanager
-    
+
     # create the solmanager instance
     solmanager = SolManager(
         serialport,
         tcpport,
     )
-    
+
     # start the CLI interface
     cli = OpenCli.OpenCli(
         "SolManager",
