@@ -63,7 +63,6 @@ DEFAULT_SERIALPORT                     = 'COM18'
 DEFAULT_TCPPORT                        = 8080
 DEFAULT_FILECOMMITDELAY_S              = 60
 
-DEFAULT_CRASHLOG                       = 'solmanager.crashlog'
 DEFAULT_BACKUPFILE                     = 'solmanager.backup'
 
 #===== configuration (TODO: only read from file)
@@ -130,8 +129,7 @@ def logCrash(threadName,err):
     # update stats
     AppData().incrStats(STAT_ADM_NUM_CRASHES)
     print output
-    with open(DEFAULT_CRASHLOG,'a') as f:
-        f.write(output)
+    log.critical(output)
 
 #============================ classes =========================================
 
@@ -1342,8 +1340,6 @@ if __name__ == '__main__':
             DEFAULT_FILEPERIODMINUTES = cf_parser.getint(
                     'solmanager',
                     'fileperiodminutes')
-        if cf_parser.has_option('solmanager','crashlog'):
-            DEFAULT_CRASHLOG = cf_parser.get('solmanager','crashlog')
         if cf_parser.has_option('solmanager','backup'):
             DEFAULT_BACKUPFILE = cf_parser.get('solmanager','backup')
 
