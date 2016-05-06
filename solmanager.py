@@ -54,28 +54,27 @@ log.setLevel(logging.DEBUG)
 
 #===== defines
 
-FLOW_DEFAULT                           = 'default'
-FLOW_ON                                = 'on'
-FLOW_OFF                               = 'off'
+FLOW_DEFAULT                   = 'default'
+FLOW_ON                        = 'on'
+FLOW_OFF                       = 'off'
 
-DEFAULT_CONFIGFILE                     = 'solmanager.config'
-DEFAULT_SERIALPORT                     = 'COM18'
-DEFAULT_TCPPORT                        = 8080
-DEFAULT_FILECOMMITDELAY_S              = 60
+DEFAULT_CONFIGFILE             = 'solmanager.config'
+LOGFILE                        = ''
+BACKUPFILE                     = ''
+SERIALPORT                     = ''
+TCPPORT                        = 0
+FILECOMMITDELAY_S              = 0
+SENDPERIODMINUTES              = 0
+FILEPERIODMINUTES              = 0
 
-DEFAULT_BACKUPFILE                     = 'solmanager.backup'
+#===== configuration
 
-#===== configuration (TODO: only read from file)
-
-DEFAULT_LOGFILE                        = 'solmanager.sol'
-DEFAULT_SOLSERVER                      = 'localhost:8081'
-DEFAULT_SOLSERVERTOKEN                 = 'DEFAULT_SOLSERVERTOKEN'
-DEFAULT_SOLMANAGERTOKEN                = 'DEFAULT_SOLMANAGERTOKEN'
-DEFAULT_SOLMANAGERPRIVKEY              = 'solmanager.ppk'
-DEFAULT_SOLMANAGERCERT                 = 'solmanager.cert'
-DEFAULT_SOLSERVERCERT                  = 'solserver.cert'
-DEFAULT_SENDPERIODMINUTES              = 1
-DEFAULT_FILEPERIODMINUTES              = 1
+SOLSERVER_HOST                 = ''
+SOLSERVER_TOKEN                = ''
+SOLSERVER_CERT                 = ''
+SOLMANAGER_TOKEN               = ''
+SOLMANAGER_PRIVKEY             = ''
+SOLMANAGER_CERT                = ''
 
 #===== stats
 #== admin
@@ -146,18 +145,18 @@ class AppData(object):
         self._init      = True
         self.dataLock   = threading.RLock()
         try:
-            with open(DEFAULT_BACKUPFILE,'r') as f:
+            with open(BACKUPFILE,'r') as f:
                 self.data = pickle.load(f)
         except (EnvironmentError, pickle.PickleError):
             self.data = {
                 'stats' : {},
                 'config' : {
-                    'logfile':              DEFAULT_LOGFILE,
-                    'server':               DEFAULT_SOLSERVER,
-                    'servertoken':          DEFAULT_SOLSERVERTOKEN,
-                    'solmanagertoken':      DEFAULT_SOLMANAGERTOKEN,
-                    'sendperiodminutes':    DEFAULT_SENDPERIODMINUTES,
-                    'fileperiodminutes':    DEFAULT_FILEPERIODMINUTES,
+                    'logfile':              LOGFILE,
+                    'server':               SOLSERVER_HOST,
+                    'servertoken':          SOLSERVER_TOKEN,
+                    'solmanagertoken':      SOLMANAGER_TOKEN,
+                    'sendperiodminutes':    SENDPERIODMINUTES,
+                    'fileperiodminutes':    FILEPERIODMINUTES,
                 },
                 'flows' : {
                     FLOW_DEFAULT:           FLOW_ON,
@@ -197,7 +196,7 @@ class AppData(object):
         self._backupData()
     def _backupData(self):
         with self.dataLock:
-            with open(DEFAULT_BACKUPFILE,'w') as f:
+            with open(BACKUPFILE,'w') as f:
                 pickle.dump(self.data,f)
 
 class DustThread(threading.Thread):
@@ -815,7 +814,7 @@ class FileThread(PublishThread):
         if solJsonObjectsToWrite:
             self.sol.dumpToFile(
                 solJsonObjectsToWrite,
-                DEFAULT_LOGFILE,
+                LOGFILE,
             )
 
 class SendThread(PublishThread):
@@ -854,7 +853,7 @@ class SendThread(PublishThread):
                 'https://{0}/api/v1/o.json'.format(AppData().getConfig('server')),
                 headers = {'X-REALMS-Token': AppData().getConfig('servertoken')},
                 json    = http_payload,
-                verify  = DEFAULT_SOLSERVERCERT,
+                verify  = SOLSERVER_CERT,
             )
         except requests.exceptions.RequestException as err:
             # update stats
@@ -882,8 +881,8 @@ class CherryPySSL(bottle.ServerAdapter):
         from cherrypy.wsgiserver.ssl_pyopenssl import pyOpenSSLAdapter
         server = wsgiserver.CherryPyWSGIServer((self.host, self.port), handler)
         server.ssl_adapter = pyOpenSSLAdapter(
-            certificate           = DEFAULT_SOLMANAGERCERT,
-            private_key           = DEFAULT_SOLMANAGERPRIVKEY,
+            certificate           = SOLMANAGER_CERT,
+            private_key           = SOLMANAGER_PRIVKEY,
         )
         try:
             server.start()
@@ -1319,63 +1318,60 @@ def main(serialport,tcpport):
 if __name__ == '__main__':
     # parse the config file
     cf_parser = SafeConfigParser()
-    cf_parser.read(DEFAULT_CONFIGFILE)
+    cf_parser.readfp(open(DEFAULT_CONFIGFILE))
 
-    if cf_parser.has_section('solmanager'):
-        if cf_parser.has_option('solmanager','serialport'):
-            DEFAULT_SERIALPORT = cf_parser.get('solmanager','serialport')
-        if cf_parser.has_option('solmanager','tcpport'):
-            DEFAULT_TCPPORT = cf_parser.get('solmanager','tcpport')
-        if cf_parser.has_option('solmanager','token'):
-            DEFAULT_SOLMANAGERTOKEN = cf_parser.get('solmanager','token')
-        if cf_parser.has_option('solmanager','filecommitdelay'):
-            DEFAULT_FILECOMMITDELAY_S = cf_parser.getint(
-                    'solmanager',
-                    'filecommitdelay')
-        if cf_parser.has_option('solmanager','sendperiodminutes'):
-            DEFAULT_SENDPERIODMINUTES = cf_parser.getint(
-                    'solmanager',
-                    'sendperiodminutes')
-        if cf_parser.has_option('solmanager','fileperiodminutes'):
-            DEFAULT_FILEPERIODMINUTES = cf_parser.getint(
-                    'solmanager',
-                    'fileperiodminutes')
-        if cf_parser.has_option('solmanager','backup'):
-            DEFAULT_BACKUPFILE = cf_parser.get('solmanager','backup')
+    # application config
+    LOGFILE             = cf_parser.get('application','logfile')
+    BACKUPFILE          = cf_parser.get('application','backupfile')
+    SERIALPORT          = cf_parser.get('application','serialport')
+    TCPPORT             = cf_parser.get('application','tcpport')
+    FILECOMMITDELAY_S   = cf_parser.getint('application', 'filecommitdelay')
+    SENDPERIODMINUTES   = cf_parser.getint('application', 'sendperiodminutes')
+    FILEPERIODMINUTES   = cf_parser.getint('application', 'fileperiodminutes')
 
-    if cf_parser.has_section('server'):
-        if cf_parser.has_option('server','host'):
-            DEFAULT_SOLSERVER = cf_parser.get('server','host')
-        if cf_parser.has_option('server','token'):
-            DEFAULT_SOLSERVERTOKEN = cf_parser.get('server','token')
-        if cf_parser.has_option('server','certfile'):
-            DEFAULT_SOLSERVERCERT = cf_parser.get('server','certfile')
+    # solmanager config
+    SOLMANAGER_TOKEN    = cf_parser.get('solmanager','token')
+    SOLMANAGER_CERT     = cf_parser.get('solmanager','cert')
+    SOLMANAGER_PRIVKEY  = cf_parser.get('solmanager','privkey')
+
+    # solserver config
+    SOLSERVER_HOST      = cf_parser.get('solserver','host')
+    SOLSERVER_TOKEN     = cf_parser.get('solserver','token')
+    SOLSERVER_CERT      = cf_parser.get('solserver','certfile')
 
     log.debug("Configuration:\n" +\
-            "\tDEFAULT_SERIALPORT: %s\n"            +\
-            "\tDEFAULT_TCPPORT: %s\n"               +\
-            "\tDEFAULT_SOLMANAGERTOKEN: '%s'\n"     +\
-            "\tSOL_SERVER_HOST: '%s'\n"             +\
-            "\tDEFAULT_SOLSERVERTOKEN: '%s'\n"      +\
-            "\tDEFAULT_SOLSERVERCERT:  '%s'\n"      ,
-            DEFAULT_SERIALPORT,
-            DEFAULT_TCPPORT,
-            DEFAULT_SOLMANAGERTOKEN,
-            DEFAULT_SOLSERVER,
-            DEFAULT_SOLSERVERTOKEN,
-            DEFAULT_SOLSERVERCERT,
+            "\tLOGFILE: %s\n"               +\
+            "\tBACKUPFILE: %s\n"            +\
+            "\tSERIALPORT: %s\n"            +\
+            "\tTCPPORT: %s\n"               +\
+            "\tSOLMANAGER_TOKEN: %s\n"      +\
+            "\tSOLMANAGER_CERT: %s\n"       +\
+            "\tSOLMANAGER_PRIVKEY: %s\n"    +\
+            "\tSOL_SERVER_HOST: %s\n"       +\
+            "\tSOLSERVER_TOKEN: %s\n"       +\
+            "\tSOLSERVER_CERT:  %s\n"       ,
+            LOGFILE,
+            BACKUPFILE,
+            SERIALPORT,
+            TCPPORT,
+            SOLMANAGER_TOKEN,
+            SOLMANAGER_CERT,
+            SOLMANAGER_PRIVKEY,
+            SOLSERVER_HOST,
+            SOLSERVER_TOKEN,
+            SOLSERVER_CERT,
             )
 
     # parse the command line
     parser = OptionParser("usage: %prog [options]")
     parser.add_option(
         "-s", "--serialport", dest="serialport",
-        default=DEFAULT_SERIALPORT,
+        default=SERIALPORT,
         help="Serial port of the SmartMesh IP manager."
     )
     parser.add_option(
         "-t", "--tcpport", dest="tcpport",
-        default=DEFAULT_TCPPORT,
+        default=TCPPORT,
         help="TCP port to start the JSON API on."
     )
     (options, args) = parser.parse_args()
