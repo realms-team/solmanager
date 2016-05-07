@@ -1254,11 +1254,12 @@ class SolManager(object):
     def restart(self):
         log.debug("Restarting threads")
         self.close()
-        #self.dustThread      = DustThread(SERIALPORT,simulation=False)
-        #self.snapshotThread  = SnapshotThread(self.dustThread)
-        #self.fileThread      = FileThread()
-        #self.sendThread      = SendThread()
-        #self.jsonThread      = JsonThread(TCPPORT,self.dustThread)
+        time.sleep(3)
+        self.dustThread      = DustThread(SERIALPORT,simulation=False)
+        self.snapshotThread  = SnapshotThread(self.dustThread)
+        self.fileThread      = FileThread()
+        self.sendThread      = SendThread()
+        self.jsonThread      = JsonThread(TCPPORT,self.dustThread)
         log.debug("Threads restarted")
 
     def close(self):
