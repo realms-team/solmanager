@@ -54,58 +54,58 @@ log.setLevel(logging.DEBUG)
 
 #===== defines
 
-FLOW_DEFAULT                   = 'default'
-FLOW_ON                        = 'on'
-FLOW_OFF                       = 'off'
+FLOW_DEFAULT                            = 'default'
+FLOW_ON                                 = 'on'
+FLOW_OFF                                = 'off'
 
-DEFAULT_CONFIGFILE             = 'solmanager.config'
-LOGFILE                        = ''
-BACKUPFILE                     = ''
-SERIALPORT                     = ''
-TCPPORT                        = 0
-FILECOMMITDELAY_S              = 0
-SENDPERIODMINUTES              = 0
-FILEPERIODMINUTES              = 0
+DEFAULT_CONFIGFILE                      = 'solmanager.config'
 
 #===== configuration
 
-SOLSERVER_HOST                 = ''
-SOLSERVER_TOKEN                = ''
-SOLSERVER_CERT                 = ''
-SOLMANAGER_TOKEN               = ''
-SOLMANAGER_PRIVKEY             = ''
-SOLMANAGER_CERT                = ''
+LOGFILE                                 = ''
+BACKUPFILE                              = ''
+SERIALPORT                              = ''
+TCPPORT                                 = 0
+FILECOMMITDELAY_S                       = 0
+SENDPERIODMINUTES                       = 0
+FILEPERIODMINUTES                       = 0
+SOLSERVER_HOST                          = ''
+SOLSERVER_TOKEN                         = ''
+SOLSERVER_CERT                          = ''
+SOLMANAGER_TOKEN                        = ''
+SOLMANAGER_PRIVKEY                      = ''
+SOLMANAGER_CERT                         = ''
 
 #===== stats
 #== admin
-STAT_ADM_NUM_CRASHES                   = 'ADM_NUM_CRASHES'
+STAT_ADM_NUM_CRASHES                    = 'ADM_NUM_CRASHES'
 #== connection to manager
-STAT_MGR_NUM_CONNECT_ATTEMPTS          = 'MGR_NUM_CONNECT_ATTEMPTS'
-STAT_MGR_NUM_CONNECT_OK                = 'MGR_NUM_CONNECT_OK'
-STAT_MGR_NUM_DISCONNECTS               = 'MGR_NUM_DISCONNECTS'
-STAT_MGR_NUM_TIMESYNC                  = 'MGR_NUM_TIMESYNC'
+STAT_MGR_NUM_CONNECT_ATTEMPTS           = 'MGR_NUM_CONNECT_ATTEMPTS'
+STAT_MGR_NUM_CONNECT_OK                 = 'MGR_NUM_CONNECT_OK'
+STAT_MGR_NUM_DISCONNECTS                = 'MGR_NUM_DISCONNECTS'
+STAT_MGR_NUM_TIMESYNC                   = 'MGR_NUM_TIMESYNC'
 #== notifications from manager
 # note: we count the number of notifications form the manager, for each time, e.g. NUMRX_NOTIFDATA
 # all stats start with "NUMRX_"
 #== publication
-STAT_PUB_TOTAL_SENTTOPUBLISH           = 'PUB_TOTAL_SENTTOPUBLISH'
+STAT_PUB_TOTAL_SENTTOPUBLISH            = 'PUB_TOTAL_SENTTOPUBLISH'
 # to file
-STAT_PUBFILE_BACKLOG                   = 'PUBFILE_BACKLOG'
-STAT_PUBFILE_WRITES                    = 'PUBFILE_WRITES'
+STAT_PUBFILE_BACKLOG                    = 'PUBFILE_BACKLOG'
+STAT_PUBFILE_WRITES                     = 'PUBFILE_WRITES'
 # to server
-STAT_PUBSERVER_BACKLOG                 = 'PUBSERVER_BACKLOG'
-STAT_PUBSERVER_SENDATTEMPTS            = 'PUBSERVER_SENDATTEMPTS'
-STAT_PUBSERVER_UNREACHABLE             = 'PUBSERVER_UNREACHABLE'
-STAT_PUBSERVER_SENDOK                  = 'PUBSERVER_SENDOK'
-STAT_PUBSERVER_SENDFAIL                = 'PUBSERVER_SENDFAIL'
+STAT_PUBSERVER_BACKLOG                  = 'PUBSERVER_BACKLOG'
+STAT_PUBSERVER_SENDATTEMPTS             = 'PUBSERVER_SENDATTEMPTS'
+STAT_PUBSERVER_UNREACHABLE              = 'PUBSERVER_UNREACHABLE'
+STAT_PUBSERVER_SENDOK                   = 'PUBSERVER_SENDOK'
+STAT_PUBSERVER_SENDFAIL                 = 'PUBSERVER_SENDFAIL'
 #== snapshot
-STAT_SNAPSHOT_NUM_STARTED              = 'SNAPSHOT_NUM_STARTED'
-STAT_SNAPSHOT_LASTSTARTED              = 'SNAPSHOT_LASTSTARTED'
-STAT_SNAPSHOT_NUM_OK                   = 'SNAPSHOT_NUM_OK'
-STAT_SNAPSHOT_NUM_FAIL                 = 'SNAPSHOT_NUM_FAIL'
+STAT_SNAPSHOT_NUM_STARTED               = 'SNAPSHOT_NUM_STARTED'
+STAT_SNAPSHOT_LASTSTARTED               = 'SNAPSHOT_LASTSTARTED'
+STAT_SNAPSHOT_NUM_OK                    = 'SNAPSHOT_NUM_OK'
+STAT_SNAPSHOT_NUM_FAIL                  = 'SNAPSHOT_NUM_FAIL'
 #== JSON interface
-STAT_JSON_NUM_REQ                      = 'JSON_NUM_REQ'
-STAT_JSON_NUM_UNAUTHORIZED             = 'JSON_NUM_UNAUTHORIZED'
+STAT_JSON_NUM_REQ                       = 'JSON_NUM_REQ'
+STAT_JSON_NUM_UNAUTHORIZED              = 'JSON_NUM_UNAUTHORIZED'
 
 #============================ helpers =========================================
 
@@ -125,10 +125,14 @@ def logCrash(threadName,err):
     output += ["=== traceback ==="]
     output += [traceback.format_exc()]
     output  = '\n'.join(output)
+
     # update stats
     AppData().incrStats(STAT_ADM_NUM_CRASHES)
     print output
     log.critical(output)
+
+    # restart threads
+    solmanager.restart()
 
 #============================ classes =========================================
 
@@ -876,18 +880,21 @@ class SendThread(PublishThread):
                 print "Error HTTP response status: "+ str(r.status_code)
 
 class CherryPySSL(bottle.ServerAdapter):
+    server = None
     def run(self, handler):
         from cherrypy import wsgiserver
         from cherrypy.wsgiserver.ssl_pyopenssl import pyOpenSSLAdapter
-        server = wsgiserver.CherryPyWSGIServer((self.host, self.port), handler)
-        server.ssl_adapter = pyOpenSSLAdapter(
+        self.server = wsgiserver.CherryPyWSGIServer((self.host, self.port), handler)
+        self.server.ssl_adapter = pyOpenSSLAdapter(
             certificate           = SOLMANAGER_CERT,
             private_key           = SOLMANAGER_PRIVKEY,
         )
         try:
-            server.start()
+            self.server.start()
         finally:
-            server.stop()
+            self.server.stop()
+    def stop(self):
+        self.server.stop()
 
 class JsonThread(threading.Thread):
 
@@ -902,6 +909,10 @@ class JsonThread(threading.Thread):
 
         # initialize web server
         self.web        = bottle.Bottle()
+        self.web.server = CherryPySSL(
+                            host   = 'localhost',
+                            port   = self.tcpport,
+                        )
         self.web.route(path='/api/v1/echo.json',           method='POST', callback=self._cb_echo_POST)
         self.web.route(path='/api/v1/status.json',         method='GET',  callback=self._cb_status_GET)
         self.web.route(path='/api/v1/config.json',         method='GET',  callback=self._cb_config_GET)
@@ -922,11 +933,8 @@ class JsonThread(threading.Thread):
         try:
             # wait for banner
             time.sleep(0.5)
-
             self.web.run(
-                host   = 'localhost',
-                port   = self.tcpport,
-                server = CherryPySSL,
+                server = self.web.server,
                 quiet  = True,
                 debug  = False,
             )
@@ -936,8 +944,8 @@ class JsonThread(threading.Thread):
     #======================== public ==========================================
 
     def close(self):
-        # bottle thread is daemon, it will close when main thread closes
-        pass
+        self.web.close()
+        self.web.server.stop()
 
     #======================== private ==========================================
 
@@ -1234,13 +1242,24 @@ class JsonThread(threading.Thread):
 
 class SolManager(object):
 
-    def __init__(self,serialport,tcpport):
+    def __init__(self):
         AppData()
-        self.dustThread      = DustThread(serialport,simulation=False)
+        self.dustThread      = DustThread(SERIALPORT,simulation=False)
         self.snapshotThread  = SnapshotThread(self.dustThread)
         self.fileThread      = FileThread()
         self.sendThread      = SendThread()
-        self.jsonThread      = JsonThread(tcpport,self.dustThread)
+        self.jsonThread      = JsonThread(TCPPORT,self.dustThread)
+        log.debug("All threads stated")
+
+    def restart(self):
+        log.debug("Restarting threads")
+        self.close()
+        #self.dustThread      = DustThread(SERIALPORT,simulation=False)
+        #self.snapshotThread  = SnapshotThread(self.dustThread)
+        #self.fileThread      = FileThread()
+        #self.sendThread      = SendThread()
+        #self.jsonThread      = JsonThread(TCPPORT,self.dustThread)
+        log.debug("Threads restarted")
 
     def close(self):
         self.dustThread.close()
@@ -1288,14 +1307,11 @@ def cli_cb_stats(params):
     output = '\n'.join(output)
     print output
 
-def main(serialport,tcpport):
+def main():
     global solmanager
 
     # create the solmanager instance
-    solmanager = SolManager(
-        serialport,
-        tcpport,
-    )
+    solmanager = SolManager()
 
     # start the CLI interface
     cli = OpenCli.OpenCli(
@@ -1375,8 +1391,7 @@ if __name__ == '__main__':
         help="TCP port to start the JSON API on."
     )
     (options, args) = parser.parse_args()
+    SERIALPORT      = options.serialport
+    TCPPORT         = options.tcpport
 
-    main(
-        options.serialport,
-        options.tcpport,
-    )
+    main()
