@@ -47,7 +47,7 @@ import SolDefines
 #============================ logging =========================================
 
 logging.config.fileConfig('logging.conf')
-log = logging.getLogger('solserver')
+log = logging.getLogger('solmanager')
 log.setLevel(logging.DEBUG)
 
 #============================ defines =========================================
