@@ -514,9 +514,11 @@ class DustThread(threading.Thread):
                     )
                     # check if other notifs are present
                     hr_currptr = hr_nextptr
-                    if (hr_currptr+2 in dust_notif.payload and
-                            len(dust_notif.payload) >= dust_notif.payload[hr_currptr+1:1]+2):
-                        hr_nextptr = hr_nextptr + dust_notif.payload[hr_currptr+1] + 2
+                    if hr_currptr+1 in dust_notif.payload:
+                        if dust_notif.payload[hr_currptr+1]+2 in dust_notif.payload:
+                            hr_nextptr = hr_nextptr + dust_notif.payload[hr_currptr+1] + 2
+                        else:
+                            hr_exists = False
                     else:
                         hr_exists = False
 
