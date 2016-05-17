@@ -1265,7 +1265,18 @@ class SolManager(object):
         self.fileThread.close()
         self.sendThread.close()
         self.jsonThread.close()
-        # TODO verify that all threads are closed
+
+        # wait for the theads to close
+        time.sleep(5)
+
+        # verify that all threads are closed
+        is_alive    =   self.dustThread.isAlive()
+        is_alive    and self.snapshotThread.isAlive()
+        is_alive    and self.fileThread.isAlive()
+        is_alive    and self.sendThread.isAlive()
+        is_alive    and self.jsonThread.isAlive()
+        if is_alive:
+            sys.exit()
 
 #============================ main ============================================
 
