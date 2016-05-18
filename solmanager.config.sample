@@ -1,24 +1,24 @@
-[solmanager]
-# Connection
-serialport = /dev/ttyUSB3
-tcpport = 8080
+[config]
 
-# Application
-filecommitdelay = 60
-sendperiodminutes = 1
-fileperiodminutes = 1
+# all SOL objects are written in a backup file
+backupfile          = solmanager.backup
 
-# Security
-token = DEFAULT_SOLMANAGERTOKEN
+# solmanager stats are written every minutes
+statsfile           = solmanager.stats
 
-# Files
-crashlogfile = solmanager.crashlog
-backupfile = solmanager.backup
+# port used to connect to the Dust board API
+serialport          = /dev/ttyUSB3
 
-[server]
-# Connection
-host = localhost:8081
+sendperiodminutes   = 1
+fileperiodminutes   = 1
 
-# Security
-token = DEFAULT_SOLSERVERTOKEN
-certfile = solserver.cert
+# local web server
+solmanager_token    = SOLMANAGER_TOKEN
+solmanager_cert     = solmanager.cert
+solmanager_privkey  = solmanager.ppk
+solmanager_tcpport  = 8080
+
+# remote web server
+solserver_host      = sol.paris.inria.fr:8081
+solserver_token     = DEFAULT_SOLSERVERTOKEN
+solserver_cert      = solserver.cert

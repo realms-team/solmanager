@@ -1,10 +1,10 @@
 *.pyc
-/solmanager.sol
 /solmanager.config
 /solmanager.backup
+/solmanager.stats
+/solmanager.log
 /solmanager.cert
 /solmanager.ppk
-/solmanager.crashlog
 /sol.err.log
 /sol.out.log
 /supervisord.conf
