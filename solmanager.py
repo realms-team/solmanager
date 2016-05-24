@@ -528,8 +528,10 @@ class DustThread(threading.Thread):
                 AppData().incrStats('NUMRX_{0}'.format(notifName.upper()))
 
                 # get time
-                netTs   = self._calcNetTs(d_n)
-                epoch   = self._netTsToEpoch(netTs)
+                epoch       = None
+                if hasattr(dust_notif,"utcSecs") and hasattr(dust_notif,"utcUsecs"):
+                    netTs   = self._calcNetTs(d_n)
+                    epoch   = self._netTsToEpoch(netTs)
 
                 # convert dust notification to JSON SOL Object
                 sol_json = self.sol.dust_to_json(
