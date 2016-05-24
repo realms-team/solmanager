@@ -527,10 +527,15 @@ class DustThread(threading.Thread):
                 # update stats
                 AppData().incrStats('NUMRX_{0}'.format(notifName.upper()))
 
+                # get time
+                netTs   = self._calcNetTs(d_n)
+                epoch   = self._netTsToEpoch(netTs)
+
                 # convert dust notification to JSON SOL Object
                 sol_json = self.sol.dust_to_json(
                     d_n,
-                    macManager = self.macManager,
+                    macManager  = self.macManager,
+                    timestamp   = epoch,
                 )
 
                 # publish JSON SOL Object
