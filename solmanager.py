@@ -689,7 +689,7 @@ class SnapshotThread(threading.Thread):
                         currentPathId  = res.pathId
                         s['paths'] += [
                             {
-                                'dest':          res.dest,
+                                'macAddress':    res.dest,
                                 'direction':     res.direction,
                                 'numLinks':      res.numLinks,
                                 'quality':       res.quality,
@@ -708,10 +708,7 @@ class SnapshotThread(threading.Thread):
                 'mac':       self.dustThread.macManager,
                 'timestamp': int(time.time()),
                 'type':      SolDefines.SOL_TYPE_DUST_SNAPSHOT,
-                'value':     self.sol.pack_obj_value(
-                    SolDefines.SOL_TYPE_DUST_SNAPSHOT,
-                    summary = snapshotSummary,
-                ),
+                'value':     snapshotSummary,
             }
 
             # publish sensor object
@@ -727,7 +724,7 @@ class PublishThread(threading.Thread):
         threading.Thread.__init__(self)
         self.name                       = 'PublishThread'
         self.start()
-        self.periodvariable             = periodvariable
+        self.periodvariable             = periodvariable*60
     def run(self):
         try:
             self.currentDelay = 5
@@ -849,6 +846,22 @@ class SendThread(PublishThread):
                 # update stats
                 AppData().incrStats(STAT_PUBSERVER_SENDFAIL)
                 print "Error HTTP response status: "+ str(r.status_code)
+
+class PeriodicSnapshotThread(PublishThread):
+    _instance = None
+    _init     = False
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(PeriodicSnapshotThread,cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+    def __init__(self, snapperiod):
+        if self._init:
+            return
+        self._init          = True
+        PublishThread.__init__(self, snapperiod)
+        self.name           = 'PeriodicSnapshotThread'
+    def publishNow(self):
+        SnapshotThread().doSnapshot()
 
 class CherryPySSL(bottle.ServerAdapter):
     server = None
@@ -1226,6 +1239,7 @@ class SolManager(object):
 
     def __init__(self, configs):
         self.serialport     = configs["serialport"]
+        self.snapperiod     = configs["snapperiodminutes"]
         self.filet_configs  = {
                     "backupfile" :          configs["backupfile"],
                     "fileperiodminutes" :   configs["fileperiodminutes"],
@@ -1246,11 +1260,12 @@ class SolManager(object):
         self.start()
 
     def start(self):
-        self.dustThread      = DustThread(self.serialport,simulation=False)
-        self.snapshotThread  = SnapshotThread(self.dustThread)
-        self.fileThread      = FileThread(**self.filet_configs)
-        self.sendThread      = SendThread(**self.sendt_configs)
-        self.jsonThread      = JsonThread(self.dustThread, **self.jsont_configs)
+        self.dustThread         = DustThread(self.serialport,simulation=False)
+        self.snapshotThread     = SnapshotThread(self.dustThread)
+        self.periodSnapThread   = PeriodicSnapshotThread(self.snapperiod)
+        self.fileThread         = FileThread(**self.filet_configs)
+        self.sendThread         = SendThread(**self.sendt_configs)
+        self.jsonThread         = JsonThread(self.dustThread, **self.jsont_configs)
         log.debug("All threads started")
 
 
@@ -1262,16 +1277,18 @@ class SolManager(object):
     def close(self):
         self.dustThread.close()
         self.snapshotThread.close()
+        self.periodSnapThread.close()
         self.fileThread.close()
         self.sendThread.close()
         self.jsonThread.close()
 
         # wait for the theads to close
-        time.sleep(5)
+        time.sleep(3)
 
         # verify that all threads are closed
         is_alive    = self.dustThread.isAlive()
         is_alive    = is_alive and self.snapshotThread.isAlive()
+        is_alive    = is_alive and self.periodSnapThread.isAlive()
         is_alive    = is_alive and self.fileThread.isAlive()
         is_alive    = is_alive and self.sendThread.isAlive()
         is_alive    = is_alive and self.jsonThread.isAlive()
@@ -1353,7 +1370,7 @@ if __name__ == '__main__':
                 "solmanager_token", "solmanager_cert", "solmanager_privkey",
                 "solserver_host", "solserver_token", "solserver_cert"
             ]
-    config_list_int = ["sendperiodminutes", "fileperiodminutes"]
+    config_list_int = ["sendperiodminutes", "fileperiodminutes", "snapperiodminutes"]
 
     # load configurations from file
     for config_name in config_list_str:
