@@ -37,6 +37,7 @@ from SmartMeshSDK.protocols.oap             import OAPNotif
 
 # SendThread
 import requests
+import OpenSSL
 
 # JsonThread
 import bottle
@@ -834,7 +835,7 @@ class SendThread(PublishThread):
                 json    = http_payload,
                 verify  = self.solserver_cert,
             )
-        except requests.exceptions.RequestException as err:
+        except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
             # update stats
             AppData().incrStats(STAT_PUBSERVER_UNREACHABLE)
             # happens when could not contact server
