@@ -835,6 +835,7 @@ class SendThread(PublishThread):
                 json    = http_payload,
                 verify  = self.solserver_cert,
             )
+            import bidule
         except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
             # update stats
             AppData().incrStats(STAT_PUBSERVER_UNREACHABLE)
@@ -1246,62 +1247,81 @@ class JsonThread(threading.Thread):
 class SolManager(object):
 
     def __init__(self, configs):
+        self.threads        = {
+                "dustThread"            : None,
+                "snapshotThread"        : None,
+                "periodSnapThread"      : None,
+                "fileThread"            : None,
+                "sendThread"            : None,
+                "jsonThread"            : None,
+                }
         self.serialport     = configs["serialport"]
         self.snapperiod     = configs["snapperiodminutes"]
         self.filet_configs  = {
-                    "backupfile" :          configs["backupfile"],
-                    "fileperiodminutes" :   configs["fileperiodminutes"],
+                    "backupfile"        : configs["backupfile"],
+                    "fileperiodminutes" : configs["fileperiodminutes"],
                 }
         self.sendt_configs  = {
-                    "solserver_host" :      configs["solserver_host"],
-                    "solserver_token" :     configs["solserver_token"],
-                    "solserver_cert" :      configs["solserver_cert"],
-                    "sendperiodminutes" :   configs["sendperiodminutes"],
+                    "solserver_host"    : configs["solserver_host"],
+                    "solserver_token"   : configs["solserver_token"],
+                    "solserver_cert"    : configs["solserver_cert"],
+                    "sendperiodminutes" : configs["sendperiodminutes"],
                 }
         self.jsont_configs  = {
-                    "tcpport" :             configs["tcpport"],
-                    "token" :               configs["solmanager_token"],
-                    "cert" :                configs["solmanager_cert"],
-                    "privkey" :             configs["solmanager_privkey"],
+                    "tcpport"           : configs["tcpport"],
+                    "token"             : configs["solmanager_token"],
+                    "cert"              : configs["solmanager_cert"],
+                    "privkey"           : configs["solmanager_privkey"],
                 }
         AppData(configs["statsfile"])
         self.start()
 
     def start(self):
-        self.dustThread         = DustThread(self.serialport,simulation=False)
-        self.snapshotThread     = SnapshotThread(self.dustThread)
-        self.periodSnapThread   = PeriodicSnapshotThread(self.snapperiod)
-        self.fileThread         = FileThread(**self.filet_configs)
-        self.sendThread         = SendThread(**self.sendt_configs)
-        self.jsonThread         = JsonThread(self.dustThread, **self.jsont_configs)
+        print threading.enumerate()
+        self.threads["dustThread"]          = DustThread(self.serialport,simulation=False)
+        self.threads["snapshotThread"]      = SnapshotThread(self.threads["dustThread"])
+        self.threads["periodSnapThread"]    = PeriodicSnapshotThread(self.snapperiod)
+        self.threads["fileThread"]          = FileThread(**self.filet_configs)
+        self.threads["sendThread"]          = SendThread(**self.sendt_configs)
+        self.threads["jsonThread"]          = JsonThread(self.threads["dustThread"],
+                                                **self.jsont_configs)
+        print threading.enumerate()
+
+        # verify that all threads are started
+        is_alive = True
+        for t in self.threads.itervalues():
+            is_alive = is_alive and t.isAlive()
+            if not is_alive:
+                log.debug("Could not start threads. Quiting")
+                os._exit(0)
+
         log.debug("All threads started")
 
-
     def restart(self):
-        log.debug("Restarting threads")
         self.close()
+        print threading.enumerate()
+        print "============="
         self.start()
 
     def close(self):
-        self.dustThread.close()
-        self.snapshotThread.close()
-        self.periodSnapThread.close()
-        self.fileThread.close()
-        self.sendThread.close()
-        self.jsonThread.close()
+        for t in self.threads.itervalues():
+            t.close()
 
         # wait for the theads to close
         time.sleep(3)
 
         # verify that all threads are closed
-        is_alive    = self.dustThread.isAlive()
-        is_alive    = is_alive and self.snapshotThread.isAlive()
-        is_alive    = is_alive and self.periodSnapThread.isAlive()
-        is_alive    = is_alive and self.fileThread.isAlive()
-        is_alive    = is_alive and self.sendThread.isAlive()
-        is_alive    = is_alive and self.jsonThread.isAlive()
-        if is_alive:
-            sys.exit()
+        is_alive = False
+        for t in self.threads.itervalues():
+            is_alive = is_alive or t.isAlive()
+            if is_alive:
+                log.debug("Could not stop threads. Quiting")
+                os._exit(0)
+
+        # replace thread objects
+        for t in self.threads.itervalues():
+            t = None
+        log.debug("All threads closed")
 
 #============================ main ============================================
 
