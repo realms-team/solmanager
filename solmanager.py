@@ -83,6 +83,7 @@ STAT_PUBSERVER_SENDATTEMPTS             = 'PUBSERVER_SENDATTEMPTS'
 STAT_PUBSERVER_UNREACHABLE              = 'PUBSERVER_UNREACHABLE'
 STAT_PUBSERVER_SENDOK                   = 'PUBSERVER_SENDOK'
 STAT_PUBSERVER_SENDFAIL                 = 'PUBSERVER_SENDFAIL'
+STAT_PUBSERVER_STATS                    = 'PUBSERVER_STATS'
 #== snapshot
 STAT_SNAPSHOT_NUM_STARTED               = 'SNAPSHOT_NUM_STARTED'
 STAT_SNAPSHOT_LASTSTARTED               = 'SNAPSHOT_LASTSTARTED'
@@ -861,6 +862,47 @@ class SendThread(PublishThread):
                 AppData().incrStats(STAT_PUBSERVER_SENDFAIL)
                 print "Error HTTP response status: "+ str(r.status_code)
 
+class StatsThread(PublishThread):
+    """
+    This thread perdiodically publishes the solmanager statistics
+    """
+
+    _instance = None
+    _init     = False
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(StatsThread,cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+    def __init__(self, dustThread, statsperiod):
+        if self._init:
+            return
+        self._init          = True
+        PublishThread.__init__(self, statsperiod)
+        self.name           = 'StatsThread'
+        self.dustThread     = dustThread
+        self.sol                = Sol.Sol()
+    def _del(self):
+        self.__class__._instance = None
+    def publishNow(self):
+        # update stats
+        AppData().incrStats(STAT_PUBSERVER_STATS)
+
+        # create sensor object
+        sobject = {
+            'mac':       self.dustThread.macManager,
+            'timestamp': int(time.time()),
+            'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS,
+            'value':     {
+                    'sol_version'           : list(SolVersion.VERSION),
+                    'solmanager_version'    : list(solmanager_version.VERSION),
+                    'sdk_version'           : list(sdk_version.VERSION)
+                },
+        }
+
+        # publish
+        FileThread().publish(sobject)
+        SendThread().publish(sobject)
+
 class PeriodicSnapshotThread(PublishThread):
     _instance = None
     _init     = False
@@ -1267,6 +1309,7 @@ class SolManager(threading.Thread):
                 }
         self.serialport     = configs["serialport"]
         self.snapperiod     = configs["snapperiodminutes"]
+        self.statsperiod    = configs["statsperiodminutes"]
         self.filet_configs  = {
                     "backupfile"        : configs["backupfile"],
                     "fileperiodminutes" : configs["fileperiodminutes"],
@@ -1315,6 +1358,7 @@ class SolManager(threading.Thread):
         self.threads["fileThread"]      = FileThread(**self.filet_configs)
         self.threads["sendThread"]      = SendThread(**self.sendt_configs)
         self.threads["jsonThread"]      = JsonThread(self.threads["dustThread"],**self.jsont_configs)
+        self.threads["statsThread"]     = StatsThread(self.threads["dustThread"],self.statsperiod)
 
         # verify that all threads are started
         all_started = False
@@ -1427,7 +1471,10 @@ if __name__ == '__main__':
                 "solmanager_token", "solmanager_cert", "solmanager_privkey",
                 "solserver_host", "solserver_token", "solserver_cert"
             ]
-    config_list_int = ["sendperiodminutes", "fileperiodminutes", "snapperiodminutes"]
+    config_list_int = [
+                "sendperiodminutes", "fileperiodminutes", "snapperiodminutes",
+                "statsperiodminutes",
+            ]
 
     # load configurations from file
     for config_name in config_list_str:

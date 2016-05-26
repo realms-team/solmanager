@@ -11,7 +11,8 @@ serialport          = /dev/ttyUSB3
 
 sendperiodminutes   = 1
 fileperiodminutes   = 1
-snapperiodminutes   = 1
+snapperiodminutes   = 60
+statsperiodminutes  = 30
 
 # local web server
 solmanager_token    = SOLMANAGER_TOKEN
