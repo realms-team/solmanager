@@ -116,9 +116,6 @@ def logCrash(threadName,err):
     print output
     log.critical(output)
 
-    # restart threads
-    solmanager.restart()
-
 #============================ classes =========================================
 
 class AppData(object):
@@ -617,6 +614,9 @@ class SnapshotThread(threading.Thread):
         self.name            = 'SnapshotThread'
         self.start()
 
+    def _del(self):
+        self.__class__._instance = None
+
     def run(self):
         while self.goOn:
             self.doSnapshotSem.acquire()
@@ -770,6 +770,10 @@ class FileThread(PublishThread):
         PublishThread.__init__(self, fileperiodminutes)
         self.name           = 'FileThread'
         self.backupfile     = backupfile
+
+    def _del(self):
+        self.__class__._instance = None
+
     def publishNow(self):
         # update stats
         AppData().incrStats(STAT_PUBFILE_WRITES)
@@ -811,6 +815,8 @@ class SendThread(PublishThread):
         self.solserver_host     = kwargs["solserver_host"]
         self.solserver_token    = kwargs["solserver_token"]
         self.solserver_cert     = kwargs["solserver_cert"]
+    def _del(self):
+        self.__class__._instance = None
     def publishNow(self):
         # stop if nothing to publish
         with self.dataLock:
@@ -835,7 +841,6 @@ class SendThread(PublishThread):
                 json    = http_payload,
                 verify  = self.solserver_cert,
             )
-            import bidule
         except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
             # update stats
             AppData().incrStats(STAT_PUBSERVER_UNREACHABLE)
@@ -869,6 +874,8 @@ class PeriodicSnapshotThread(PublishThread):
         self._init          = True
         PublishThread.__init__(self, snapperiod)
         self.name           = 'PeriodicSnapshotThread'
+    def _del(self):
+        self.__class__._instance = None
     def publishNow(self):
         SnapshotThread().doSnapshot()
 
@@ -883,11 +890,14 @@ class CherryPySSL(bottle.ServerAdapter):
             private_key           = self.options["privkey"],
         )
         try:
+            log.debug("Starting Bottle server")
             self.server.start()
         finally:
             self.server.stop()
-    def stop(self):
-        self.server.stop()
+    def stopserver(self):
+        if self.server:
+            self.server.stop()
+            log.debug("Bottle server adapter stopped")
 
 class JsonThread(threading.Thread):
 
@@ -924,7 +934,6 @@ class JsonThread(threading.Thread):
         # start the thread
         threading.Thread.__init__(self)
         self.name       = 'JsonThread'
-        self.daemon     = True
         self.start()
 
     def run(self):
@@ -934,7 +943,7 @@ class JsonThread(threading.Thread):
             self.web.run(
                 server  = self.web.server,
                 quiet   = True,
-                debug   = False,
+                debug   = True,
             )
         except Exception as err:
             logCrash(self.name,err)
@@ -943,7 +952,7 @@ class JsonThread(threading.Thread):
 
     def close(self):
         self.web.close()
-        self.web.server.stop()
+        self.web.server.stopserver()
 
     #======================== private ==========================================
 
@@ -1244,9 +1253,10 @@ class JsonThread(threading.Thread):
             returnVal = "ERROR"
         return returnVal
 
-class SolManager(object):
+class SolManager(threading.Thread):
 
     def __init__(self, configs):
+        self.goOn           = True
         self.threads        = {
                 "dustThread"            : None,
                 "snapshotThread"        : None,
@@ -1274,53 +1284,71 @@ class SolManager(object):
                     "privkey"           : configs["solmanager_privkey"],
                 }
         AppData(configs["statsfile"])
+        # start the thread
+        threading.Thread.__init__(self)
+        self.name                       = 'SolManager'
         self.start()
 
-    def start(self):
-        print threading.enumerate()
-        self.threads["dustThread"]          = DustThread(self.serialport,simulation=False)
-        self.threads["snapshotThread"]      = SnapshotThread(self.threads["dustThread"])
-        self.threads["periodSnapThread"]    = PeriodicSnapshotThread(self.snapperiod)
-        self.threads["fileThread"]          = FileThread(**self.filet_configs)
-        self.threads["sendThread"]          = SendThread(**self.sendt_configs)
-        self.threads["jsonThread"]          = JsonThread(self.threads["dustThread"],
-                                                **self.jsont_configs)
-        print threading.enumerate()
+    def run(self):
+        try:
+            self.startThreads()
+            while self.goOn:
+                # verify that all threads are running
+                all_running = True
+                for t in self.threads.itervalues():
+                    if not t.isAlive():
+                        all_running = False
+                        log.debug("Thread {0} is not running. Restarting.".format(t.name))
+                if not all_running:
+                    self.close()
+                    self.startThreads()
+                time.sleep(1)
+            self.close()
+        except Exception as err:
+            logCrash(self.name,err)
+
+    def startThreads(self):
+        log.debug("starting thread")
+        self.threads["dustThread"]      = DustThread(self.serialport,simulation=False)
+        self.threads["snapshotThread"]  = SnapshotThread(self.threads["dustThread"])
+        self.threads["periodSnapThread"]= PeriodicSnapshotThread(self.snapperiod)
+        self.threads["fileThread"]      = FileThread(**self.filet_configs)
+        self.threads["sendThread"]      = SendThread(**self.sendt_configs)
+        self.threads["jsonThread"]      = JsonThread(self.threads["dustThread"],**self.jsont_configs)
 
         # verify that all threads are started
-        is_alive = True
-        for t in self.threads.itervalues():
-            is_alive = is_alive and t.isAlive()
-            if not is_alive:
-                log.debug("Could not start threads. Quiting")
-                os._exit(0)
-
+        all_started = False
+        while not all_started and self.goOn:
+            all_started = True
+            for t in self.threads.itervalues():
+                if not t.isAlive():
+                    all_started = False
+                    log.debug("Waiting for {0} to start".format(t.name))
+            time.sleep(5)
         log.debug("All threads started")
-
-    def restart(self):
-        self.close()
-        print threading.enumerate()
-        print "============="
-        self.start()
 
     def close(self):
         for t in self.threads.itervalues():
             t.close()
 
         # wait for the theads to close
-        time.sleep(3)
+        time.sleep(2)
 
         # verify that all threads are closed
-        is_alive = False
-        for t in self.threads.itervalues():
-            is_alive = is_alive or t.isAlive()
-            if is_alive:
-                log.debug("Could not stop threads. Quiting")
-                os._exit(0)
+        all_closed = False
+        while not all_closed and self.goOn:
+            all_closed = True
+            for t in self.threads.itervalues():
+                if t.isAlive():
+                    all_closed = False
+                    log.debug("Waiting for {0} to stop".format(t.name))
+            time.sleep(2)
 
-        # replace thread objects
         for t in self.threads.itervalues():
+            if hasattr(t,"_del"):
+                t._del()
             t = None
+
         log.debug("All threads closed")
 
 #============================ main ============================================
@@ -1328,7 +1356,8 @@ class SolManager(object):
 solmanager = None
 
 def quitCallback():
-    solmanager.close()
+    log.info("Quitting.")
+    solmanager.goOn = False
 
 def returnStatsGroup(stats,prefix):
     keys = []
