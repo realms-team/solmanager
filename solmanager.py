@@ -33,7 +33,6 @@ from   SmartMeshSDK                         import sdk_version, \
 from   SmartMeshSDK.protocols.Hr            import HrParser
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
 from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrSubscribe
-from SmartMeshSDK.protocols.oap             import OAPNotif
 
 # SendThread
 import requests
