@@ -33,10 +33,10 @@ from   SmartMeshSDK                         import sdk_version, \
 from   SmartMeshSDK.protocols.Hr            import HrParser
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
 from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrSubscribe
-from SmartMeshSDK.protocols.oap             import OAPNotif
 
 # SendThread
 import requests
+import OpenSSL
 
 # JsonThread
 import bottle
@@ -82,6 +82,7 @@ STAT_PUBSERVER_SENDATTEMPTS             = 'PUBSERVER_SENDATTEMPTS'
 STAT_PUBSERVER_UNREACHABLE              = 'PUBSERVER_UNREACHABLE'
 STAT_PUBSERVER_SENDOK                   = 'PUBSERVER_SENDOK'
 STAT_PUBSERVER_SENDFAIL                 = 'PUBSERVER_SENDFAIL'
+STAT_PUBSERVER_STATS                    = 'PUBSERVER_STATS'
 #== snapshot
 STAT_SNAPSHOT_NUM_STARTED               = 'SNAPSHOT_NUM_STARTED'
 STAT_SNAPSHOT_LASTSTARTED               = 'SNAPSHOT_LASTSTARTED'
@@ -114,9 +115,6 @@ def logCrash(threadName,err):
     AppData().incrStats(STAT_ADM_NUM_CRASHES)
     print output
     log.critical(output)
-
-    # restart threads
-    solmanager.restart()
 
 #============================ classes =========================================
 
@@ -527,10 +525,17 @@ class DustThread(threading.Thread):
                 # update stats
                 AppData().incrStats('NUMRX_{0}'.format(notifName.upper()))
 
+                # get time
+                epoch       = None
+                if hasattr(dust_notif,"utcSecs") and hasattr(dust_notif,"utcUsecs"):
+                    netTs   = self._calcNetTs(d_n)
+                    epoch   = self._netTsToEpoch(netTs)
+
                 # convert dust notification to JSON SOL Object
                 sol_json = self.sol.dust_to_json(
                     d_n,
-                    macManager = self.macManager,
+                    macManager  = self.macManager,
+                    timestamp   = epoch,
                 )
 
                 # publish JSON SOL Object
@@ -608,6 +613,9 @@ class SnapshotThread(threading.Thread):
         threading.Thread.__init__(self)
         self.name            = 'SnapshotThread'
         self.start()
+
+    def _del(self):
+        self.__class__._instance = None
 
     def run(self):
         while self.goOn:
@@ -689,7 +697,7 @@ class SnapshotThread(threading.Thread):
                         currentPathId  = res.pathId
                         s['paths'] += [
                             {
-                                'dest':          res.dest,
+                                'macAddress':    res.dest,
                                 'direction':     res.direction,
                                 'numLinks':      res.numLinks,
                                 'quality':       res.quality,
@@ -708,10 +716,7 @@ class SnapshotThread(threading.Thread):
                 'mac':       self.dustThread.macManager,
                 'timestamp': int(time.time()),
                 'type':      SolDefines.SOL_TYPE_DUST_SNAPSHOT,
-                'value':     self.sol.pack_obj_value(
-                    SolDefines.SOL_TYPE_DUST_SNAPSHOT,
-                    summary = snapshotSummary,
-                ),
+                'value':     snapshotSummary,
             }
 
             # publish sensor object
@@ -727,7 +732,7 @@ class PublishThread(threading.Thread):
         threading.Thread.__init__(self)
         self.name                       = 'PublishThread'
         self.start()
-        self.periodvariable             = periodvariable
+        self.periodvariable             = periodvariable*60
     def run(self):
         try:
             self.currentDelay = 5
@@ -765,6 +770,10 @@ class FileThread(PublishThread):
         PublishThread.__init__(self, fileperiodminutes)
         self.name           = 'FileThread'
         self.backupfile     = backupfile
+
+    def _del(self):
+        self.__class__._instance = None
+
     def publishNow(self):
         # update stats
         AppData().incrStats(STAT_PUBFILE_WRITES)
@@ -806,6 +815,8 @@ class SendThread(PublishThread):
         self.solserver_host     = kwargs["solserver_host"]
         self.solserver_token    = kwargs["solserver_token"]
         self.solserver_cert     = kwargs["solserver_cert"]
+    def _del(self):
+        self.__class__._instance = None
     def publishNow(self):
         # stop if nothing to publish
         with self.dataLock:
@@ -830,7 +841,7 @@ class SendThread(PublishThread):
                 json    = http_payload,
                 verify  = self.solserver_cert,
             )
-        except requests.exceptions.RequestException as err:
+        except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
             # update stats
             AppData().incrStats(STAT_PUBSERVER_UNREACHABLE)
             # happens when could not contact server
@@ -850,6 +861,65 @@ class SendThread(PublishThread):
                 AppData().incrStats(STAT_PUBSERVER_SENDFAIL)
                 print "Error HTTP response status: "+ str(r.status_code)
 
+class StatsThread(PublishThread):
+    """
+    This thread perdiodically publishes the solmanager statistics
+    """
+
+    _instance = None
+    _init     = False
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(StatsThread,cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+    def __init__(self, dustThread, statsperiod):
+        if self._init:
+            return
+        self._init          = True
+        PublishThread.__init__(self, statsperiod)
+        self.name           = 'StatsThread'
+        self.dustThread     = dustThread
+        self.sol                = Sol.Sol()
+    def _del(self):
+        self.__class__._instance = None
+    def publishNow(self):
+        # update stats
+        AppData().incrStats(STAT_PUBSERVER_STATS)
+
+        # create sensor object
+        sobject = {
+            'mac':       self.dustThread.macManager,
+            'timestamp': int(time.time()),
+            'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS,
+            'value':     {
+                    'sol_version'           : list(SolVersion.VERSION),
+                    'solmanager_version'    : list(solmanager_version.VERSION),
+                    'sdk_version'           : list(sdk_version.VERSION)
+                },
+        }
+
+        # publish
+        FileThread().publish(sobject)
+        SendThread().publish(sobject)
+
+class PeriodicSnapshotThread(PublishThread):
+    _instance = None
+    _init     = False
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(PeriodicSnapshotThread,cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+    def __init__(self, snapperiod):
+        if self._init:
+            return
+        self._init          = True
+        PublishThread.__init__(self, snapperiod)
+        self.name           = 'PeriodicSnapshotThread'
+    def _del(self):
+        self.__class__._instance = None
+    def publishNow(self):
+        SnapshotThread().doSnapshot()
+
 class CherryPySSL(bottle.ServerAdapter):
     server = None
     def run(self, handler):
@@ -861,11 +931,14 @@ class CherryPySSL(bottle.ServerAdapter):
             private_key           = self.options["privkey"],
         )
         try:
+            log.debug("Starting Bottle server")
             self.server.start()
         finally:
             self.server.stop()
-    def stop(self):
-        self.server.stop()
+    def stopserver(self):
+        if self.server:
+            self.server.stop()
+            log.debug("Bottle server adapter stopped")
 
 class JsonThread(threading.Thread):
 
@@ -902,7 +975,6 @@ class JsonThread(threading.Thread):
         # start the thread
         threading.Thread.__init__(self)
         self.name       = 'JsonThread'
-        self.daemon     = True
         self.start()
 
     def run(self):
@@ -912,7 +984,7 @@ class JsonThread(threading.Thread):
             self.web.run(
                 server  = self.web.server,
                 quiet   = True,
-                debug   = False,
+                debug   = True,
             )
         except Exception as err:
             logCrash(self.name,err)
@@ -921,7 +993,7 @@ class JsonThread(threading.Thread):
 
     def close(self):
         self.web.close()
-        self.web.server.stop()
+        self.web.server.stopserver()
 
     #======================== private ==========================================
 
@@ -1222,68 +1294,113 @@ class JsonThread(threading.Thread):
             returnVal = "ERROR"
         return returnVal
 
-class SolManager(object):
+class SolManager(threading.Thread):
 
     def __init__(self, configs):
+        self.goOn           = True
+        self.threads        = {
+                "dustThread"            : None,
+                "snapshotThread"        : None,
+                "periodSnapThread"      : None,
+                "fileThread"            : None,
+                "sendThread"            : None,
+                "jsonThread"            : None,
+                }
         self.serialport     = configs["serialport"]
+        self.snapperiod     = configs["snapperiodminutes"]
+        self.statsperiod    = configs["statsperiodminutes"]
         self.filet_configs  = {
-                    "backupfile" :          configs["backupfile"],
-                    "fileperiodminutes" :   configs["fileperiodminutes"],
+                    "backupfile"        : configs["backupfile"],
+                    "fileperiodminutes" : configs["fileperiodminutes"],
                 }
         self.sendt_configs  = {
-                    "solserver_host" :      configs["solserver_host"],
-                    "solserver_token" :     configs["solserver_token"],
-                    "solserver_cert" :      configs["solserver_cert"],
-                    "sendperiodminutes" :   configs["sendperiodminutes"],
+                    "solserver_host"    : configs["solserver_host"],
+                    "solserver_token"   : configs["solserver_token"],
+                    "solserver_cert"    : configs["solserver_cert"],
+                    "sendperiodminutes" : configs["sendperiodminutes"],
                 }
         self.jsont_configs  = {
-                    "tcpport" :             configs["tcpport"],
-                    "token" :               configs["solmanager_token"],
-                    "cert" :                configs["solmanager_cert"],
-                    "privkey" :             configs["solmanager_privkey"],
+                    "tcpport"           : configs["tcpport"],
+                    "token"             : configs["solmanager_token"],
+                    "cert"              : configs["solmanager_cert"],
+                    "privkey"           : configs["solmanager_privkey"],
                 }
         AppData(configs["statsfile"])
+        # start the thread
+        threading.Thread.__init__(self)
+        self.name                       = 'SolManager'
         self.start()
 
-    def start(self):
-        self.dustThread      = DustThread(self.serialport,simulation=False)
-        self.snapshotThread  = SnapshotThread(self.dustThread)
-        self.fileThread      = FileThread(**self.filet_configs)
-        self.sendThread      = SendThread(**self.sendt_configs)
-        self.jsonThread      = JsonThread(self.dustThread, **self.jsont_configs)
+    def run(self):
+        try:
+            self.startThreads()
+            while self.goOn:
+                # verify that all threads are running
+                all_running = True
+                for t in self.threads.itervalues():
+                    if not t.isAlive():
+                        all_running = False
+                        log.debug("Thread {0} is not running. Restarting.".format(t.name))
+                if not all_running:
+                    self.close()
+                    self.startThreads()
+                time.sleep(1)
+            self.close()
+        except Exception as err:
+            logCrash(self.name,err)
+
+    def startThreads(self):
+        log.debug("starting thread")
+        self.threads["dustThread"]      = DustThread(self.serialport,simulation=False)
+        self.threads["snapshotThread"]  = SnapshotThread(self.threads["dustThread"])
+        self.threads["periodSnapThread"]= PeriodicSnapshotThread(self.snapperiod)
+        self.threads["fileThread"]      = FileThread(**self.filet_configs)
+        self.threads["sendThread"]      = SendThread(**self.sendt_configs)
+        self.threads["jsonThread"]      = JsonThread(self.threads["dustThread"],**self.jsont_configs)
+        self.threads["statsThread"]     = StatsThread(self.threads["dustThread"],self.statsperiod)
+
+        # verify that all threads are started
+        all_started = False
+        while not all_started and self.goOn:
+            all_started = True
+            for t in self.threads.itervalues():
+                if not t.isAlive():
+                    all_started = False
+                    log.debug("Waiting for {0} to start".format(t.name))
+            time.sleep(5)
         log.debug("All threads started")
 
-
-    def restart(self):
-        log.debug("Restarting threads")
-        self.close()
-        self.start()
-
     def close(self):
-        self.dustThread.close()
-        self.snapshotThread.close()
-        self.fileThread.close()
-        self.sendThread.close()
-        self.jsonThread.close()
+        for t in self.threads.itervalues():
+            t.close()
 
         # wait for the theads to close
-        time.sleep(5)
+        time.sleep(2)
 
         # verify that all threads are closed
-        is_alive    =   self.dustThread.isAlive()
-        is_alive    and self.snapshotThread.isAlive()
-        is_alive    and self.fileThread.isAlive()
-        is_alive    and self.sendThread.isAlive()
-        is_alive    and self.jsonThread.isAlive()
-        if is_alive:
-            sys.exit()
+        all_closed = False
+        while not all_closed and self.goOn:
+            all_closed = True
+            for t in self.threads.itervalues():
+                if t.isAlive():
+                    all_closed = False
+                    log.debug("Waiting for {0} to stop".format(t.name))
+            time.sleep(2)
+
+        for t in self.threads.itervalues():
+            if hasattr(t,"_del"):
+                t._del()
+            t = None
+
+        log.debug("All threads closed")
 
 #============================ main ============================================
 
 solmanager = None
 
 def quitCallback():
-    solmanager.close()
+    log.info("Quitting.")
+    solmanager.goOn = False
 
 def returnStatsGroup(stats,prefix):
     keys = []
@@ -1353,7 +1470,10 @@ if __name__ == '__main__':
                 "solmanager_token", "solmanager_cert", "solmanager_privkey",
                 "solserver_host", "solserver_token", "solserver_cert"
             ]
-    config_list_int = ["sendperiodminutes", "fileperiodminutes"]
+    config_list_int = [
+                "sendperiodminutes", "fileperiodminutes", "snapperiodminutes",
+                "statsperiodminutes",
+            ]
 
     # load configurations from file
     for config_name in config_list_str:
