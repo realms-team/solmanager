@@ -83,6 +83,9 @@ STAT_PUBSERVER_UNREACHABLE              = 'PUBSERVER_UNREACHABLE'
 STAT_PUBSERVER_SENDOK                   = 'PUBSERVER_SENDOK'
 STAT_PUBSERVER_SENDFAIL                 = 'PUBSERVER_SENDFAIL'
 STAT_PUBSERVER_STATS                    = 'PUBSERVER_STATS'
+STAT_PUBSERVER_PULLATTEMPTS             = 'PUBSERVER_PULLATTEMPTS'
+STAT_PUBSERVER_PULLOK                   = 'PUBSERVER_PULLOK'
+STAT_PUBSERVER_PULLFAIL                 = 'PUBSERVER_PULLFAIL'
 #== snapshot
 STAT_SNAPSHOT_NUM_STARTED               = 'SNAPSHOT_NUM_STARTED'
 STAT_SNAPSHOT_LASTSTARTED               = 'SNAPSHOT_LASTSTARTED'
@@ -863,7 +866,7 @@ class SendThread(PublishThread):
 
 class StatsThread(PublishThread):
     """
-    This thread perdiodically publishes the solmanager statistics
+    This thread periodically publishes the solmanager statistics
     """
 
     _instance = None
@@ -901,6 +904,70 @@ class StatsThread(PublishThread):
         # publish
         FileThread().publish(sobject)
         SendThread().publish(sobject)
+
+class PullThread(PublishThread):
+    """
+    This thread periodically asks the server for actions and perform them.
+    This is useful when the solmanager is not reachable by the solserver.
+    """
+
+    _instance = None
+    _init     = False
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(PullThread,cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+    def __init__(self, **kwargs):
+        if self._init:
+            return
+        self._init          = True
+        PublishThread.__init__(self, kwargs["pullperiodminutes"])
+        self.name           = 'PullThread'
+        self.solserver_host     = kwargs["solserver_host"]
+        self.solserver_token    = kwargs["solserver_token"]
+        self.solserver_cert     = kwargs["solserver_cert"]
+    def publishNow(self):
+        self.pull_server()
+    def pull_server(self):
+        # send http_payload to server
+        try:
+            # update stats
+            AppData().incrStats(STAT_PUBSERVER_PULLATTEMPTS)
+            requests.packages.urllib3.disable_warnings()
+            r = requests.get(
+                'https://{0}/api/v1/getactions/'.format(self.solserver_host),
+                headers = {'X-REALMS-Token': self.solserver_token},
+                verify  = self.solserver_cert,
+            )
+        except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
+            # update stats
+            AppData().incrStats(STAT_PUBSERVER_UNREACHABLE)
+            # happens when could not contact server
+            if type(err) == requests.exceptions.SSLError:
+                traceback.print_exc()
+        else:
+            # server answered
+
+            # clear objects
+            if r.status_code==200:
+                # update stats
+                AppData().incrStats(STAT_PUBSERVER_PULLOK)
+                for action in r.json():
+                    self.run_action(action['action'])
+            else:
+                # update stats
+                AppData().incrStats(STAT_PUBSERVER_PULLFAIL)
+                print "Error HTTP response status: "+ str(r.status_code)
+
+    def run_action(self, action):
+        if action == "update":
+            # get last repo version
+            os.system("cd " + here + "/../sol/ && git checkout master && git pull origin master")
+            os.system("cd " + here + " && git checkout master && git pull origin master")
+
+            # restart program
+            python = sys.executable
+            os.execl(python, python, * sys.argv)
 
 class PeriodicSnapshotThread(PublishThread):
     _instance = None
@@ -1319,6 +1386,12 @@ class SolManager(threading.Thread):
                     "solserver_cert"    : configs["solserver_cert"],
                     "sendperiodminutes" : configs["sendperiodminutes"],
                 }
+        self.pullt_configs  = {
+                    "solserver_host"    : configs["solserver_host"],
+                    "solserver_token"   : configs["solserver_token"],
+                    "solserver_cert"    : configs["solserver_cert"],
+                    "pullperiodminutes" : configs["pullperiodminutes"],
+                }
         self.jsont_configs  = {
                     "tcpport"           : configs["tcpport"],
                     "token"             : configs["solmanager_token"],
@@ -1356,6 +1429,7 @@ class SolManager(threading.Thread):
         self.threads["periodSnapThread"]= PeriodicSnapshotThread(self.snapperiod)
         self.threads["fileThread"]      = FileThread(**self.filet_configs)
         self.threads["sendThread"]      = SendThread(**self.sendt_configs)
+        self.threads["pullThread"]      = PullThread(**self.pullt_configs)
         self.threads["jsonThread"]      = JsonThread(self.threads["dustThread"],**self.jsont_configs)
         self.threads["statsThread"]     = StatsThread(self.threads["dustThread"],self.statsperiod)
 
@@ -1472,7 +1546,7 @@ if __name__ == '__main__':
             ]
     config_list_int = [
                 "sendperiodminutes", "fileperiodminutes", "snapperiodminutes",
-                "statsperiodminutes",
+                "statsperiodminutes", "pullperiodminutes"
             ]
 
     # load configurations from file

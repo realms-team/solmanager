@@ -13,6 +13,7 @@ sendperiodminutes   = 1
 fileperiodminutes   = 1
 snapperiodminutes   = 60
 statsperiodminutes  = 30
+pullperiodminutes   = 30
 
 # local web server
 solmanager_token    = SOLMANAGER_TOKEN
