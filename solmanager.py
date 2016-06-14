@@ -1009,7 +1009,7 @@ class CherryPySSL(bottle.ServerAdapter):
 
 class JsonThread(threading.Thread):
 
-    def __init__(self, dustThread, tcpport, token, cert, privkey):
+    def __init__(self, dustThread, tcpport, token, cert, privkey, backupfile):
 
         # store params
         self.tcpport            = tcpport
@@ -1017,6 +1017,7 @@ class JsonThread(threading.Thread):
         self.solmanager_cert    = cert
         self.solmanager_privkey = privkey
         self.dustThread         = dustThread
+        self.backupfile         = backupfile
 
         # local variables
         self.sol                = Sol.Sol()
@@ -1233,12 +1234,53 @@ class JsonThread(threading.Thread):
             # authorize the client
             self._authorizeClient()
 
-            print "TODO: implement (#12)"
-            raise bottle.HTTPResponse(
-                status  = 501,
-                headers = {'Content-Type': 'application/json'},
-                body    = json.dumps({'error': 'Not Implemented yet :-('}),
-            )
+            # abort if malformed JSON body
+            if bottle.request.json==None:
+                raise bottle.HTTPResponse(
+                    status  = 400,
+                    headers = {'Content-Type': 'application/json'},
+                    body    = json.dumps({'error': 'Malformed JSON body'}),
+                )
+
+            # verify all fields are present
+            required_fields = ["action","startTimestamp","endTimestamp"]
+            for field in required_fields:
+                if field not in bottle.request.json:
+                    raise bottle.HTTPResponse(
+                        status  = 400,
+                        headers = {'Content-Type': 'application/json'},
+                        body    = json.dumps({'error': 'Missing field {0}'.format(field)}),
+                    )
+
+            # handle
+            action          = bottle.request.json["action"]
+            startTimestamp  = bottle.request.json["startTimestamp"]
+            endTimestamp    = bottle.request.json["endTimestamp"]
+            if action == "count":
+                sol_jsonl = self.sol.loadFromFile(self.backupfile,startTimestamp,endTimestamp)
+                # send response
+                raise bottle.HTTPResponse(
+                    status  = 200,
+                    headers = {'Content-Type': 'application/json'},
+                    body    = json.dumps({'numObjects': len(sol_jsonl)}),
+                )
+            elif action == "resend":
+                sol_jsonl = self.sol.loadFromFile(self.backupfile,startTimestamp,endTimestamp)
+                # publish
+                for sobject in sol_jsonl:
+                    SendThread().publish(sobject)
+                # send response
+                raise bottle.HTTPResponse(
+                    status  = 200,
+                    headers = {'Content-Type': 'application/json'},
+                    body    = json.dumps({'numObjects': len(sol_jsonl)}),
+                )
+            else:
+                raise bottle.HTTPResponse(
+                    status  = 400,
+                    headers = {'Content-Type': 'application/json'},
+                    body    = json.dumps({'error': 'Unknown action {0}'.format(action)}),
+                )
 
         except bottle.HTTPResponse:
             raise
@@ -1397,6 +1439,7 @@ class SolManager(threading.Thread):
                     "token"             : configs["solmanager_token"],
                     "cert"              : configs["solmanager_cert"],
                     "privkey"           : configs["solmanager_privkey"],
+                    "backupfile"        : configs["backupfile"],
                 }
         AppData(configs["statsfile"])
         # start the thread
