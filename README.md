@@ -302,9 +302,9 @@ The HTTP body MUST be a JSON string of the following format:
 
 ```
 {
-   'action':         'count',
-   'startTimestamp': 1111111,
-   'endTimestamp':   2222222,
+   "action":         "count",
+   "startTimestamp": 1111111,
+   "endTimestamp":   2222222
 }
 ```
 
