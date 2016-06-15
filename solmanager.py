@@ -58,7 +58,8 @@ FLOW_DEFAULT                            = 'default'
 FLOW_ON                                 = 'on'
 FLOW_OFF                                = 'off'
 
-DEFAULT_CONFIGFILE                      = 'solmanager.config'
+CONFIGFILE                              = 'solmanager.config'
+DEFAULT_CONFIGFILE                      = 'solmanager.config.default'
 
 #===== stats
 #== admin
@@ -1009,10 +1010,11 @@ class CherryPySSL(bottle.ServerAdapter):
 
 class JsonThread(threading.Thread):
 
-    def __init__(self, dustThread, tcpport, token, cert, privkey, backupfile):
+    def __init__(self, dustThread, tcpport, host, token, cert, privkey, backupfile):
 
         # store params
         self.tcpport            = tcpport
+        self.solmanager_host    = host
         self.solmanager_token   = token
         self.solmanager_cert    = cert
         self.solmanager_privkey = privkey
@@ -1025,7 +1027,7 @@ class JsonThread(threading.Thread):
         # initialize web server
         self.web                = bottle.Bottle()
         self.web.server         = CherryPySSL(
-                                    host        = 'localhost',
+                                    host        = self.solmanager_host,
                                     port        = self.tcpport,
                                     cert        = self.solmanager_cert,
                                     privkey     = self.solmanager_privkey,
@@ -1436,6 +1438,7 @@ class SolManager(threading.Thread):
                 }
         self.jsont_configs  = {
                     "tcpport"           : configs["tcpport"],
+                    "host"              : configs["solmanager_host"],
                     "token"             : configs["solmanager_token"],
                     "cert"              : configs["solmanager_cert"],
                     "privkey"           : configs["solmanager_privkey"],
@@ -1576,15 +1579,12 @@ def main(configs):
     )
 
 if __name__ == '__main__':
-    # parse the config file
-    cf_parser = SafeConfigParser()
-    cf_parser.readfp(open(DEFAULT_CONFIGFILE))
-
     # defines configurations
+    default_configs = {}
     configs         = {}
     config_list_str = [
                 "statsfile", "backupfile", "serialport", "solmanager_tcpport",
-                "solmanager_token", "solmanager_cert", "solmanager_privkey",
+                "solmanager_host", "solmanager_token", "solmanager_cert", "solmanager_privkey",
                 "solserver_host", "solserver_token", "solserver_cert"
             ]
     config_list_int = [
@@ -1592,7 +1592,17 @@ if __name__ == '__main__':
                 "statsperiodminutes", "pullperiodminutes"
             ]
 
-    # load configurations from file
+    # load configurations from default config file
+    cf_defparser = SafeConfigParser()
+    cf_defparser.readfp(open(DEFAULT_CONFIGFILE))
+    for config_name in config_list_str:
+        default_configs[config_name] = cf_defparser.get('config', config_name)
+    for config_name in config_list_int:
+        default_configs[config_name] = cf_defparser.getint('config', config_name)
+
+    # load configurations from custom user defined config file
+    cf_parser = SafeConfigParser(default_configs)
+    cf_parser.readfp(open(CONFIGFILE))
     for config_name in config_list_str:
         configs[config_name] = cf_parser.get('config', config_name)
     for config_name in config_list_int:
