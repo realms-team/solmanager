@@ -30,7 +30,6 @@ import solmanager_version
 # DustThread
 from   SmartMeshSDK                         import sdk_version, \
                                                    ApiException
-from   SmartMeshSDK.protocols.Hr            import HrParser
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
 from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrSubscribe
 
@@ -185,7 +184,6 @@ class DustThread(threading.Thread):
 
         # local variables
         self.reconnectEvent  = threading.Event()
-        self.hrParser        = HrParser.HrParser()
         self.sol             = Sol.Sol()
         self.dataLock        = threading.RLock()
         self.connector       = None
