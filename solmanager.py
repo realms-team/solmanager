@@ -537,6 +537,7 @@ class DustThread(threading.Thread):
 
                 # convert dust notification to JSON SOL Object
                 sol_json = self.sol.dust_to_json(
+                    notifName,
                     d_n,
                     macManager  = self.macManager,
                     timestamp   = epoch,
