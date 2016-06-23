@@ -496,50 +496,27 @@ class DustThread(threading.Thread):
 
     #=== Dust API notifications
 
-    def _notifAll(self, notifName, dust_notif):
+    def _notifAll(self, notif_name, dust_notif):
 
         try:
-            if notifName==IpMgrConnectorSerial.IpMgrConnectorSerial.NOTIFHEALTHREPORT:
-                hr_exists       = True
-                dust_notifs     = []
-                hr_currptr      = 0
-                hr_nextptr      = dust_notif.payload[1]+2
-                while hr_exists:
-                    # add HR notification to list
-                    dust_notifs.append(
-                        IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_notifHealthReport(
-                            macAddress = dust_notif.macAddress,
-                            payload    = dust_notif.payload[hr_currptr:hr_nextptr],
-                        )
-                    )
-                    # check if other notifs are present
-                    hr_currptr = hr_nextptr
-                    if len(dust_notif.payload) > (hr_currptr+2):
-                        hr_nextptr = hr_currptr + dust_notif.payload[hr_currptr+1] + 2
-                        if hr_nextptr < len(dust_notif.payload):
-                            hr_exists = False
-                    else:
-                        hr_exists = False
-            else:
-                dust_notifs = [dust_notif]
+            # update stats
+            AppData().incrStats('NUMRX_{0}'.format(notif_name.upper()))
 
-            for d_n in dust_notifs:
-                # update stats
-                AppData().incrStats('NUMRX_{0}'.format(notifName.upper()))
+            # get time
+            epoch       = None
+            if hasattr(dust_notif,"utcSecs") and hasattr(dust_notif,"utcUsecs"):
+                netTs   = self._calcNetTs(dust_notif)
+                epoch   = self._netTsToEpoch(netTs)
 
-                # get time
-                epoch       = None
-                if hasattr(dust_notif,"utcSecs") and hasattr(dust_notif,"utcUsecs"):
-                    netTs   = self._calcNetTs(d_n)
-                    epoch   = self._netTsToEpoch(netTs)
+            # convert dust notification to JSON SOL Object
+            sol_jsonl = self.sol.dust_to_json(
+                notif_name,
+                dust_notif,
+                macManager  = self.macManager,
+                timestamp   = epoch,
+            )
 
-                # convert dust notification to JSON SOL Object
-                sol_json = self.sol.dust_to_json(
-                    d_n,
-                    macManager  = self.macManager,
-                    timestamp   = epoch,
-                )
-
+            for sol_json in sol_jsonl:
                 # publish JSON SOL Object
                 self._publishSolJson(sol_json)
 
