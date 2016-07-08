@@ -30,7 +30,6 @@ import solmanager_version
 # DustThread
 from   SmartMeshSDK                         import sdk_version, \
                                                    ApiException
-from   SmartMeshSDK.protocols.Hr            import HrParser
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
 from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrSubscribe
 
@@ -58,7 +57,8 @@ FLOW_DEFAULT                            = 'default'
 FLOW_ON                                 = 'on'
 FLOW_OFF                                = 'off'
 
-DEFAULT_CONFIGFILE                      = 'solmanager.config'
+CONFIGFILE                              = 'solmanager.config'
+DEFAULT_CONFIGFILE                      = 'solmanager.config.default'
 
 #===== stats
 #== admin
@@ -83,6 +83,9 @@ STAT_PUBSERVER_UNREACHABLE              = 'PUBSERVER_UNREACHABLE'
 STAT_PUBSERVER_SENDOK                   = 'PUBSERVER_SENDOK'
 STAT_PUBSERVER_SENDFAIL                 = 'PUBSERVER_SENDFAIL'
 STAT_PUBSERVER_STATS                    = 'PUBSERVER_STATS'
+STAT_PUBSERVER_PULLATTEMPTS             = 'PUBSERVER_PULLATTEMPTS'
+STAT_PUBSERVER_PULLOK                   = 'PUBSERVER_PULLOK'
+STAT_PUBSERVER_PULLFAIL                 = 'PUBSERVER_PULLFAIL'
 #== snapshot
 STAT_SNAPSHOT_NUM_STARTED               = 'SNAPSHOT_NUM_STARTED'
 STAT_SNAPSHOT_LASTSTARTED               = 'SNAPSHOT_LASTSTARTED'
@@ -181,7 +184,6 @@ class DustThread(threading.Thread):
 
         # local variables
         self.reconnectEvent  = threading.Event()
-        self.hrParser        = HrParser.HrParser()
         self.sol             = Sol.Sol()
         self.dataLock        = threading.RLock()
         self.connector       = None
@@ -494,50 +496,27 @@ class DustThread(threading.Thread):
 
     #=== Dust API notifications
 
-    def _notifAll(self, notifName, dust_notif):
+    def _notifAll(self, notif_name, dust_notif):
 
         try:
-            if notifName==IpMgrConnectorSerial.IpMgrConnectorSerial.NOTIFHEALTHREPORT:
-                hr_exists       = True
-                dust_notifs     = []
-                hr_currptr      = 0
-                hr_nextptr      = dust_notif.payload[1]+2
-                while hr_exists:
-                    # add HR notification to list
-                    dust_notifs.append(
-                        IpMgrConnectorSerial.IpMgrConnectorSerial.Tuple_notifHealthReport(
-                            macAddress = dust_notif.macAddress,
-                            payload    = dust_notif.payload[hr_currptr:hr_nextptr],
-                        )
-                    )
-                    # check if other notifs are present
-                    hr_currptr = hr_nextptr
-                    if len(dust_notif.payload) > (hr_currptr+2):
-                        hr_nextptr = hr_currptr + dust_notif.payload[hr_currptr+1] + 2
-                        if hr_nextptr < len(dust_notif.payload):
-                            hr_exists = False
-                    else:
-                        hr_exists = False
-            else:
-                dust_notifs = [dust_notif]
+            # update stats
+            AppData().incrStats('NUMRX_{0}'.format(notif_name.upper()))
 
-            for d_n in dust_notifs:
-                # update stats
-                AppData().incrStats('NUMRX_{0}'.format(notifName.upper()))
+            # get time
+            epoch       = None
+            if hasattr(dust_notif,"utcSecs") and hasattr(dust_notif,"utcUsecs"):
+                netTs   = self._calcNetTs(dust_notif)
+                epoch   = self._netTsToEpoch(netTs)
 
-                # get time
-                epoch       = None
-                if hasattr(dust_notif,"utcSecs") and hasattr(dust_notif,"utcUsecs"):
-                    netTs   = self._calcNetTs(d_n)
-                    epoch   = self._netTsToEpoch(netTs)
+            # convert dust notification to JSON SOL Object
+            sol_jsonl = self.sol.dust_to_json(
+                notif_name,
+                dust_notif,
+                macManager  = self.macManager,
+                timestamp   = epoch,
+            )
 
-                # convert dust notification to JSON SOL Object
-                sol_json = self.sol.dust_to_json(
-                    d_n,
-                    macManager  = self.macManager,
-                    timestamp   = epoch,
-                )
-
+            for sol_json in sol_jsonl:
                 # publish JSON SOL Object
                 self._publishSolJson(sol_json)
 
@@ -863,7 +842,7 @@ class SendThread(PublishThread):
 
 class StatsThread(PublishThread):
     """
-    This thread perdiodically publishes the solmanager statistics
+    This thread periodically publishes the solmanager statistics
     """
 
     _instance = None
@@ -901,6 +880,70 @@ class StatsThread(PublishThread):
         # publish
         FileThread().publish(sobject)
         SendThread().publish(sobject)
+
+class PullThread(PublishThread):
+    """
+    This thread periodically asks the server for actions and perform them.
+    This is useful when the solmanager is not reachable by the solserver.
+    """
+
+    _instance = None
+    _init     = False
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(PullThread,cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+    def __init__(self, **kwargs):
+        if self._init:
+            return
+        self._init          = True
+        PublishThread.__init__(self, kwargs["pullperiodminutes"])
+        self.name           = 'PullThread'
+        self.solserver_host     = kwargs["solserver_host"]
+        self.solserver_token    = kwargs["solserver_token"]
+        self.solserver_cert     = kwargs["solserver_cert"]
+    def publishNow(self):
+        self.pull_server()
+    def pull_server(self):
+        # send http_payload to server
+        try:
+            # update stats
+            AppData().incrStats(STAT_PUBSERVER_PULLATTEMPTS)
+            requests.packages.urllib3.disable_warnings()
+            r = requests.get(
+                'https://{0}/api/v1/getactions/'.format(self.solserver_host),
+                headers = {'X-REALMS-Token': self.solserver_token},
+                verify  = self.solserver_cert,
+            )
+        except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
+            # update stats
+            AppData().incrStats(STAT_PUBSERVER_UNREACHABLE)
+            # happens when could not contact server
+            if type(err) == requests.exceptions.SSLError:
+                traceback.print_exc()
+        else:
+            # server answered
+
+            # clear objects
+            if r.status_code==200:
+                # update stats
+                AppData().incrStats(STAT_PUBSERVER_PULLOK)
+                for action in r.json():
+                    self.run_action(action['action'])
+            else:
+                # update stats
+                AppData().incrStats(STAT_PUBSERVER_PULLFAIL)
+                print "Error HTTP response status: "+ str(r.status_code)
+
+    def run_action(self, action):
+        if action == "update":
+            # get last repo version
+            os.system("cd " + here + "/../sol/ && git checkout master && git pull origin master")
+            os.system("cd " + here + " && git checkout master && git pull origin master")
+
+            # restart program
+            python = sys.executable
+            os.execl(python, python, * sys.argv)
 
 class PeriodicSnapshotThread(PublishThread):
     _instance = None
@@ -942,14 +985,16 @@ class CherryPySSL(bottle.ServerAdapter):
 
 class JsonThread(threading.Thread):
 
-    def __init__(self, dustThread, tcpport, token, cert, privkey):
+    def __init__(self, dustThread, tcpport, host, token, cert, privkey, backupfile):
 
         # store params
         self.tcpport            = tcpport
+        self.solmanager_host    = host
         self.solmanager_token   = token
         self.solmanager_cert    = cert
         self.solmanager_privkey = privkey
         self.dustThread         = dustThread
+        self.backupfile         = backupfile
 
         # local variables
         self.sol                = Sol.Sol()
@@ -957,7 +1002,7 @@ class JsonThread(threading.Thread):
         # initialize web server
         self.web                = bottle.Bottle()
         self.web.server         = CherryPySSL(
-                                    host        = 'localhost',
+                                    host        = self.solmanager_host,
                                     port        = self.tcpport,
                                     cert        = self.solmanager_cert,
                                     privkey     = self.solmanager_privkey,
@@ -1166,12 +1211,53 @@ class JsonThread(threading.Thread):
             # authorize the client
             self._authorizeClient()
 
-            print "TODO: implement (#12)"
-            raise bottle.HTTPResponse(
-                status  = 501,
-                headers = {'Content-Type': 'application/json'},
-                body    = json.dumps({'error': 'Not Implemented yet :-('}),
-            )
+            # abort if malformed JSON body
+            if bottle.request.json==None:
+                raise bottle.HTTPResponse(
+                    status  = 400,
+                    headers = {'Content-Type': 'application/json'},
+                    body    = json.dumps({'error': 'Malformed JSON body'}),
+                )
+
+            # verify all fields are present
+            required_fields = ["action","startTimestamp","endTimestamp"]
+            for field in required_fields:
+                if field not in bottle.request.json:
+                    raise bottle.HTTPResponse(
+                        status  = 400,
+                        headers = {'Content-Type': 'application/json'},
+                        body    = json.dumps({'error': 'Missing field {0}'.format(field)}),
+                    )
+
+            # handle
+            action          = bottle.request.json["action"]
+            startTimestamp  = bottle.request.json["startTimestamp"]
+            endTimestamp    = bottle.request.json["endTimestamp"]
+            if action == "count":
+                sol_jsonl = self.sol.loadFromFile(self.backupfile,startTimestamp,endTimestamp)
+                # send response
+                raise bottle.HTTPResponse(
+                    status  = 200,
+                    headers = {'Content-Type': 'application/json'},
+                    body    = json.dumps({'numObjects': len(sol_jsonl)}),
+                )
+            elif action == "resend":
+                sol_jsonl = self.sol.loadFromFile(self.backupfile,startTimestamp,endTimestamp)
+                # publish
+                for sobject in sol_jsonl:
+                    SendThread().publish(sobject)
+                # send response
+                raise bottle.HTTPResponse(
+                    status  = 200,
+                    headers = {'Content-Type': 'application/json'},
+                    body    = json.dumps({'numObjects': len(sol_jsonl)}),
+                )
+            else:
+                raise bottle.HTTPResponse(
+                    status  = 400,
+                    headers = {'Content-Type': 'application/json'},
+                    body    = json.dumps({'error': 'Unknown action {0}'.format(action)}),
+                )
 
         except bottle.HTTPResponse:
             raise
@@ -1319,11 +1405,19 @@ class SolManager(threading.Thread):
                     "solserver_cert"    : configs["solserver_cert"],
                     "sendperiodminutes" : configs["sendperiodminutes"],
                 }
+        self.pullt_configs  = {
+                    "solserver_host"    : configs["solserver_host"],
+                    "solserver_token"   : configs["solserver_token"],
+                    "solserver_cert"    : configs["solserver_cert"],
+                    "pullperiodminutes" : configs["pullperiodminutes"],
+                }
         self.jsont_configs  = {
                     "tcpport"           : configs["tcpport"],
+                    "host"              : configs["solmanager_host"],
                     "token"             : configs["solmanager_token"],
                     "cert"              : configs["solmanager_cert"],
                     "privkey"           : configs["solmanager_privkey"],
+                    "backupfile"        : configs["backupfile"],
                 }
         AppData(configs["statsfile"])
         # start the thread
@@ -1356,6 +1450,7 @@ class SolManager(threading.Thread):
         self.threads["periodSnapThread"]= PeriodicSnapshotThread(self.snapperiod)
         self.threads["fileThread"]      = FileThread(**self.filet_configs)
         self.threads["sendThread"]      = SendThread(**self.sendt_configs)
+        self.threads["pullThread"]      = PullThread(**self.pullt_configs)
         self.threads["jsonThread"]      = JsonThread(self.threads["dustThread"],**self.jsont_configs)
         self.threads["statsThread"]     = StatsThread(self.threads["dustThread"],self.statsperiod)
 
@@ -1459,23 +1554,30 @@ def main(configs):
     )
 
 if __name__ == '__main__':
-    # parse the config file
-    cf_parser = SafeConfigParser()
-    cf_parser.readfp(open(DEFAULT_CONFIGFILE))
-
     # defines configurations
+    default_configs = {}
     configs         = {}
     config_list_str = [
                 "statsfile", "backupfile", "serialport", "solmanager_tcpport",
-                "solmanager_token", "solmanager_cert", "solmanager_privkey",
+                "solmanager_host", "solmanager_token", "solmanager_cert", "solmanager_privkey",
                 "solserver_host", "solserver_token", "solserver_cert"
             ]
     config_list_int = [
                 "sendperiodminutes", "fileperiodminutes", "snapperiodminutes",
-                "statsperiodminutes",
+                "statsperiodminutes", "pullperiodminutes"
             ]
 
-    # load configurations from file
+    # load configurations from default config file
+    cf_defparser = SafeConfigParser()
+    cf_defparser.readfp(open(DEFAULT_CONFIGFILE))
+    for config_name in config_list_str:
+        default_configs[config_name] = cf_defparser.get('config', config_name)
+    for config_name in config_list_int:
+        default_configs[config_name] = cf_defparser.getint('config', config_name)
+
+    # load configurations from custom user defined config file
+    cf_parser = SafeConfigParser(default_configs)
+    cf_parser.readfp(open(CONFIGFILE))
     for config_name in config_list_str:
         configs[config_name] = cf_parser.get('config', config_name)
     for config_name in config_list_int:

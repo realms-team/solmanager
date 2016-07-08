@@ -13,8 +13,10 @@ sendperiodminutes   = 1
 fileperiodminutes   = 1
 snapperiodminutes   = 60
 statsperiodminutes  = 30
+pullperiodminutes   = 30
 
 # local web server
+solmanager_host     = 0.0.0.0
 solmanager_token    = SOLMANAGER_TOKEN
 solmanager_cert     = solmanager.cert
 solmanager_privkey  = solmanager.ppk
