@@ -39,9 +39,7 @@ import OpenSSL
 
 # JsonThread
 import bottle
-import Sol
-import SolVersion
-import SolDefines
+from solobjectlib import Sol, SolVersion, SolDefines
 
 #============================ logging =========================================
 
