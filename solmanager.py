@@ -998,13 +998,10 @@ class JsonThread(threading.Thread):
         self.sol                = Sol.Sol()
 
         # check if files exist
-        #try:
-        #    fcert = open(self.solmanager_cert)
-        #    fcert.close()
-        #    fkey = open(self.self.solmanager_privkey)
-        #    fkey.close()
-        #except IOError as err:
-        #    logCrash(self.name,err)
+        fcert = open(self.solmanager_cert)
+        fcert.close()
+        fkey = open(self.self.solmanager_privkey)
+        fkey.close()
 
         # initialize web server
         self.web                = bottle.Bottle()
