@@ -997,6 +997,15 @@ class JsonThread(threading.Thread):
         # local variables
         self.sol                = Sol.Sol()
 
+        # check if files exist
+        #try:
+        #    fcert = open(self.solmanager_cert)
+        #    fcert.close()
+        #    fkey = open(self.self.solmanager_privkey)
+        #    fkey.close()
+        #except IOError as err:
+        #    logCrash(self.name,err)
+
         # initialize web server
         self.web                = bottle.Bottle()
         self.web.server         = CherryPySSL(
@@ -1434,9 +1443,7 @@ class SolManager(threading.Thread):
                         all_running = False
                         log.debug("Thread {0} is not running. Restarting.".format(t.name))
                 if not all_running:
-                    self.close()
-                    self.startThreads()
-                time.sleep(1)
+                    self.restart()
             self.close()
         except Exception as err:
             logCrash(self.name,err)
@@ -1463,29 +1470,14 @@ class SolManager(threading.Thread):
             time.sleep(5)
         log.debug("All threads started")
 
+    def restart(self):
+        # restart program
+        pythonex = sys.executable
+        os.execl(pythonex, pythonex, * sys.argv)
+
     def close(self):
         for t in self.threads.itervalues():
             t.close()
-
-        # wait for the theads to close
-        time.sleep(2)
-
-        # verify that all threads are closed
-        all_closed = False
-        while not all_closed and self.goOn:
-            all_closed = True
-            for t in self.threads.itervalues():
-                if t.isAlive():
-                    all_closed = False
-                    log.debug("Waiting for {0} to stop".format(t.name))
-            time.sleep(2)
-
-        for t in self.threads.itervalues():
-            if hasattr(t,"_del"):
-                t._del()
-            t = None
-
-        log.debug("All threads closed")
 
 #============================ main ============================================
 
