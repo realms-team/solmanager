@@ -1000,7 +1000,7 @@ class JsonThread(threading.Thread):
         # check if files exist
         fcert = open(self.solmanager_cert)
         fcert.close()
-        fkey = open(self.self.solmanager_privkey)
+        fkey = open(self.solmanager_privkey)
         fkey.close()
 
         # initialize web server
