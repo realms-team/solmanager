@@ -1440,7 +1440,7 @@ class SolManager(threading.Thread):
                         all_running = False
                         log.debug("Thread {0} is not running. Restarting.".format(t.name))
                 if not all_running:
-                    self.restart()
+                    self.goOn = False
             self.close()
         except Exception as err:
             logCrash(self.name,err)
