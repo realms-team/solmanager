@@ -1438,12 +1438,12 @@ class SolManager(threading.Thread):
                 for t in self.threads.itervalues():
                     if not t.isAlive():
                         all_running = False
-                        log.debug("Thread {0} is not running. Restarting.".format(t.name))
+                        log.debug("Thread {0} is not running. Quiting.".format(t.name))
                 if not all_running:
                     self.goOn = False
-            self.close()
         except Exception as err:
             logCrash(self.name,err)
+        self.close()
 
     def startThreads(self):
         log.debug("starting thread")
@@ -1467,18 +1467,15 @@ class SolManager(threading.Thread):
             time.sleep(5)
         log.debug("All threads started")
 
-    def restart(self):
-        # restart program
-        pythonex = sys.executable
-        os.execl(pythonex, pythonex, * sys.argv)
-
     def close(self):
         for t in self.threads.itervalues():
             t.close()
+        os._exit(0) # bypass Cli thread
 
 #============================ main ============================================
 
-solmanager = None
+solmanager  = None
+cli         = None
 
 def quitCallback():
     log.info("Quitting.")
