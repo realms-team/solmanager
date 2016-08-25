@@ -1,5 +1,5 @@
 bottle==0.12.8
-requests==2.7.0
+requests==2.11.1
 cherrypy==4.0.0
 pyopenssl
 pyserial
