@@ -32,14 +32,5 @@ directory=#SOL_MANAGER_PATH
 command=/usr/bin/python solmanager.py
 autostart=true
 autorestart=true
-;user:#YOUR_USER
-;chown=#YOUR_USER:#YOUR_GROUP
 stderr_logfile=sol.err.log
 stdout_logfile=sol.out.log
-
-;[program:autossh]
-;command=/bin/bash #SOL_MANAGER_PATH/autossh/autossh.sh
-;autostart=true
-;autorestart=true
-;stderr_logfile=sol.err.log
-;stdout_logfile=sol.out.log
