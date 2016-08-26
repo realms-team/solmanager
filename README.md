@@ -23,6 +23,13 @@ This repo contains the software to run on the manager. It:
 * Create a copy of `solmanager.config.sample`, name it `solmanager.config`
 * Modify the configuration fields you need to
 
+## Supervisor
+
+For the solmanager to restart automatically
+* Install supervisor: ```sudo apt-get install supervisor```
+* Place the supervisor configuration: ```sudo cp supervisord.conf.sample /etc/supervisor/conf.d/solmanager.conf```
+* In that configuration file, replace #SOL_MANAGER_PATH by the path where the solmanager directory is
+
 # JSON API
 
 The basestation offers a JSON API for the server to issue commands.
