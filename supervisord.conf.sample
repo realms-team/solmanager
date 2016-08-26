@@ -29,7 +29,7 @@ files = /etc/supervisor/conf.d/*.conf
 
 [program:solmanager]
 directory=#SOL_MANAGER_PATH
-command=/usr/bin/python solmanager.py
+command=screen -LmDS solmanager /usr/bin/python solmanager.py
 autostart=true
 autorestart=true
 stderr_logfile=sol.err.log
