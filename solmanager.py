@@ -136,13 +136,14 @@ class AppData(object):
             with open(statsfile,'r') as f:
                 self.data = pickle.load(f)
                 log.info("Stats recovered from file.")
-        except (EnvironmentError, pickle.PickleError):
+        except (EnvironmentError, pickle.PickleError, EOFError) as e:
             self.data = {
                 'stats' : {},
                 'flows' : {
                     FLOW_DEFAULT:           FLOW_ON,
                 },
             }
+            log.info("Could not read stats file.")
             self._backupData()
     def incrStats(self,statName):
         with self.dataLock:
