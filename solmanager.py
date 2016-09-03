@@ -187,6 +187,7 @@ class DustThread(threading.Thread):
         self.dataLock        = threading.RLock()
         self.connector       = None
         self.goOn            = True
+        self.macManager      = None
 
         # start the thread
         threading.Thread.__init__(self)
@@ -687,18 +688,19 @@ class SnapshotThread(threading.Thread):
         except Exception as err:
             AppData().incrStats(STAT_SNAPSHOT_NUM_FAIL)
         else:
-            AppData().incrStats(STAT_SNAPSHOT_NUM_OK)
+            if self.dustThread.macManager is not None:
+                AppData().incrStats(STAT_SNAPSHOT_NUM_OK)
 
-            # create sensor object
-            sobject = {
-                'mac':       self.dustThread.macManager,
-                'timestamp': int(time.time()),
-                'type':      SolDefines.SOL_TYPE_DUST_SNAPSHOT,
-                'value':     snapshotSummary,
-            }
+                # create sensor object
+                sobject = {
+                    'mac':       self.dustThread.macManager,
+                    'timestamp': int(time.time()),
+                    'type':      SolDefines.SOL_TYPE_DUST_SNAPSHOT,
+                    'value':     snapshotSummary,
+                }
 
-            # publish sensor object
-            self.dustThread._publishSolJson(sobject)
+                # publish sensor object
+                self.dustThread._publishSolJson(sobject)
 
 class PublishThread(threading.Thread):
     def __init__(self, periodvariable):
@@ -857,28 +859,29 @@ class StatsThread(PublishThread):
         PublishThread.__init__(self, statsperiod)
         self.name           = 'StatsThread'
         self.dustThread     = dustThread
-        self.sol                = Sol.Sol()
+        self.sol            = Sol.Sol()
     def _del(self):
         self.__class__._instance = None
     def publishNow(self):
-        # update stats
-        AppData().incrStats(STAT_PUBSERVER_STATS)
+        if self.dustThread.macManager is not None:
+            # update stats
+            AppData().incrStats(STAT_PUBSERVER_STATS)
 
-        # create sensor object
-        sobject = {
-            'mac':       self.dustThread.macManager,
-            'timestamp': int(time.time()),
-            'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS,
-            'value':     {
-                    'sol_version'           : list(SolVersion.VERSION),
-                    'solmanager_version'    : list(solmanager_version.VERSION),
-                    'sdk_version'           : list(sdk_version.VERSION)
-                },
-        }
+            # create sensor object
+            sobject = {
+                'mac':       self.dustThread.macManager,
+                'timestamp': int(time.time()),
+                'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS,
+                'value':     {
+                        'sol_version'           : list(SolVersion.VERSION),
+                        'solmanager_version'    : list(solmanager_version.VERSION),
+                        'sdk_version'           : list(sdk_version.VERSION)
+                    },
+            }
 
-        # publish
-        FileThread().publish(sobject)
-        SendThread().publish(sobject)
+            # publish
+            FileThread().publish(sobject)
+            SendThread().publish(sobject)
 
 class PullThread(PublishThread):
     """
