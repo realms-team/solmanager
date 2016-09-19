@@ -517,6 +517,7 @@ class DustThread(threading.Thread):
             )
 
             for sol_json in sol_jsonl:
+                log.debug("Received object: {0}".format(sol_json))
                 # publish JSON SOL Object
                 self._publishSolJson(sol_json)
 
@@ -1450,7 +1451,7 @@ class SolManager(threading.Thread):
         self.close()
 
     def startThreads(self):
-        log.debug("starting thread")
+        log.debug("Starting threads")
         self.threads["dustThread"]      = DustThread(self.serialport,simulation=False)
         self.threads["snapshotThread"]  = SnapshotThread(self.threads["dustThread"])
         self.threads["periodSnapThread"]= PeriodicSnapshotThread(self.snapperiod)
