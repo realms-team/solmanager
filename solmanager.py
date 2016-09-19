@@ -1446,6 +1446,7 @@ class SolManager(threading.Thread):
                         log.debug("Thread {0} is not running. Quiting.".format(t.name))
                 if not all_running:
                     self.goOn = False
+                time.sleep(5)
         except Exception as err:
             logCrash(self.name,err)
         self.close()
