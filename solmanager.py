@@ -136,13 +136,14 @@ class AppData(object):
             with open(statsfile,'r') as f:
                 self.data = pickle.load(f)
                 log.info("Stats recovered from file.")
-        except (EnvironmentError, pickle.PickleError):
+        except (EnvironmentError, pickle.PickleError, EOFError) as e:
             self.data = {
                 'stats' : {},
                 'flows' : {
                     FLOW_DEFAULT:           FLOW_ON,
                 },
             }
+            log.info("Could not read stats file.")
             self._backupData()
     def incrStats(self,statName):
         with self.dataLock:
@@ -186,6 +187,7 @@ class DustThread(threading.Thread):
         self.dataLock        = threading.RLock()
         self.connector       = None
         self.goOn            = True
+        self.macManager      = None
 
         # start the thread
         threading.Thread.__init__(self)
@@ -515,6 +517,7 @@ class DustThread(threading.Thread):
             )
 
             for sol_json in sol_jsonl:
+                log.debug("Received object: {0}".format(sol_json))
                 # publish JSON SOL Object
                 self._publishSolJson(sol_json)
 
@@ -686,18 +689,19 @@ class SnapshotThread(threading.Thread):
         except Exception as err:
             AppData().incrStats(STAT_SNAPSHOT_NUM_FAIL)
         else:
-            AppData().incrStats(STAT_SNAPSHOT_NUM_OK)
+            if self.dustThread.macManager is not None:
+                AppData().incrStats(STAT_SNAPSHOT_NUM_OK)
 
-            # create sensor object
-            sobject = {
-                'mac':       self.dustThread.macManager,
-                'timestamp': int(time.time()),
-                'type':      SolDefines.SOL_TYPE_DUST_SNAPSHOT,
-                'value':     snapshotSummary,
-            }
+                # create sensor object
+                sobject = {
+                    'mac':       self.dustThread.macManager,
+                    'timestamp': int(time.time()),
+                    'type':      SolDefines.SOL_TYPE_DUST_SNAPSHOT,
+                    'value':     snapshotSummary,
+                }
 
-            # publish sensor object
-            self.dustThread._publishSolJson(sobject)
+                # publish sensor object
+                self.dustThread._publishSolJson(sobject)
 
 class PublishThread(threading.Thread):
     def __init__(self, periodvariable):
@@ -818,7 +822,7 @@ class SendThread(PublishThread):
                 json    = http_payload,
                 verify  = self.solserver_cert,
             )
-        except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
+        except (requests.exceptions, OpenSSL.SSL.SysCallError) as err:
             # update stats
             AppData().incrStats(STAT_PUBSERVER_UNREACHABLE)
             # happens when could not contact server
@@ -856,28 +860,29 @@ class StatsThread(PublishThread):
         PublishThread.__init__(self, statsperiod)
         self.name           = 'StatsThread'
         self.dustThread     = dustThread
-        self.sol                = Sol.Sol()
+        self.sol            = Sol.Sol()
     def _del(self):
         self.__class__._instance = None
     def publishNow(self):
-        # update stats
-        AppData().incrStats(STAT_PUBSERVER_STATS)
+        if self.dustThread.macManager is not None:
+            # update stats
+            AppData().incrStats(STAT_PUBSERVER_STATS)
 
-        # create sensor object
-        sobject = {
-            'mac':       self.dustThread.macManager,
-            'timestamp': int(time.time()),
-            'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS,
-            'value':     {
-                    'sol_version'           : list(SolVersion.VERSION),
-                    'solmanager_version'    : list(solmanager_version.VERSION),
-                    'sdk_version'           : list(sdk_version.VERSION)
-                },
-        }
+            # create sensor object
+            sobject = {
+                'mac':       self.dustThread.macManager,
+                'timestamp': int(time.time()),
+                'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS,
+                'value':     {
+                        'sol_version'           : list(SolVersion.VERSION),
+                        'solmanager_version'    : list(solmanager_version.VERSION),
+                        'sdk_version'           : list(sdk_version.VERSION)
+                    },
+            }
 
-        # publish
-        FileThread().publish(sobject)
-        SendThread().publish(sobject)
+            # publish
+            FileThread().publish(sobject)
+            SendThread().publish(sobject)
 
 class PullThread(PublishThread):
     """
@@ -1438,15 +1443,16 @@ class SolManager(threading.Thread):
                 for t in self.threads.itervalues():
                     if not t.isAlive():
                         all_running = False
-                        log.debug("Thread {0} is not running. Restarting.".format(t.name))
+                        log.debug("Thread {0} is not running. Quiting.".format(t.name))
                 if not all_running:
-                    self.restart()
-            self.close()
+                    self.goOn = False
+                time.sleep(5)
         except Exception as err:
             logCrash(self.name,err)
+        self.close()
 
     def startThreads(self):
-        log.debug("starting thread")
+        log.debug("Starting threads")
         self.threads["dustThread"]      = DustThread(self.serialport,simulation=False)
         self.threads["snapshotThread"]  = SnapshotThread(self.threads["dustThread"])
         self.threads["periodSnapThread"]= PeriodicSnapshotThread(self.snapperiod)
@@ -1467,18 +1473,15 @@ class SolManager(threading.Thread):
             time.sleep(5)
         log.debug("All threads started")
 
-    def restart(self):
-        # restart program
-        pythonex = sys.executable
-        os.execl(pythonex, pythonex, * sys.argv)
-
     def close(self):
         for t in self.threads.itervalues():
             t.close()
+        os._exit(0) # bypass Cli thread
 
 #============================ main ============================================
 
-solmanager = None
+solmanager  = None
+cli         = None
 
 def quitCallback():
     log.info("Quitting.")
