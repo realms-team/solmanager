@@ -45,7 +45,6 @@ from solobjectlib import Sol, SolVersion, SolDefines
 
 logging.config.fileConfig('logging.conf')
 log = logging.getLogger('solmanager')
-log.setLevel(logging.DEBUG)
 
 #============================ defines =========================================
 
