@@ -822,12 +822,11 @@ class SendThread(PublishThread):
                 json    = http_payload,
                 verify  = self.solserver_cert,
             )
-        except (requests.exceptions, OpenSSL.SSL.SysCallError) as err:
+        except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
             # update stats
             AppData().incrStats(STAT_PUBSERVER_UNREACHABLE)
             # happens when could not contact server
-            if type(err) == requests.exceptions.SSLError:
-                traceback.print_exc()
+            log.warning("Error when sending http payload: {0}".format(err))
         else:
             # server answered
 
