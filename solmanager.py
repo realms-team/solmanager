@@ -688,6 +688,7 @@ class SnapshotThread(threading.Thread):
 
         except Exception as err:
             AppData().incrStats(STAT_SNAPSHOT_NUM_FAIL)
+            log.warning("Cannot do Snapshot: %s", err)
         else:
             if self.dustThread.macManager is not None:
                 AppData().incrStats(STAT_SNAPSHOT_NUM_OK)
@@ -1202,8 +1203,8 @@ class JsonThread(threading.Thread):
             for (k,v) in bottle.request.json.items():
                 try:
                     k = int(k)
-                except:
-                    pass
+                except Exception as err:
+                    log.warning("Error when posting flows: %s", err)
                 assert v in [FLOW_ON,FLOW_OFF]
                 AppData().setFlow(k,v)
 
