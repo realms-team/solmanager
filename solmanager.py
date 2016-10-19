@@ -629,7 +629,8 @@ class SnapshotThread(threading.Thread):
             snapshotSummary = []
 
             # get MAC addresses of all motes
-            currentMac     = (0,0,0,0,0,0,0,0) # start getMoteConfig() iteration with the 0 MAC addr
+            #-- start getMoteConfig() iteration with the 0 MAC addr
+            currentMac     = (0,0,0,0,0,0,0,0)
             continueAsking = True
             while continueAsking:
                 try:
@@ -1014,15 +1015,24 @@ class JsonThread(threading.Thread):
                                     cert        = self.solmanager_cert,
                                     privkey     = self.solmanager_privkey,
                                 )
-        self.web.route(path='/api/v1/echo.json',           method='POST', callback=self._cb_echo_POST)
-        self.web.route(path='/api/v1/status.json',         method='GET',  callback=self._cb_status_GET)
-        self.web.route(path='/api/v1/config.json',         method='GET',  callback=self._cb_config_GET)
-        self.web.route(path='/api/v1/config.json',         method='POST', callback=self._cb_config_POST)
-        self.web.route(path='/api/v1/flows.json',          method='GET',  callback=self._cb_flows_GET)
-        self.web.route(path='/api/v1/flows.json',          method='POST', callback=self._cb_flows_POST)
-        self.web.route(path='/api/v1/resend.json',         method='POST', callback=self._cb_resend_POST)
-        self.web.route(path='/api/v1/snapshot.json',       method='POST', callback=self._cb_snapshot_POST)
-        self.web.route(path='/api/v1/smartmeshipapi.json', method='POST', callback=self._cb_smartmeshipapi_POST)
+        self.web.route( path='/api/v1/echo.json',
+                        method='POST', callback=self._cb_echo_POST)
+        self.web.route( path='/api/v1/status.json',
+                        method='GET',  callback=self._cb_status_GET)
+        self.web.route( path='/api/v1/config.json',
+                        method='GET',  callback=self._cb_config_GET)
+        self.web.route( path='/api/v1/config.json',
+                        method='POST', callback=self._cb_config_POST)
+        self.web.route( path='/api/v1/flows.json',
+                        method='GET',  callback=self._cb_flows_GET)
+        self.web.route( path='/api/v1/flows.json',
+                        method='POST', callback=self._cb_flows_POST)
+        self.web.route( path='/api/v1/resend.json',
+                        method='POST', callback=self._cb_resend_POST)
+        self.web.route( path='/api/v1/snapshot.json',
+                        method='POST', callback=self._cb_snapshot_POST)
+        self.web.route( path='/api/v1/smartmeshipapi.json',
+                        method='POST', callback=self._cb_smartmeshipapi_POST)
 
         # start the thread
         threading.Thread.__init__(self)
