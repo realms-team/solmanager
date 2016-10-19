@@ -593,9 +593,6 @@ class SnapshotThread(threading.Thread):
         self.name            = 'SnapshotThread'
         self.start()
 
-    def _del(self):
-        self.__class__._instance = None
-
     def run(self):
         while self.goOn:
             self.doSnapshotSem.acquire()
@@ -753,9 +750,6 @@ class FileThread(PublishThread):
         self.name           = 'FileThread'
         self.backupfile     = backupfile
 
-    def _del(self):
-        self.__class__._instance = None
-
     def publishNow(self):
         # update stats
         AppData().incrStats(STAT_PUBFILE_WRITES)
@@ -797,8 +791,6 @@ class SendThread(PublishThread):
         self.solserver_host     = kwargs["solserver_host"]
         self.solserver_token    = kwargs["solserver_token"]
         self.solserver_cert     = kwargs["solserver_cert"]
-    def _del(self):
-        self.__class__._instance = None
     def publishNow(self):
         # stop if nothing to publish
         with self.dataLock:
@@ -862,8 +854,6 @@ class StatsThread(PublishThread):
         self.name           = 'StatsThread'
         self.dustThread     = dustThread
         self.sol            = Sol.Sol()
-    def _del(self):
-        self.__class__._instance = None
     def publishNow(self):
         if self.dustThread.macManager is not None:
             # update stats
@@ -962,8 +952,6 @@ class PeriodicSnapshotThread(PublishThread):
         self._init          = True
         PublishThread.__init__(self, snapperiod)
         self.name           = 'PeriodicSnapshotThread'
-    def _del(self):
-        self.__class__._instance = None
     def publishNow(self):
         SnapshotThread().doSnapshot()
 
