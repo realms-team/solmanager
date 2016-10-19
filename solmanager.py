@@ -142,7 +142,7 @@ class AppData(object):
                     FLOW_DEFAULT:           FLOW_ON,
                 },
             }
-            log.info("Could not read stats file.")
+            log.info("Could not read stats file: %s", e)
             self._backupData()
     def incrStats(self,statName):
         with self.dataLock:
