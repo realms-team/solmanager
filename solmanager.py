@@ -516,7 +516,7 @@ class DustThread(threading.Thread):
             )
 
             for sol_json in sol_jsonl:
-                log.debug("Received object: {0}".format(sol_json))
+                log.debug("Received object: %s", sol_json)
                 # publish JSON SOL Object
                 self._publishSolJson(sol_json)
 
@@ -1441,7 +1441,7 @@ class SolManager(threading.Thread):
                 for t in self.threads.itervalues():
                     if not t.isAlive():
                         all_running = False
-                        log.debug("Thread {0} is not running. Quiting.".format(t.name))
+                        log.debug("Thread %s is not running. Quiting.", t.name)
                 if not all_running:
                     self.goOn = False
                 time.sleep(5)
@@ -1467,7 +1467,7 @@ class SolManager(threading.Thread):
             for t in self.threads.itervalues():
                 if not t.isAlive():
                     all_started = False
-                    log.debug("Waiting for {0} to start".format(t.name))
+                    log.debug("Waiting for %s to start", t.name)
             time.sleep(5)
         log.debug("All threads started")
 
@@ -1590,6 +1590,6 @@ if __name__ == '__main__':
     # log configuration
     log.debug("============== Configuration ================")
     for config_name in configs:
-        log.debug("==== {0}: {1}".format(config_name, configs[config_name]))
+        log.debug("==== %s: %s", config_name, configs[config_name])
 
     main(configs)
