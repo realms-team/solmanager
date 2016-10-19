@@ -807,7 +807,8 @@ class SendThread(PublishThread):
 
         # convert all objects to publish to binary
         with self.dataLock:
-            solBinObjectsToPublish = [self.sol.json_to_bin(o) for o in self.solJsonObjectsToPublish]
+            solBinObjectsToPublish = [self.sol.json_to_bin(o)
+                                        for o in self.solJsonObjectsToPublish]
 
         # prepare http_payload
         http_payload = self.sol.bin_to_http(solBinObjectsToPublish)
@@ -1468,8 +1469,10 @@ class SolManager(threading.Thread):
         self.threads["fileThread"]      = FileThread(**self.filet_configs)
         self.threads["sendThread"]      = SendThread(**self.sendt_configs)
         self.threads["pullThread"]      = PullThread(**self.pullt_configs)
-        self.threads["jsonThread"]      = JsonThread(self.threads["dustThread"],**self.jsont_configs)
-        self.threads["statsThread"]     = StatsThread(self.threads["dustThread"],self.statsperiod)
+        self.threads["jsonThread"]      = JsonThread(self.threads["dustThread"],
+                                                     **self.jsont_configs)
+        self.threads["statsThread"]     = StatsThread(self.threads["dustThread"],
+                                                     self.statsperiod)
 
         # verify that all threads are started
         all_started = False
