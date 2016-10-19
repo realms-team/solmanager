@@ -825,7 +825,7 @@ class SendThread(PublishThread):
             # update stats
             AppData().incrStats(STAT_PUBSERVER_UNREACHABLE)
             # happens when could not contact server
-            log.warning("Error when sending http payload: {0}".format(err))
+            log.warning("Error when sending http payload: %s", err)
         else:
             # server answered
 
