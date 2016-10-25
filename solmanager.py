@@ -45,7 +45,6 @@ from solobjectlib import Sol, SolVersion, SolDefines
 
 logging.config.fileConfig('logging.conf')
 log = logging.getLogger('solmanager')
-log.setLevel(logging.DEBUG)
 
 #============================ defines =========================================
 
@@ -143,7 +142,7 @@ class AppData(object):
                     FLOW_DEFAULT:           FLOW_ON,
                 },
             }
-            log.info("Could not read stats file.")
+            log.info("Could not read stats file: %s", e)
             self._backupData()
     def incrStats(self,statName):
         with self.dataLock:
@@ -517,7 +516,7 @@ class DustThread(threading.Thread):
             )
 
             for sol_json in sol_jsonl:
-                log.debug("Received object: {0}".format(sol_json))
+                log.debug("Received object: %s", sol_json)
                 # publish JSON SOL Object
                 self._publishSolJson(sol_json)
 
@@ -594,9 +593,6 @@ class SnapshotThread(threading.Thread):
         self.name            = 'SnapshotThread'
         self.start()
 
-    def _del(self):
-        self.__class__._instance = None
-
     def run(self):
         while self.goOn:
             self.doSnapshotSem.acquire()
@@ -630,7 +626,8 @@ class SnapshotThread(threading.Thread):
             snapshotSummary = []
 
             # get MAC addresses of all motes
-            currentMac     = (0,0,0,0,0,0,0,0) # start getMoteConfig() iteration with the 0 MAC addr
+            #-- start getMoteConfig() iteration with the 0 MAC addr
+            currentMac     = (0,0,0,0,0,0,0,0)
             continueAsking = True
             while continueAsking:
                 try:
@@ -688,6 +685,7 @@ class SnapshotThread(threading.Thread):
 
         except Exception as err:
             AppData().incrStats(STAT_SNAPSHOT_NUM_FAIL)
+            log.warning("Cannot do Snapshot: %s", err)
         else:
             if self.dustThread.macManager is not None:
                 AppData().incrStats(STAT_SNAPSHOT_NUM_OK)
@@ -752,9 +750,6 @@ class FileThread(PublishThread):
         self.name           = 'FileThread'
         self.backupfile     = backupfile
 
-    def _del(self):
-        self.__class__._instance = None
-
     def publishNow(self):
         # update stats
         AppData().incrStats(STAT_PUBFILE_WRITES)
@@ -796,8 +791,6 @@ class SendThread(PublishThread):
         self.solserver_host     = kwargs["solserver_host"]
         self.solserver_token    = kwargs["solserver_token"]
         self.solserver_cert     = kwargs["solserver_cert"]
-    def _del(self):
-        self.__class__._instance = None
     def publishNow(self):
         # stop if nothing to publish
         with self.dataLock:
@@ -806,7 +799,8 @@ class SendThread(PublishThread):
 
         # convert all objects to publish to binary
         with self.dataLock:
-            solBinObjectsToPublish = [self.sol.json_to_bin(o) for o in self.solJsonObjectsToPublish]
+            solBinObjectsToPublish = [self.sol.json_to_bin(o)
+                                        for o in self.solJsonObjectsToPublish]
 
         # prepare http_payload
         http_payload = self.sol.bin_to_http(solBinObjectsToPublish)
@@ -822,12 +816,11 @@ class SendThread(PublishThread):
                 json    = http_payload,
                 verify  = self.solserver_cert,
             )
-        except (requests.exceptions, OpenSSL.SSL.SysCallError) as err:
+        except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
             # update stats
             AppData().incrStats(STAT_PUBSERVER_UNREACHABLE)
             # happens when could not contact server
-            if type(err) == requests.exceptions.SSLError:
-                traceback.print_exc()
+            log.warning("Error when sending http payload: %s", err)
         else:
             # server answered
 
@@ -861,8 +854,6 @@ class StatsThread(PublishThread):
         self.name           = 'StatsThread'
         self.dustThread     = dustThread
         self.sol            = Sol.Sol()
-    def _del(self):
-        self.__class__._instance = None
     def publishNow(self):
         if self.dustThread.macManager is not None:
             # update stats
@@ -961,8 +952,6 @@ class PeriodicSnapshotThread(PublishThread):
         self._init          = True
         PublishThread.__init__(self, snapperiod)
         self.name           = 'PeriodicSnapshotThread'
-    def _del(self):
-        self.__class__._instance = None
     def publishNow(self):
         SnapshotThread().doSnapshot()
 
@@ -1016,15 +1005,24 @@ class JsonThread(threading.Thread):
                                     cert        = self.solmanager_cert,
                                     privkey     = self.solmanager_privkey,
                                 )
-        self.web.route(path='/api/v1/echo.json',           method='POST', callback=self._cb_echo_POST)
-        self.web.route(path='/api/v1/status.json',         method='GET',  callback=self._cb_status_GET)
-        self.web.route(path='/api/v1/config.json',         method='GET',  callback=self._cb_config_GET)
-        self.web.route(path='/api/v1/config.json',         method='POST', callback=self._cb_config_POST)
-        self.web.route(path='/api/v1/flows.json',          method='GET',  callback=self._cb_flows_GET)
-        self.web.route(path='/api/v1/flows.json',          method='POST', callback=self._cb_flows_POST)
-        self.web.route(path='/api/v1/resend.json',         method='POST', callback=self._cb_resend_POST)
-        self.web.route(path='/api/v1/snapshot.json',       method='POST', callback=self._cb_snapshot_POST)
-        self.web.route(path='/api/v1/smartmeshipapi.json', method='POST', callback=self._cb_smartmeshipapi_POST)
+        self.web.route( path='/api/v1/echo.json',
+                        method='POST', callback=self._cb_echo_POST)
+        self.web.route( path='/api/v1/status.json',
+                        method='GET',  callback=self._cb_status_GET)
+        self.web.route( path='/api/v1/config.json',
+                        method='GET',  callback=self._cb_config_GET)
+        self.web.route( path='/api/v1/config.json',
+                        method='POST', callback=self._cb_config_POST)
+        self.web.route( path='/api/v1/flows.json',
+                        method='GET',  callback=self._cb_flows_GET)
+        self.web.route( path='/api/v1/flows.json',
+                        method='POST', callback=self._cb_flows_POST)
+        self.web.route( path='/api/v1/resend.json',
+                        method='POST', callback=self._cb_resend_POST)
+        self.web.route( path='/api/v1/snapshot.json',
+                        method='POST', callback=self._cb_snapshot_POST)
+        self.web.route( path='/api/v1/smartmeshipapi.json',
+                        method='POST', callback=self._cb_smartmeshipapi_POST)
 
         # start the thread
         threading.Thread.__init__(self)
@@ -1194,8 +1192,8 @@ class JsonThread(threading.Thread):
             for (k,v) in bottle.request.json.items():
                 try:
                     k = int(k)
-                except:
-                    pass
+                except Exception as err:
+                    log.warning("Error when posting flows: %s", err)
                 assert v in [FLOW_ON,FLOW_OFF]
                 AppData().setFlow(k,v)
 
@@ -1443,7 +1441,7 @@ class SolManager(threading.Thread):
                 for t in self.threads.itervalues():
                     if not t.isAlive():
                         all_running = False
-                        log.debug("Thread {0} is not running. Quiting.".format(t.name))
+                        log.debug("Thread %s is not running. Quiting.", t.name)
                 if not all_running:
                     self.goOn = False
                 time.sleep(5)
@@ -1459,8 +1457,10 @@ class SolManager(threading.Thread):
         self.threads["fileThread"]      = FileThread(**self.filet_configs)
         self.threads["sendThread"]      = SendThread(**self.sendt_configs)
         self.threads["pullThread"]      = PullThread(**self.pullt_configs)
-        self.threads["jsonThread"]      = JsonThread(self.threads["dustThread"],**self.jsont_configs)
-        self.threads["statsThread"]     = StatsThread(self.threads["dustThread"],self.statsperiod)
+        self.threads["jsonThread"]      = JsonThread(self.threads["dustThread"],
+                                                     **self.jsont_configs)
+        self.threads["statsThread"]     = StatsThread(self.threads["dustThread"],
+                                                     self.statsperiod)
 
         # verify that all threads are started
         all_started = False
@@ -1469,7 +1469,7 @@ class SolManager(threading.Thread):
             for t in self.threads.itervalues():
                 if not t.isAlive():
                     all_started = False
-                    log.debug("Waiting for {0} to start".format(t.name))
+                    log.debug("Waiting for %s to start", t.name)
             time.sleep(5)
         log.debug("All threads started")
 
@@ -1592,6 +1592,6 @@ if __name__ == '__main__':
     # log configuration
     log.debug("============== Configuration ================")
     for config_name in configs:
-        log.debug("==== {0}: {1}".format(config_name, configs[config_name]))
+        log.debug("==== %s: %s", config_name, configs[config_name])
 
     main(configs)

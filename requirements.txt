@@ -1,6 +1,6 @@
 bottle==0.12.8
 requests==2.11.1
-cherrypy==4.0.0
+cherrypy==8.1.2
 pyopenssl
 pyserial
 supervisor
