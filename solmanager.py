@@ -704,7 +704,8 @@ class SnapshotThread(threading.Thread):
                 }
 
                 # publish sensor object
-                self.dustThread._publishSolJson(sobject)
+                FileThread().publish(sobject)
+                SendThread().publish(sobject)
 
 
 class PublishThread(threading.Thread):
