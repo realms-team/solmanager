@@ -190,6 +190,7 @@ class DustThread(threading.Thread):
         self.connector       = None
         self.goOn            = True
         self.macManager      = None
+        self.subscriber      = None
 
         # start the thread
         threading.Thread.__init__(self)
@@ -717,6 +718,7 @@ class PublishThread(threading.Thread):
         self.name                       = 'PublishThread'
         self.start()
         self.periodvariable             = periodvariable*60
+        self.currentDelay               = None
     def run(self):
         try:
             self.currentDelay = 5
@@ -1045,7 +1047,6 @@ class JsonThread(threading.Thread):
             # wait for banner
             time.sleep(0.5)
             self.web.run(
-                server  = self.web.server,
                 quiet   = True,
                 debug   = True,
             )
@@ -1056,7 +1057,6 @@ class JsonThread(threading.Thread):
 
     def close(self):
         self.web.close()
-        self.web.server.stopserver()
 
     #======================== private ==========================================
 
