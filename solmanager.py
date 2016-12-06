@@ -1119,7 +1119,6 @@ class JsonThread(threading.Thread):
             self._authorizeClient()
 
             # handle
-            raise NotImplementedError("getAllConfig() is not available anymore")
             """ getAllConfig() is not available anymore TODO
             allConfig = AppData().getAllConfig()
             for hidden in ['statsfile','solserver_token','solmanager_token']:
@@ -1127,6 +1126,7 @@ class JsonThread(threading.Thread):
                     del allConfig[hidden]
             return allConfig
             """
+            raise NotImplementedError("getAllConfig() is not available anymore")
 
         except Exception as err:
             logCrash(self.name, err)
@@ -1149,11 +1149,11 @@ class JsonThread(threading.Thread):
                 )
 
             # handle
-            raise NotImplementedError("setConfig() is not available anymore")
             """ setConfig() is not available anymore TODO
             for (k,v) in bottle.request.json.items():
                 AppData().setConfig(k,v)
             """
+            raise NotImplementedError("setConfig() is not available anymore")
 
             # send response
             raise bottle.HTTPResponse(
