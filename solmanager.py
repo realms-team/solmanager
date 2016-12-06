@@ -718,7 +718,7 @@ class PublishThread(threading.Thread):
         self.name                       = 'PublishThread'
         self.start()
         self.periodvariable             = periodvariable*60
-        self.currentDelay               = None
+        self.currentDelay               = 0
     def run(self):
         try:
             self.currentDelay = 5
