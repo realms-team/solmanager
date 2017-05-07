@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+from __future__ import division # using python3 divison to avoid truncation
+
 #============================ adjust path =====================================
 
 import sys
