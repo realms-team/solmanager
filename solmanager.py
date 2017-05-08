@@ -21,26 +21,22 @@ import subprocess
 import pickle
 import random
 import traceback
-from   optparse                             import OptionParser
-from   ConfigParser                         import SafeConfigParser
+import ConfigParser
 import logging.config
+
+import requests
+import OpenSSL
+import bottle
 
 import OpenCli
 import solmanager_version
-
-# DustThread
 from   SmartMeshSDK                         import sdk_version, \
                                                    ApiException
 from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
 from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrSubscribe
-
-# SendThread
-import requests
-import OpenSSL
-
-# JsonThread
-import bottle
-from solobjectlib import Sol, SolVersion, SolDefines
+from   solobjectlib                         import Sol, \
+                                                   SolVersion, \
+                                                   SolDefines
 
 #============================ logging =========================================
 
@@ -56,7 +52,6 @@ FLOW_ON                                 = 'on'
 FLOW_OFF                                = 'off'
 
 CONFIGFILE                              = 'solmanager.config'
-DEFAULT_CONFIGFILE                      = 'solmanager.config.default'
 
 #===== stats
 #== admin
@@ -95,10 +90,8 @@ STAT_JSON_NUM_UNAUTHORIZED              = 'JSON_NUM_UNAUTHORIZED'
 
 #============================ helpers =========================================
 
-
 def currentUtcTime():
     return time.strftime("%a, %d %b %Y %H:%M:%S UTC", time.gmtime())
-
 
 def logCrash(threadName, err):
     output  = []
@@ -119,16 +112,22 @@ def logCrash(threadName, err):
     print output
     log.critical(output)
 
-#============================ classes =========================================
+def getConfig(name):
+    config = ConfigParser.ConfigParser()
+    config.read(CONFIGFILE)
+    return config.get('config',name)
 
+#============================ classes =========================================
 
 class AppData(object):
     _instance = None
     _init     = False
+    
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(AppData, cls).__new__(cls, *args, **kwargs)
         return cls._instance
+    
     def __init__(self, statsfile=None):
         if self._init:
             return
@@ -148,34 +147,39 @@ class AppData(object):
             }
             log.info("Could not read stats file: %s", e)
             self._backupData()
+    
     def incrStats(self, statName):
         with self.dataLock:
             if statName not in self.data['stats']:
                 self.data['stats'][statName] = 0
             self.data['stats'][statName] += 1
         self._backupData()
+    
     def updateStats(self, k, v):
         with self.dataLock:
             self.data['stats'][k] = v
         self._backupData()
+    
     def getStats(self):
         with self.dataLock:
             stats = self.data['stats'].copy()
         stats[STAT_PUBFILE_BACKLOG]   = FileThread().getBacklogLength()
         stats[STAT_PUBSERVER_BACKLOG] = SendThread().getBacklogLength()
         return stats
+    
     def getFlows(self):
         with self.dataLock:
             return self.data['flows'].copy()
+    
     def setFlow(self, key, value):
         with self.dataLock:
             self.data['flows'][key] = value
         self._backupData()
+    
     def _backupData(self):
         with self.dataLock:
             with open(self.statsfile, 'w') as f:
                 pickle.dump(self.data, f)
-
 
 class DustThread(threading.Thread):
 
@@ -517,7 +521,7 @@ class DustThread(threading.Thread):
             sol_jsonl = self.sol.dust_to_json(
                 notif_name,
                 dust_notif,
-                macManager  = self.macManager,
+                mac_manager = self.macManager,
                 timestamp   = epoch,
             )
 
@@ -530,7 +534,7 @@ class DustThread(threading.Thread):
             logCrash(self.name, err)
 
     def _notifErrorFinish(self, notifName, dust_notif):
-
+        
         try:
             assert notifName in [
                 IpMgrSubscribe.IpMgrSubscribe.ERROR,
@@ -572,14 +576,16 @@ class DustThread(threading.Thread):
         if self._isActiveFlow(sol_json['type']):
             SendThread().publish(sol_json)
 
-
 class SnapshotThread(threading.Thread):
+    
     _instance = None
     _init     = False
+    
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(SnapshotThread, cls).__new__(cls, *args, **kwargs)
         return cls._instance
+    
     def __init__(self, dustThread=None):
         if self._init:
             return
@@ -709,7 +715,6 @@ class SnapshotThread(threading.Thread):
                 FileThread().publish(sobject)
                 SendThread().publish(sobject)
 
-
 class PublishThread(threading.Thread):
     def __init__(self, periodvariable):
         self.goOn                       = True
@@ -742,6 +747,21 @@ class PublishThread(threading.Thread):
         with self.dataLock:
             self.solJsonObjectsToPublish += [sol_json]
 
+class PeriodicSnapshotThread(PublishThread):
+    _instance = None
+    _init     = False
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(PeriodicSnapshotThread, cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+    def __init__(self, snapperiod):
+        if self._init:
+            return
+        self._init          = True
+        PublishThread.__init__(self, snapperiod)
+        self.name           = 'PeriodicSnapshotThread'
+    def publishNow(self):
+        SnapshotThread().doSnapshot()
 
 class FileThread(PublishThread):
     _instance = None
@@ -785,7 +805,6 @@ class FileThread(PublishThread):
                 solJsonObjectsToWrite,
                 self.backupfile,
             )
-
 
 class SendThread(PublishThread):
     _instance = None
@@ -845,48 +864,6 @@ class SendThread(PublishThread):
                 # update stats
                 AppData().incrStats(STAT_PUBSERVER_SENDFAIL)
                 print "Error HTTP response status: " + str(r.status_code)
-
-
-class StatsThread(PublishThread):
-    """
-    This thread periodically publishes the solmanager statistics
-    """
-
-    _instance = None
-    _init     = False
-    def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = super(StatsThread, cls).__new__(cls, *args, **kwargs)
-        return cls._instance
-    def __init__(self, dustThread, statsperiod):
-        if self._init:
-            return
-        self._init          = True
-        PublishThread.__init__(self, statsperiod)
-        self.name           = 'StatsThread'
-        self.dustThread     = dustThread
-        self.sol            = Sol.Sol()
-    def publishNow(self):
-        if self.dustThread.macManager is not None:
-            # update stats
-            AppData().incrStats(STAT_PUBSERVER_STATS)
-
-            # create sensor object
-            sobject = {
-                'mac':       self.dustThread.macManager,
-                'timestamp': int(time.time()),
-                'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS,
-                'value':     {
-                        'sol_version'           : list(SolVersion.VERSION),
-                        'solmanager_version'    : list(solmanager_version.VERSION),
-                        'sdk_version'           : list(sdk_version.VERSION)
-                    },
-            }
-
-            # publish
-            FileThread().publish(sobject)
-            SendThread().publish(sobject)
-
 
 class PullThread(PublishThread):
     """
@@ -952,44 +929,60 @@ class PullThread(PublishThread):
             python = sys.executable
             os.execl(python, python, * sys.argv)
 
+class StatsThread(PublishThread):
+    """
+    This thread periodically publishes the solmanager statistics
+    """
 
-class PeriodicSnapshotThread(PublishThread):
     _instance = None
     _init     = False
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
-            cls._instance = super(PeriodicSnapshotThread, cls).__new__(cls, *args, **kwargs)
+            cls._instance = super(StatsThread, cls).__new__(cls, *args, **kwargs)
         return cls._instance
-    def __init__(self, snapperiod):
+    def __init__(self, dustThread, statsperiod):
         if self._init:
             return
         self._init          = True
-        PublishThread.__init__(self, snapperiod)
-        self.name           = 'PeriodicSnapshotThread'
+        PublishThread.__init__(self, statsperiod)
+        self.name           = 'StatsThread'
+        self.dustThread     = dustThread
+        self.sol            = Sol.Sol()
     def publishNow(self):
-        SnapshotThread().doSnapshot()
+        if self.dustThread.macManager is not None:
+            # update stats
+            AppData().incrStats(STAT_PUBSERVER_STATS)
 
+            # create sensor object
+            sobject = {
+                'mac':       self.dustThread.macManager,
+                'timestamp': int(time.time()),
+                'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS,
+                'value':     {
+                        'sol_version'           : list(SolVersion.VERSION),
+                        'solmanager_version'    : list(solmanager_version.VERSION),
+                        'sdk_version'           : list(sdk_version.VERSION)
+                    },
+            }
 
-class CherryPySSL(bottle.ServerAdapter):
-    server = None
+            # publish
+            FileThread().publish(sobject)
+            SendThread().publish(sobject)
+
+class HTTPSServer(bottle.ServerAdapter):
     def run(self, handler):
-        from cherrypy import wsgiserver
-        from cherrypy.wsgiserver.ssl_pyopenssl import pyOpenSSLAdapter
-        self.server = wsgiserver.CherryPyWSGIServer((self.host, self.port), handler)
-        self.server.ssl_adapter = pyOpenSSLAdapter(
-            certificate           = self.options["cert"],
-            private_key           = self.options["privkey"],
+        from cheroot.wsgi import Server as WSGIServer
+        from cheroot.ssl.pyopenssl import pyOpenSSLAdapter
+        server = WSGIServer((self.host, self.port), handler)
+        server.ssl_adapter = pyOpenSSLAdapter(
+            certificate = getConfig("solmanager_cert"),
+            private_key = getConfig("solmanager_privkey"),
         )
         try:
-            log.debug("Starting Bottle server")
-            self.server.start()
+            server.start()
+            log.info("Server started")
         finally:
-            self.server.stop()
-    def stopserver(self):
-        if self.server:
-            self.server.stop()
-            log.debug("Bottle server adapter stopped")
-
+            server.stop()
 
 class JsonThread(threading.Thread):
 
@@ -1015,43 +1008,68 @@ class JsonThread(threading.Thread):
 
         # initialize web server
         self.web                = bottle.Bottle()
-        self.web.server         = CherryPySSL(
-                                    host        = self.solmanager_host,
-                                    port        = self.tcpport,
-                                    cert        = self.solmanager_cert,
-                                    privkey     = self.solmanager_privkey,
-                                )
-        self.web.route(path='/api/v1/echo.json',
-                       method='POST', callback=self._cb_echo_POST)
-        self.web.route(path='/api/v1/status.json',
-                       method='GET',  callback=self._cb_status_GET)
-        self.web.route(path='/api/v1/config.json',
-                       method='GET',  callback=self._cb_config_GET)
-        self.web.route(path='/api/v1/config.json',
-                       method='POST', callback=self._cb_config_POST)
-        self.web.route(path='/api/v1/flows.json',
-                       method='GET',  callback=self._cb_flows_GET)
-        self.web.route(path='/api/v1/flows.json',
-                       method='POST', callback=self._cb_flows_POST)
-        self.web.route(path='/api/v1/resend.json',
-                       method='POST', callback=self._cb_resend_POST)
-        self.web.route(path='/api/v1/snapshot.json',
-                       method='POST', callback=self._cb_snapshot_POST)
-        self.web.route(path='/api/v1/smartmeshipapi.json',
-                       method='POST', callback=self._cb_smartmeshipapi_POST)
-
+        self.web.route(
+            path        = '/api/v1/echo.json',
+            method      = 'POST',
+            callback    = self._cb_echo_POST,
+        )
+        self.web.route(
+            path        = '/api/v1/status.json',
+            method      = 'GET',
+            callback    = self._cb_status_GET,
+        )
+        self.web.route(
+            path        = '/api/v1/config.json',
+            method      = 'GET',
+            callback    = self._cb_config_GET,
+        )
+        self.web.route(
+            path        = '/api/v1/config.json',
+            method      = 'POST',
+            callback    = self._cb_config_POST,
+        )
+        self.web.route(
+            path        = '/api/v1/flows.json',
+            method      = 'GET',
+            callback    = self._cb_flows_GET,
+        )
+        self.web.route(
+            path        = '/api/v1/flows.json',
+            method      = 'POST',
+            callback    = self._cb_flows_POST,
+        )
+        self.web.route(
+            path        = '/api/v1/resend.json',
+            method      = 'POST',
+            callback    = self._cb_resend_POST,
+        )
+        self.web.route(
+            path        = '/api/v1/snapshot.json',
+            method      = 'POST',
+            callback    = self._cb_snapshot_POST,
+        )
+        self.web.route(
+            path        = '/api/v1/smartmeshipapi.json',
+            method      = 'POST',
+            callback    = self._cb_smartmeshipapi_POST,
+        )
+        
         # start the thread
         threading.Thread.__init__(self)
         self.name       = 'JsonThread'
+        self.daemon     = True
         self.start()
-
+    
     def run(self):
         try:
             # wait for banner
             time.sleep(0.5)
             self.web.run(
-                quiet   = True,
-                debug   = True,
+                host   = self.solmanager_host,
+                port   = self.tcpport,
+                server = HTTPSServer,
+                quiet  = True,
+                debug  = False,
             )
         except Exception as err:
             logCrash(self.name, err)
@@ -1222,7 +1240,7 @@ class JsonThread(threading.Thread):
         except Exception as err:
             logCrash(self.name, err)
             raise
-
+    
     def _cb_resend_POST(self):
         try:
             # update stats
@@ -1400,50 +1418,50 @@ class JsonThread(threading.Thread):
             returnVal = "ERROR"
         return returnVal
 
-
 class SolManager(threading.Thread):
 
-    def __init__(self, configs):
+    def __init__(self):
         self.goOn           = True
         self.threads        = {
-                "dustThread"            : None,
-                "snapshotThread"        : None,
-                "periodSnapThread"      : None,
-                "fileThread"            : None,
-                "sendThread"            : None,
-                "jsonThread"            : None,
-                }
-        self.serialport     = configs["serialport"]
-        self.snapperiod     = configs["snapperiodminutes"]
-        self.statsperiod    = configs["statsperiodminutes"]
+            "dustThread"          : None,
+            "snapshotThread"      : None,
+            "periodSnapThread"    : None,
+            "fileThread"          : None,
+            "sendThread"          : None,
+            "jsonThread"          : None,
+        }
+        self.serialport     = getConfig("serialport")
+        self.snapperiod     = getConfig("snapperiodminutes")
+        self.statsperiod    = getConfig("statsperiodminutes")
         self.filet_configs  = {
-                    "backupfile"        : configs["backupfile"],
-                    "fileperiodminutes" : configs["fileperiodminutes"],
-                }
+            "backupfile"        : getConfig("backupfile"),
+            "fileperiodminutes" : getConfig("fileperiodminutes"),
+        }
         self.sendt_configs  = {
-                    "solserver_host"    : configs["solserver_host"],
-                    "solserver_token"   : configs["solserver_token"],
-                    "solserver_cert"    : configs["solserver_cert"],
-                    "sendperiodminutes" : configs["sendperiodminutes"],
-                }
+            "solserver_host"    : getConfig("solserver_host"),
+            "solserver_token"   : getConfig("solserver_token"),
+            "solserver_cert"    : getConfig("solserver_cert"),
+            "sendperiodminutes" : getConfig("sendperiodminutes"),
+        }
         self.pullt_configs  = {
-                    "solserver_host"    : configs["solserver_host"],
-                    "solserver_token"   : configs["solserver_token"],
-                    "solserver_cert"    : configs["solserver_cert"],
-                    "pullperiodminutes" : configs["pullperiodminutes"],
-                }
+            "solserver_host"    : getConfig("solserver_host"),
+            "solserver_token"   : getConfig("solserver_token"),
+            "solserver_cert"    : getConfig("solserver_cert"),
+            "pullperiodminutes" : getConfig("pullperiodminutes"),
+        }
         self.jsont_configs  = {
-                    "tcpport"           : configs["tcpport"],
-                    "host"              : configs["solmanager_host"],
-                    "token"             : configs["solmanager_token"],
-                    "cert"              : configs["solmanager_cert"],
-                    "privkey"           : configs["solmanager_privkey"],
-                    "backupfile"        : configs["backupfile"],
-                }
-        AppData(configs["statsfile"])
+            "tcpport"           : getConfig("solmanager_tcpport"),
+            "host"              : getConfig("solmanager_host"),
+            "token"             : getConfig("solmanager_token"),
+            "cert"              : getConfig("solmanager_cert"),
+            "privkey"           : getConfig("solmanager_privkey"),
+            "backupfile"        : getConfig("backupfile"),
+        }
+        AppData(getConfig("statsfile"))
+        
         # start the thread
         threading.Thread.__init__(self)
-        self.name                       = 'SolManager'
+        self.name                      = 'SolManager'
         self.start()
 
     def run(self):
@@ -1471,10 +1489,10 @@ class SolManager(threading.Thread):
         self.threads["fileThread"]      = FileThread(**self.filet_configs)
         self.threads["sendThread"]      = SendThread(**self.sendt_configs)
         self.threads["pullThread"]      = PullThread(**self.pullt_configs)
-        self.threads["jsonThread"]      = JsonThread(self.threads["dustThread"],
-                                                     **self.jsont_configs)
         self.threads["statsThread"]     = StatsThread(self.threads["dustThread"],
                                                      self.statsperiod)
+        self.threads["jsonThread"]      = JsonThread(self.threads["dustThread"],
+                                                     **self.jsont_configs)
 
         # verify that all threads are started
         all_started = False
@@ -1497,11 +1515,9 @@ class SolManager(threading.Thread):
 solmanager  = None
 cli         = None
 
-
 def quitCallback():
     log.info("Quitting.")
     solmanager.goOn = False
-
 
 def returnStatsGroup(stats, prefix):
     keys = []
@@ -1512,7 +1528,6 @@ def returnStatsGroup(stats, prefix):
     for k in sorted(keys):
         returnVal += ['   {0:<30}: {1}'.format(k, stats[k])]
     return returnVal
-
 
 def cli_cb_stats(params):
     stats = AppData().getStats()
@@ -1536,12 +1551,11 @@ def cli_cb_stats(params):
     output = '\n'.join(output)
     print output
 
-
-def main(configs):
+def main():
     global solmanager
 
     # create the solmanager instance
-    solmanager = SolManager(configs)
+    solmanager = SolManager()
 
     # start the CLI interface
     cli = OpenCli.OpenCli(
@@ -1562,54 +1576,5 @@ def main(configs):
     )
 
 if __name__ == '__main__':
-    # defines configurations
-    default_configs = {}
-    configs         = {}
-    config_list_str = [
-                "statsfile", "backupfile", "serialport", "solmanager_tcpport",
-                "solmanager_host", "solmanager_token", "solmanager_cert", "solmanager_privkey",
-                "solserver_host", "solserver_token", "solserver_cert"
-            ]
-    config_list_int = [
-                "sendperiodminutes", "fileperiodminutes", "snapperiodminutes",
-                "statsperiodminutes", "pullperiodminutes"
-            ]
-
-    # load configurations from default config file
-    cf_defparser = SafeConfigParser()
-    cf_defparser.readfp(open(DEFAULT_CONFIGFILE))
-    for config_name in config_list_str:
-        default_configs[config_name] = cf_defparser.get('config', config_name)
-    for config_name in config_list_int:
-        default_configs[config_name] = cf_defparser.getint('config', config_name)
-
-    # load configurations from custom user defined config file
-    cf_parser = SafeConfigParser(default_configs)
-    cf_parser.readfp(open(CONFIGFILE))
-    for config_name in config_list_str:
-        configs[config_name] = cf_parser.get('config', config_name)
-    for config_name in config_list_int:
-        configs[config_name] = cf_parser.getint('config', config_name)
-
-    # parse the command line and update configurations
-    parser = OptionParser("usage: %prog [options]")
-    parser.add_option(
-        "-s", "--serialport", dest="serialport",
-        default=configs["serialport"],
-        help="Serial port of the SmartMesh IP manager."
-    )
-    parser.add_option(
-        "-t", "--tcpport", dest="tcpport",
-        default=configs["solmanager_tcpport"],
-        help="TCP port to start the JSON API on."
-    )
-    (options, args)         = parser.parse_args()
-    configs["serialport"]   = options.serialport
-    configs["tcpport"]      = options.tcpport
-
-    # log configuration
-    log.debug("============== Configuration ================")
-    for config_name in configs:
-        log.debug("==== %s: %s", config_name, configs[config_name])
-
-    main(configs)
+    
+    main()
