@@ -200,9 +200,12 @@ class AppConfig(object):
         with self.dataLock:
             for (k,v) in config.items('config'):
                 try:
-                    self.config[k] = int(v)
+                    self.config[k] = float(v)
                 except ValueError:
-                    self.config[k] = v
+                    try:
+                        self.config[k] = int(v)
+                    except ValueError:
+                        self.config[k] = v
     
     def get(self,name):
         with self.dataLock:
@@ -226,7 +229,7 @@ class MgrThread(object):
             # convert dust notification to JSON SOL Object
             sol_jsonl = self.sol.dust_to_json(
                 dust_notif  = dust_notif,
-                mac_manager = self._getMacManager(),
+                mac_manager = self.getMacManager(),
                 timestamp   = int(time.time()), # TODO get timestamp of when data was created
             )
 
@@ -241,8 +244,8 @@ class MgrThread(object):
         except Exception as err:
             logCrash(self.name, err)
     
-    def _getMacManager(self):
-        return 'TODO' # poipoipoi
+    def getMacManager(self):
+        return [0,0,0,0,0,0,0,0] # poipoipoi
     
 class MgrSerialThread(MgrThread,threading.Thread):
 
@@ -419,12 +422,12 @@ class SnapshotThread(threading.Thread):
             AppData().incrStats(STAT_SNAPSHOT_NUM_FAIL)
             log.warning("Cannot do Snapshot: %s", err)
         else:
-            if self._getMacManager() is not None:
+            if self.mgrThread.getMacManager() is not None:
                 AppData().incrStats(STAT_SNAPSHOT_NUM_OK)
 
                 # create sensor object
                 sobject = {
-                    'mac':       self._getMacManager(),
+                    'mac':       self.mgrThread.getMacManager(),
                     'timestamp': int(time.time()),
                     'type':      SolDefines.SOL_TYPE_DUST_SNAPSHOT,
                     'value':     snapshotSummary,
@@ -444,9 +447,9 @@ class PublishThread(threading.Thread):
         threading.Thread.__init__(self)
         self.name                       = 'PublishThread'
         self.daemon                     = True
-        self.start()
         self.periodvariable             = periodvariable*60
         self.currentDelay               = 0
+        self.start()
     def run(self):
         try:
             self.currentDelay = 5
@@ -668,7 +671,7 @@ class StatsThread(PublishThread):
 
         # create sensor object
         sobject = {
-            'mac':       self._getMacManager(),
+            'mac':       self.mgrThread.getMacManager(),
             'timestamp': int(time.time()),
             'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS,
             'value':     {
