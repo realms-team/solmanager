@@ -19,7 +19,6 @@ import threading
 import json
 import subprocess
 import pickle
-import random
 import traceback
 import ConfigParser
 import logging.config
@@ -32,8 +31,6 @@ import OpenCli
 import solmanager_version
 from   SmartMeshSDK                         import sdk_version, \
                                                    ApiException
-from   SmartMeshSDK.IpMgrConnectorSerial    import IpMgrConnectorSerial
-from   SmartMeshSDK.IpMgrConnectorMux       import IpMgrSubscribe
 from   solobjectlib                         import Sol, \
                                                    SolVersion, \
                                                    SolDefines
@@ -117,12 +114,12 @@ def logCrash(threadName, err):
 class AppData(object):
     _instance = None
     _init     = False
-    
+
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(AppData, cls).__new__(cls, *args, **kwargs)
         return cls._instance
-    
+
     def __init__(self, statsfile=None):
         if self._init:
             return
@@ -142,35 +139,35 @@ class AppData(object):
             }
             log.info("Could not read stats file: %s", e)
             self._backupData()
-    
+
     def incrStats(self, statName):
         with self.dataLock:
             if statName not in self.data['stats']:
                 self.data['stats'][statName] = 0
             self.data['stats'][statName] += 1
         self._backupData()
-    
+
     def updateStats(self, k, v):
         with self.dataLock:
             self.data['stats'][k] = v
         self._backupData()
-    
+
     def getStats(self):
         with self.dataLock:
             stats = self.data['stats'].copy()
         stats[STAT_PUBFILE_BACKLOG]   = FileThread().getBacklogLength()
         stats[STAT_PUBSERVER_BACKLOG] = SendThread().getBacklogLength()
         return stats
-    
+
     def getFlows(self):
         with self.dataLock:
             return self.data['flows'].copy()
-    
+
     def setFlow(self, key, value):
         with self.dataLock:
             self.data['flows'][key] = value
         self._backupData()
-    
+
     def _backupData(self):
         with self.dataLock:
             with open(self.statsfile, 'w') as f:
@@ -179,24 +176,24 @@ class AppData(object):
 class AppConfig(object):
     _instance = None
     _init     = False
-    
+
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(AppConfig, cls).__new__(cls, *args, **kwargs)
         return cls._instance
-    
+
     def __init__(self):
         if self._init:
             return
         self._init = True
-        
+
         # local variables
         self.dataLock   = threading.RLock()
         self.config     = {}
-        
+
         config = ConfigParser.ConfigParser()
         config.read(CONFIGFILE)
-        
+
         with self.dataLock:
             for (k,v) in config.items('config'):
                 try:
@@ -206,23 +203,23 @@ class AppConfig(object):
                         self.config[k] = int(v)
                     except ValueError:
                         self.config[k] = v
-    
+
     def get(self,name):
         with self.dataLock:
             return self.config[name]
 
 class MgrThread(object):
-    
+
     def __init__(self):
-        
+
         # local variables
         self.sol = Sol.Sol()
-    
+
     #======================== private =========================================
 
     def _handler_dust_notifs(self, dust_notif):
         try:
-            
+
             # update stats
             AppData().incrStats('NUMRX_{0}'.format(dust_notif['name']))
 
@@ -236,17 +233,17 @@ class MgrThread(object):
             for sol_json in sol_jsonl:
                 # update stats
                 AppData().incrStats(STAT_PUB_TOTAL_SENTTOPUBLISH)
-                
+
                 # publish
                 FileThread().publish(sol_json) # to the backup file
                 SendThread().publish(sol_json) # to the solserver over the Internet
 
         except Exception as err:
             logCrash(self.name, err)
-    
+
     def getMacManager(self):
         return [0,0,0,0,0,0,0,0] # poipoipoi
-    
+
 class MgrSerialThread(MgrThread,threading.Thread):
 
     def __init__(self):
@@ -255,10 +252,10 @@ class MgrSerialThread(MgrThread,threading.Thread):
 class MgrJsonServerThread(MgrThread,threading.Thread):
 
     def __init__(self):
-        
+
         # initialize the parent class
         super(MgrJsonServerThread,self).__init__()
-        
+
         # initialize web server
         self.web                = bottle.Bottle()
         self.web.route(
@@ -273,13 +270,13 @@ class MgrJsonServerThread(MgrThread,threading.Thread):
             method      = 'POST',
             callback    = self._webhandler_all_POST
         )
-        
+
         # start the thread
         threading.Thread.__init__(self)
         self.name       = 'MgrJsonServerThread'
         self.daemon     = True
         self.start()
-    
+
     def run(self):
         try:
             # wait for banner
@@ -292,22 +289,22 @@ class MgrJsonServerThread(MgrThread,threading.Thread):
             )
         except Exception as err:
             logCrash(self.name, err)
-    
+
     def _webhandler_all_POST(self):
         super(MgrJsonServerThread, self)._handler_dust_notifs(
             json.loads(bottle.request.body.read()),
         )
 
 class SnapshotThread(threading.Thread):
-    
+
     _instance = None
     _init     = False
-    
+
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(SnapshotThread, cls).__new__(cls, *args, **kwargs)
         return cls._instance
-    
+
     def __init__(self, mgrThread=None):
         if self._init:
             return
@@ -487,13 +484,13 @@ class PeriodicSnapshotThread(PublishThread):
         SnapshotThread().doSnapshot()
 
 class FileThread(PublishThread):
-    
+
     _instance = None
     _init     = False
-    
+
     # we buffer objects for BUFFER_PERIOD second to ensure they are written to
     # file chronologically
-    
+
     BUFFER_PERIOD = 30
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
@@ -684,7 +681,7 @@ class StatsThread(PublishThread):
         # publish
         FileThread().publish(sobject)
         SendThread().publish(sobject)
-        
+
         # update stats
         AppData().incrStats(STAT_PUBSERVER_STATS)
 
@@ -766,13 +763,13 @@ class JsonThread(threading.Thread):
             method      = 'POST',
             callback    = self._webhandler_smartmeshipapi_POST,
         )
-        
+
         # start the thread
         threading.Thread.__init__(self)
         self.name       = 'JsonThread'
         self.daemon     = True
         self.start()
-    
+
     def run(self):
         try:
             # wait for banner
@@ -942,7 +939,7 @@ class JsonThread(threading.Thread):
         except Exception as err:
             logCrash(self.name, err)
             raise
-    
+
     def _webhandler_resend_POST(self):
         try:
             # update stats
@@ -1133,7 +1130,7 @@ class SolManager(threading.Thread):
             "jsonThread"          : None,
         }
         AppData(AppConfig().get("statsfile"))
-        
+
         # start myself
         threading.Thread.__init__(self)
         self.name                      = 'SolManager'
@@ -1171,7 +1168,7 @@ class SolManager(threading.Thread):
                         log.debug("Waiting for %s to start", t.name)
                 time.sleep(5)
             log.debug("All threads started")
-            
+
             # return as soon as one thread not alive
             while self.goOn:
                 # verify that all threads are running
