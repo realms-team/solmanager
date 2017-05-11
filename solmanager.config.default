@@ -9,11 +9,17 @@ statsfile           = solmanager.stats
 # port used to connect to the Dust board API
 serialport          = /dev/ttyUSB3
 
-sendperiodminutes   = 1
-fileperiodminutes   = 1
-snapperiodminutes   = 60
-statsperiodminutes  = 30
-pullperiodminutes   = 30
+# set the connection mode [<serial>, else]
+managerconnectionmode = jsonserver
+
+# jsonserver config
+jsonservertcpport   = 8888
+
+period_filethread_min  = 10
+period_snapshot_min    = 60
+period_sendthread_min  = 1
+period_pullthread_min  = 30
+period_statsthread_min = 30
 
 # local web server
 solmanager_host     = 0.0.0.0
