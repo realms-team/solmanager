@@ -50,6 +50,8 @@ FLOW_OFF                                = 'off'
 
 CONFIGFILE                              = 'solmanager.config'
 
+MAX_HTTP_SIZE                           = 1000 # send batches of 1KB (~30KB after http conversion)
+
 #===== stats
 #== admin
 STAT_ADM_NUM_CRASHES                    = 'ADM_NUM_CRASHES'
@@ -547,9 +549,14 @@ class SendThread(PublishThread):
             if not self.solJsonObjectsToPublish:
                 return
 
-        # convert all objects to publish to binary
+        # convert objects to publish to binary until HTTP max size is reached
+        object_id = 0
         with self.dataLock:
-            solBinObjectsToPublish = [self.sol.json_to_bin(o) for o in self.solJsonObjectsToPublish]
+            solBinObjectsToPublish = []
+            for object_id, o in enumerate(self.solJsonObjectsToPublish):
+                solBinObjectsToPublish.append(self.sol.json_to_bin(o))
+                if len(solBinObjectsToPublish) > MAX_HTTP_SIZE:
+                    break
 
         # prepare http_payload
         http_payload = self.sol.bin_to_http(solBinObjectsToPublish)
@@ -559,6 +566,7 @@ class SendThread(PublishThread):
             # update stats
             AppData().incrStats(STAT_PUBSERVER_SENDATTEMPTS)
             requests.packages.urllib3.disable_warnings()
+            log.debug("sending objects, size:%dB", len(http_payload))
             r = requests.put(
                 'https://{0}/api/v1/o.json'.format(AppConfig().get("solserver_host")),
                 headers = {'X-REALMS-Token': AppConfig().get("solserver_token")},
@@ -574,15 +582,15 @@ class SendThread(PublishThread):
             # server answered
 
             # clear objects
-            if r.status_code == 200:
+            if r.status_code == requests.codes.ok:
                 # update stats
                 AppData().incrStats(STAT_PUBSERVER_SENDOK)
                 with self.dataLock:
-                    self.solJsonObjectsToPublish = []
+                    self.solJsonObjectsToPublish = self.solJsonObjectsToPublish[object_id:]
             else:
                 # update stats
                 AppData().incrStats(STAT_PUBSERVER_SENDFAIL)
-                print "Error HTTP response status: " + str(r.status_code)
+                print "Error HTTP response status: " + str(r.text)
 
 class PullThread(PublishThread):
     """
