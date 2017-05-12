@@ -37,8 +37,8 @@ from   solobjectlib                         import Sol, \
 
 #============================ logging =========================================
 
-logging.config.fileConfig('logging.conf')
-log = logging.getLogger('solmanager')
+logging.config.fileConfig('logging.conf', disable_existing_loggers=False)
+log = logging.getLogger("solmanager")
 
 #============================ defines =========================================
 
@@ -50,7 +50,7 @@ FLOW_OFF                                = 'off'
 
 CONFIGFILE                              = 'solmanager.config'
 
-MAX_HTTP_SIZE                           = 1000 # send batches of 1KB (~30KB after http conversion)
+MAX_HTTP_SIZE                           = 1000 # send batches of 1KB (~30KB after )
 
 #===== stats
 #== admin
