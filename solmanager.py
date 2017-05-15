@@ -248,10 +248,63 @@ class MgrThread(object):
     def getMacManager(self):
         raise NotImplementedError('Not implemented')
 
+    def handler_smartmeshipapi_POST(self, req):
+        raise NotImplementedError('Not implemented')
+
 class MgrSerialThread(MgrThread, threading.Thread):
 
     def __init__(self):
         raise NotImplementedError()
+
+    def handler_smartmeshipapi_POST(self, req):
+        raise NotImplementedError()
+
+        # abort if malformed JSON body
+        if req is None or \
+                sorted(req.keys()) != sorted(["commandArray", "fields"]):
+            raise bottle.HTTPResponse(
+                status  = 400,
+                headers = {'Content-Type': 'application/json'},
+                body    = json.dumps({'error': 'Malformed JSON body'}),
+            )
+
+        # abort if trying to subscribe
+        if req["commandArray"] == ["subscribe"]:
+            raise bottle.HTTPResponse(
+                status  = 403,
+                headers = {'Content-Type': 'application/json'},
+                body    = json.dumps({'error': 'You cannot issue a "subscribe" command'}),
+            )
+
+        # retrieve connector from mgrThread
+        connector = self.mgrThread.connector
+
+        # issue command
+        try:
+            res = connector.send(
+                commandArray = req["commandArray"],
+                fields       = req["fields"],
+            )
+        except ApiException.CommandError as err:
+            raise bottle.HTTPResponse(
+                status  = 400,
+                headers = {'Content-Type': 'application/json'},
+                body    = json.dumps({'error': str(err)}),
+            )
+        except ApiException.APIError as err:
+            raise bottle.HTTPResponse(
+                status  = 200,
+                headers = {'Content-Type': 'application/json'},
+                body    = json.dumps(
+                    {
+                        'commandArray': req["commandArray"],
+                        'fields':       {
+                            'RC':          err.rc,
+                        },
+                        'desc': str(err),
+                    }
+                ),
+            )
 
 class MgrJsonServerThread(MgrThread, threading.Thread):
 
@@ -259,6 +312,9 @@ class MgrJsonServerThread(MgrThread, threading.Thread):
 
         # initialize the parent class
         super(MgrJsonServerThread, self).__init__()
+
+        # initialize class attributes
+        self.host = str(AppConfig().get("jsonserverhost"))
 
         # initialize web server
         self.web                = bottle.Bottle()
@@ -295,12 +351,10 @@ class MgrJsonServerThread(MgrThread, threading.Thread):
             logCrash(self.name, err)
 
     def getMacManager(self):
-        host = str(AppConfig().get("jsonserverhost"))
-
         # get JsonServer configuration
         try:
             path = "/api/v1/config"
-            r = requests.get("http://" + host + path)
+            r = requests.get("http://" + self.host + path)
         except requests.exceptions.RequestException as e:
             logCrash(self.name, e)
         else:
@@ -313,6 +367,17 @@ class MgrJsonServerThread(MgrThread, threading.Thread):
                 self.mac = self._query_serialport()
 
         return self.mac
+
+    def handler_smartmeshipapi_POST(self, req):
+        req["manager"] = self.serialport
+        try:
+            path = "/api/v1/raw"
+            r = requests.post("http://" + self.host + path, json=req)
+        except requests.exceptions.RequestException as e:
+            logCrash(self.name, e)
+        else:
+            return r
+
 
     def _query_serialport(self):
         host = str(AppConfig().get("jsonserverhost"))
@@ -1089,62 +1154,13 @@ class JsonThread(threading.Thread):
             # authorize the client
             self._authorizeClient()
 
-            # abort if malformed JSON body
-            if bottle.request.json is None or \
-                    sorted(bottle.request.json.keys()) != sorted(["commandArray", "fields"]):
-                raise bottle.HTTPResponse(
-                    status  = 400,
-                    headers = {'Content-Type': 'application/json'},
-                    body    = json.dumps({'error': 'Malformed JSON body'}),
-                )
-
-            # abort if trying to subscribe
-            if bottle.request.json["commandArray"] == ["subscribe"]:
-                raise bottle.HTTPResponse(
-                    status  = 403,
-                    headers = {'Content-Type': 'application/json'},
-                    body    = json.dumps({'error': 'You cannot issue a "subscribe" command'}),
-                )
-
-            # retrieve connector from mgrThread
-            connector = self.mgrThread.connector
-
-            # issue command
-            try:
-                res = connector.send(
-                    commandArray = bottle.request.json["commandArray"],
-                    fields       = bottle.request.json["fields"],
-                )
-            except ApiException.CommandError as err:
-                raise bottle.HTTPResponse(
-                    status  = 400,
-                    headers = {'Content-Type': 'application/json'},
-                    body    = json.dumps({'error': str(err)}),
-                )
-            except ApiException.APIError as err:
-                raise bottle.HTTPResponse(
-                    status  = 200,
-                    headers = {'Content-Type': 'application/json'},
-                    body    = json.dumps(
-                        {
-                            'commandArray': bottle.request.json["commandArray"],
-                            'fields':       {
-                                'RC':          err.rc,
-                            },
-                            'desc': str(err),
-                        }
-                    ),
-                )
+            # forward to managerThread
+            res = self.mgrThread.handler_smartmeshipapi_POST(bottle.request.json)
 
             raise bottle.HTTPResponse(
                 status  = 200,
                 headers = {'Content-Type': 'application/json'},
-                body    = json.dumps(
-                    {
-                        'commandArray': bottle.request.json["commandArray"],
-                        'fields': res,
-                    }
-                ),
+                body    = res
             )
 
         except bottle.HTTPResponse:
