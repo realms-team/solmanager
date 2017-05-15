@@ -251,6 +251,9 @@ class MgrThread(object):
     def handler_smartmeshipapi_POST(self, req):
         raise NotImplementedError('Not implemented')
 
+    def close(self):
+        pass
+
 class MgrSerialThread(MgrThread, threading.Thread):
 
     def __init__(self):
