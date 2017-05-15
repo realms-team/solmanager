@@ -216,6 +216,8 @@ class MgrThread(object):
 
         # local variables
         self.sol = Sol.Sol()
+        self.mac = None
+        self.serialport = None
 
     #======================== private =========================================
 
@@ -244,19 +246,19 @@ class MgrThread(object):
             logCrash(self.name, err)
 
     def getMacManager(self):
-        return [0,0,0,0,0,0,0,0] # poipoipoi
+        raise NotImplementedError('Not implemented')
 
-class MgrSerialThread(MgrThread,threading.Thread):
+class MgrSerialThread(MgrThread, threading.Thread):
 
     def __init__(self):
         raise NotImplementedError()
 
-class MgrJsonServerThread(MgrThread,threading.Thread):
+class MgrJsonServerThread(MgrThread, threading.Thread):
 
     def __init__(self):
 
         # initialize the parent class
-        super(MgrJsonServerThread,self).__init__()
+        super(MgrJsonServerThread, self).__init__()
 
         # initialize web server
         self.web                = bottle.Bottle()
@@ -285,12 +287,57 @@ class MgrJsonServerThread(MgrThread,threading.Thread):
             time.sleep(0.5)
             self.web.run(
                 host   = '0.0.0.0',
-                port   = AppConfig().get("jsonservertcpport"),
+                port   = AppConfig().get("solmanager_jsonport"),
                 quiet  = True,
                 debug  = False,
             )
         except Exception as err:
             logCrash(self.name, err)
+
+    def getMacManager(self):
+        host = str(AppConfig().get("jsonserverhost"))
+
+        # get JsonServer configuration
+        try:
+            path = "/api/v1/config"
+            r = requests.get("http://" + host + path)
+        except requests.exceptions.RequestException as e:
+            logCrash(self.name, e)
+        else:
+            if len(r.json()["managers"]) > 1:
+                log.error("More than one manager found in JsonServer")
+            elif len(r.json()["managers"]) == 0:
+                log.warn("No manager found in JsonServer")
+            else:
+                self.serialport = r.json()["managers"][0]
+                self.mac = self._query_serialport()
+
+        return self.mac
+
+    def _query_serialport(self):
+        host = str(AppConfig().get("jsonserverhost"))
+        path = "/api/v1/raw"
+        body = {
+            "manager": self.serialport,
+            "command": "getMoteConfig",
+            "fields": {
+                "macAddress": [0, 0, 0, 0, 0, 0, 0, 0],
+                "next": True
+            }
+        }
+
+        try:
+            r = requests.post(
+                url="http://" + host + path,
+                json=body
+            )
+        except requests.exceptions.RequestException as e:
+            logCrash(self.name, e)
+        else:
+            if "macAddress" in r.json():
+                return r.json()["macAddress"]
+            else:
+                log.error("macAddress not found in JsonServer response: %s", r.json())
 
     def _webhandler_all_POST(self):
         super(MgrJsonServerThread, self)._handler_dust_notifs(
