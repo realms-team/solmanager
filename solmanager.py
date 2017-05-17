@@ -246,10 +246,13 @@ class MgrThread(object):
             logCrash(self.name, err)
 
     def getMacManager(self):
-        raise NotImplementedError('Not implemented')
+        raise NotImplementedError()
+
+    def getMoteInfo(self, mote_mac):
+        raise NotImplementedError()
 
     def handler_smartmeshipapi_POST(self, req):
-        raise NotImplementedError('Not implemented')
+        raise NotImplementedError()
 
     def close(self):
         pass
@@ -353,6 +356,15 @@ class MgrJsonServerThread(MgrThread, threading.Thread):
         except Exception as err:
             logCrash(self.name, err)
 
+    def getMotes(self):
+        try:
+            path = "/api/v1/helpers/motes"
+            r = requests.get("http://" + self.host + path)
+        except requests.exceptions.RequestException as e:
+            logCrash(self.name, e)
+        else:
+            return r.json()[self.serialport]
+
     def getMacManager(self):
         # get JsonServer configuration
         try:
@@ -371,6 +383,48 @@ class MgrJsonServerThread(MgrThread, threading.Thread):
 
         return self.mac
 
+    def getMoteInfo(self, mote_mac):
+        req = {
+            "command": "getMoteInfo",
+            "fields": {
+                "macAddress": mote_mac
+            }
+        }
+        res = self.handler_smartmeshipapi_POST(req)
+        return res.json()
+
+    def getMoteConfig(self, mote_mac):
+        req = {
+            "command": "getMoteConfig",
+            "fields": {
+                "macAddress": mote_mac,
+                "next": False
+            }
+        }
+        res = self.handler_smartmeshipapi_POST(req)
+        return res.json()
+
+    def getNextPathInfo(self, mote_mac, path_id):
+        req = {
+            "command": "getNextPathInfo",
+            "fields": {
+                "macAddress": mote_mac,
+                "filter": 0,
+                "pathId": path_id
+            }
+        }
+        res = self.handler_smartmeshipapi_POST(req)
+        return res.json()
+
+    def _handler_oap(self, mote_mac, req):
+        try:
+            path = "/api/v1/oap/" + mote_mac + "/" + req
+            r = requests.get("http://" + self.host + path)
+        except requests.exceptions.RequestException as e:
+            logCrash(self.name, e)
+        else:
+            return r
+
     def handler_smartmeshipapi_POST(self, req):
         req["manager"] = self.serialport
         try:
@@ -380,7 +434,6 @@ class MgrJsonServerThread(MgrThread, threading.Thread):
             logCrash(self.name, e)
         else:
             return r
-
 
     def _query_serialport(self):
         host = str(AppConfig().get("jsonserverhost"))
@@ -469,44 +522,28 @@ class SnapshotThread(threading.Thread):
                 currentUtcTime(),
             )
 
-            # retrieve connector from mgrThread
-            connector = self.mgrThread.connector
-
             snapshotSummary = []
 
             # get MAC addresses of all motes
+            mote_mac_list = self.mgrThread.getMotes()
+
             #-- start getMoteConfig() iteration with the 0 MAC addr
-            currentMac     = (0, 0, 0, 0, 0, 0, 0, 0)
-            continueAsking = True
-            while continueAsking:
-                try:
-                    res = connector.dn_getMoteConfig(currentMac, True)
-                except ApiException.APIError:
-                    continueAsking = False
-                else:
-                    snapshotSummary += [
-                        {
-                            'macAddress':       res.macAddress,
-                            'moteId':           res.moteId,
-                            'isAP':             res.isAP,
-                            'state':            res.state,
-                            'isRouting':        res.isRouting,
-                        }
-                    ]
-                    currentMac = res.macAddress
+            for mote_mac in mote_mac_list :
+                mote_config = self.mgrThread.getMoteConfig(mote_mac)
+                snapshotSummary += [mote_config]
 
             # getMoteInfo on all motes
             for s in snapshotSummary:
-                res = connector.dn_getMoteInfo(s['macAddress'])
+                mote_config = self.mgrThread.getMoteInfo(s["macAddress"])
                 s.update({
-                    'numNbrs':                   res.numNbrs,
-                    'numGoodNbrs':               res.numGoodNbrs,
-                    'requestedBw':               res.requestedBw,
-                    'totalNeededBw':             res.totalNeededBw,
-                    'assignedBw':                res.assignedBw,
-                    'packetsReceived':           res.packetsReceived,
-                    'packetsLost':               res.packetsLost,
-                    'avgLatency':                res.avgLatency,
+                    'numNbrs':                   mote_config["numNbrs"],
+                    'numGoodNbrs':               mote_config["numGoodNbrs"],
+                    'requestedBw':               mote_config["requestedBw"],
+                    'totalNeededBw':             mote_config["totalNeededBw"],
+                    'assignedBw':                mote_config["assignedBw"],
+                    'packetsReceived':           mote_config["packetsReceived"],
+                    'packetsLost':               mote_config["packetsLost"],
+                    'avgLatency':                mote_config["avgLatency"],
                 })
 
             # get path info on all paths of all motes
@@ -516,21 +553,25 @@ class SnapshotThread(threading.Thread):
                 continueAsking = True
                 while continueAsking:
                     try:
-                        res = connector.dn_getNextPathInfo(s['macAddress'], 0, currentPathId)
+                        path_info = self.mgrThread.getNextPathInfo(s["macAddress"], currentPathId)
                     except ApiException.APIError:
                         continueAsking = False
                     else:
-                        currentPathId  = res.pathId
-                        s['paths'] += [
-                            {
-                                'macAddress':    res.dest,
-                                'direction':     res.direction,
-                                'numLinks':      res.numLinks,
-                                'quality':       res.quality,
-                                'rssiSrcDest':   res.rssiSrcDest,
-                                'rssiDestSrc':   res.rssiDestSrc,
-                            }
-                        ]
+                        if path_info["RC"] == 0:
+                            currentPathId  = path_info["pathId"]
+                            #s['paths'] += path_info
+                            s['paths'] += [
+                                {
+                                    'macAddress':    path_info["dest"],
+                                    'direction':     path_info["direction"],
+                                    'numLinks':      path_info["numLinks"],
+                                    'quality':       path_info["quality"],
+                                    'rssiSrcDest':   path_info["rssiSrcDest"],
+                                    'rssiDestSrc':   path_info["rssiDestSrc"],
+                                }
+                            ]
+                        else:
+                            continueAsking = False
 
         except Exception as err:
             AppData().incrStats(STAT_SNAPSHOT_NUM_FAIL)
