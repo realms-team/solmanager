@@ -3,4 +3,3 @@ requests>=2.13.0
 cherrypy>=10.2.1
 pyopenssl>=17.0.0
 pyserial>=3.3
-supervisor>=3.3.1
