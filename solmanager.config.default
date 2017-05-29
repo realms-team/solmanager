@@ -22,6 +22,7 @@ solmanager_token        = DFLT_SOLMANAGER_TOKEN
 solmanager_cert         = solmanager.cert
 solmanager_privkey      = solmanager.ppk
 solmanager_tcpport      = 8080
+solmanager_jsonport     = 8082
 
 ; remote web server
 solserver_host          = 127.0.0.1:8081
