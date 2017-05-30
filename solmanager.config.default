@@ -1,30 +1,26 @@
 [config]
 
-; filenames
-backupfile              = solmanager.backup ; all SOL objects are written in a backup file
-statsfile               = solmanager.stats  ; solmanager stats are written every period_statsthread_min
-
-; connecting to manager
-managerconnectionmode   = JsonServer        ; serial or JsonServer
-serialport              = COM6              ; only used when managerconnectionmode is "serial"
-jsonserverhost          = 127.0.0.1:1882    ; only used when managerconnectionmode is "JsonServer"
+; connecting to SmartMesh IP manager
+managerconnectionmode        = JsonServer        ; serial or JsonServer
+serialport                   = COM6              ; only used when managerconnectionmode is "serial"
+jsonserverhost               = 127.0.0.1:8080    ; only used when managerconnectionmode is "JsonServer"
 
 ; period of the threads
-period_sendthread_min   = 1
-period_filethread_min   = 0.1
-period_snapshot_min     = 60
-period_statsthread_min  = 30
-period_pullthread_min   = 30
+period_pubfile_min           = 0.1               ; period to write data to file
+period_pubserver_min         = 0.1               ; period to send data to server
+period_snapshot_min          = 0.1               ; period to perform a full snapshot
+period_stats_min             = 0.1               ; period to publish stats (write to file and send)
+period_pollcmds_min          = 0.1               ; period to request for commands from SolServer
 
 ; local web server
-solmanager_host         = 0.0.0.0
-solmanager_token        = DFLT_SOLMANAGER_TOKEN
-solmanager_cert         = solmanager.cert
-solmanager_privkey      = solmanager.ppk
-solmanager_tcpport      = 8080
-solmanager_jsonport     = 8082
+solmanager_host              = 0.0.0.0           ; interface to attach to
+solmanager_token             = SOLMANAGER_TOKEN  ; token for an external process to authenticate to SolManager
+solmanager_cert              = solmanager.cert   ; certificate of the SolManager
+solmanager_privkey           = solmanager.ppk    ; private key of the SolManager
+solmanager_tcpport_solserver = 8081              ; TCP port to listen for commands from SolServer on
+solmanager_tcpport_jsonserver= 1882              ; TCP port to listen for notifications from JsonServer on
 
 ; remote web server
-solserver_host          = 127.0.0.1:8081
-solserver_token         = DFLT_SOLSERVER_TOKEN
-solserver_cert          = solserver.cert
+solserver_host               = 127.0.0.1:8082    ; address of the JsonServer
+solserver_token              = SOLSERVER_TOKEN   ; token to authenticate to SolServer
+solserver_cert               = solserver.cert    ; certificate of the SolServer

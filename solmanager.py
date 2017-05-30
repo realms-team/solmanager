@@ -1,7 +1,5 @@
 #!/usr/bin/python
 
-from __future__ import division # using python3 division to avoid truncation
-
 #============================ adjust path =====================================
 
 import sys
@@ -18,7 +16,6 @@ import time
 import threading
 import json
 import subprocess
-import pickle
 import traceback
 import ConfigParser
 import logging.config
@@ -29,11 +26,10 @@ import bottle
 
 import OpenCli
 import solmanager_version
-from   SmartMeshSDK                         import sdk_version, \
-                                                   ApiException
-from   solobjectlib                         import Sol, \
-                                                   SolVersion, \
-                                                   SolDefines
+from   SmartMeshSDK       import sdk_version
+from   solobjectlib       import Sol, \
+                                 SolVersion, \
+                                 SolDefines
 
 #============================ logging =========================================
 
@@ -42,50 +38,11 @@ log = logging.getLogger("solmanager")
 
 #============================ defines =========================================
 
-#===== defines
+CONFIGFILE         = 'solmanager.config'
+STATSFILE          = 'solmanager.stats'
+BACKUPFILE         = 'solmanager.backup'
 
-FLOW_DEFAULT                            = 'default'
-FLOW_ON                                 = 'on'
-FLOW_OFF                                = 'off'
-
-CONFIGFILE                              = 'solmanager.config'
-
-MAX_HTTP_SIZE                           = 1000 # send batches of 1KB (~30KB after )
-
-#===== stats
-#== admin
-STAT_ADM_NUM_CRASHES                    = 'ADM_NUM_CRASHES'
-#== connection to manager
-STAT_MGR_NUM_CONNECT_ATTEMPTS           = 'MGR_NUM_CONNECT_ATTEMPTS'
-STAT_MGR_NUM_CONNECT_OK                 = 'MGR_NUM_CONNECT_OK'
-STAT_MGR_NUM_DISCONNECTS                = 'MGR_NUM_DISCONNECTS'
-STAT_MGR_NUM_TIMESYNC                   = 'MGR_NUM_TIMESYNC'
-#== notifications from manager
-# note: we count the number of notifications form the manager, for each time, e.g. NUMRX_NOTIFDATA
-# all stats start with "NUMRX_"
-#== publication
-STAT_PUB_TOTAL_SENTTOPUBLISH            = 'PUB_TOTAL_SENTTOPUBLISH'
-# to file
-STAT_PUBFILE_BACKLOG                    = 'PUBFILE_BACKLOG'
-STAT_PUBFILE_WRITES                     = 'PUBFILE_WRITES'
-# to server
-STAT_PUBSERVER_BACKLOG                  = 'PUBSERVER_BACKLOG'
-STAT_PUBSERVER_SENDATTEMPTS             = 'PUBSERVER_SENDATTEMPTS'
-STAT_PUBSERVER_UNREACHABLE              = 'PUBSERVER_UNREACHABLE'
-STAT_PUBSERVER_SENDOK                   = 'PUBSERVER_SENDOK'
-STAT_PUBSERVER_SENDFAIL                 = 'PUBSERVER_SENDFAIL'
-STAT_PUBSERVER_STATS                    = 'PUBSERVER_STATS'
-STAT_PUBSERVER_PULLATTEMPTS             = 'PUBSERVER_PULLATTEMPTS'
-STAT_PUBSERVER_PULLOK                   = 'PUBSERVER_PULLOK'
-STAT_PUBSERVER_PULLFAIL                 = 'PUBSERVER_PULLFAIL'
-#== snapshot
-STAT_SNAPSHOT_NUM_STARTED               = 'SNAPSHOT_NUM_STARTED'
-STAT_SNAPSHOT_LASTSTARTED               = 'SNAPSHOT_LASTSTARTED'
-STAT_SNAPSHOT_NUM_OK                    = 'SNAPSHOT_NUM_OK'
-STAT_SNAPSHOT_NUM_FAIL                  = 'SNAPSHOT_NUM_FAIL'
-#== JSON interface
-STAT_JSON_NUM_REQ                       = 'JSON_NUM_REQ'
-STAT_JSON_NUM_UNAUTHORIZED              = 'JSON_NUM_UNAUTHORIZED'
+MAX_HTTP_SIZE      = 1000 # send batches of 1kB (~30kB after ) FIXME: after what?
 
 #============================ helpers =========================================
 
@@ -107,75 +64,20 @@ def logCrash(threadName, err):
     output  = '\n'.join(output)
 
     # update stats
-    AppData().incrStats(STAT_ADM_NUM_CRASHES)
+    AppStats().increment('ADM_NUM_CRASHES')
     print output
     log.critical(output)
 
 #============================ classes =========================================
 
-class AppData(object):
-    _instance = None
-    _init     = False
-
-    def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = super(AppData, cls).__new__(cls, *args, **kwargs)
-        return cls._instance
-
-    def __init__(self, statsfile=None):
-        if self._init:
-            return
-        self._init      = True
-        self.dataLock   = threading.RLock()
-        self.statsfile  = statsfile
-        try:
-            with open(statsfile, 'r') as f:
-                self.data = pickle.load(f)
-                log.info("Stats recovered from file.")
-        except (EnvironmentError, pickle.PickleError, EOFError) as e:
-            self.data = {
-                'stats': {},
-                'flows': {
-                    FLOW_DEFAULT:           FLOW_ON,
-                },
-            }
-            log.info("Could not read stats file: %s", e)
-            self._backupData()
-
-    def incrStats(self, statName):
-        with self.dataLock:
-            if statName not in self.data['stats']:
-                self.data['stats'][statName] = 0
-            self.data['stats'][statName] += 1
-        self._backupData()
-
-    def updateStats(self, k, v):
-        with self.dataLock:
-            self.data['stats'][k] = v
-        self._backupData()
-
-    def getStats(self):
-        with self.dataLock:
-            stats = self.data['stats'].copy()
-        stats[STAT_PUBFILE_BACKLOG]   = FileThread().getBacklogLength()
-        stats[STAT_PUBSERVER_BACKLOG] = SendThread().getBacklogLength()
-        return stats
-
-    def getFlows(self):
-        with self.dataLock:
-            return self.data['flows'].copy()
-
-    def setFlow(self, key, value):
-        with self.dataLock:
-            self.data['flows'][key] = value
-        self._backupData()
-
-    def _backupData(self):
-        with self.dataLock:
-            with open(self.statsfile, 'w') as f:
-                pickle.dump(self.data, f)
+#======== singletons
 
 class AppConfig(object):
+    """
+    Singleton which contains the configuration of the application.
+    
+    Configuration is read once from file CONFIGFILE
+    """
     _instance = None
     _init     = False
 
@@ -193,7 +95,7 @@ class AppConfig(object):
         self.dataLock   = threading.RLock()
         self.config     = {}
 
-        config = ConfigParser.ConfigParser()
+        config          = ConfigParser.ConfigParser()
         config.read(CONFIGFILE)
 
         with self.dataLock:
@@ -210,22 +112,177 @@ class AppConfig(object):
         with self.dataLock:
             return self.config[name]
 
-class MgrThread(object):
+class AppStats(object):
+    """
+    Singleton which contains the stats of the application.
+    
+    Stats are read once from file STATSFILE.
+    """
+    _instance = None
+    _init     = False
 
+    ALLSTATS  = [
+        #== admin
+        'ADM_NUM_CRASHES',
+        #== connection to manager
+        'MGR_NUM_CONNECT_ATTEMPTS',
+        'MGR_NUM_CONNECT_OK',
+        'MGR_NUM_DISCONNECTS',
+        'MGR_NUM_TIMESYNC',
+        #== notifications from manager
+        # note: we count the number of notifications form the manager, for each time, e.g. NUMRX_NOTIFDATA
+        # all stats start with "NUMRX_"
+        #== publication
+        'PUB_TOTAL_SENTTOPUBLISH',
+        # to file
+        'PUBFILE_BACKLOG',
+        'PUBFILE_WRITES',
+        # to server
+        'PUBSERVER_BACKLOG',
+        'PUBSERVER_SENDATTEMPTS',
+        'PUBSERVER_UNREACHABLE',
+        'PUBSERVER_SENDOK',
+        'PUBSERVER_SENDFAIL',
+        'PUBSERVER_STATS',
+        'PUBSERVER_PULLATTEMPTS',
+        'PUBSERVER_PULLOK',
+        'PUBSERVER_PULLFAIL',
+        #== snapshot
+        'SNAPSHOT_NUM_STARTED',
+        'SNAPSHOT_LASTSTARTED',
+        'SNAPSHOT_NUM_OK',
+        'SNAPSHOT_NUM_FAIL',
+        #== JSON interface
+        'JSON_NUM_REQ',
+        'JSON_NUM_UNAUTHORIZED',
+    ]
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(AppStats, cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+
+    def __init__(self):
+        if self._init:
+            return
+        self._init      = True
+        
+        self.dataLock   = threading.RLock()
+        self.stats      = {}
+        try:
+            with open(STATSFILE, 'r') as f:
+                for line in f:
+                    k        = line.split('=')[0].strip()
+                    v        = line.split('=')[1].strip()
+                    try:
+                        v    = int(v)
+                    except ValueError:
+                        pass
+                    self.stats[k] = v
+                log.info("Stats recovered from file.")
+        except (EnvironmentError, EOFError) as e:
+            log.info("Could not read stats file: %s", e)
+            self._backup()
+    
+    # ======================= public ==========================================
+    
+    def increment(self, statName):
+        self._validateStatName(statName)
+        with self.dataLock:
+            if statName not in self.stats:
+                self.stats[statName] = 0
+            self.stats[statName] += 1
+        self._backup()
+
+    def update(self, k, v):
+        self._validateStatName(k)
+        with self.dataLock:
+            self.stats[k] = v
+        self._backup()
+
+    def get(self):
+        with self.dataLock:
+            stats = self.stats.copy()
+        stats['PUBFILE_BACKLOG']   = PubFileThread().getBacklogLength()
+        stats['PUBSERVER_BACKLOG'] = PubServerThread().getBacklogLength()
+        return stats
+
+    # ======================= private =========================================
+
+    def _validateStatName(self, statName):
+        if statName.startswith("NUMRX_")==False:
+            assert statName in self.ALLSTATS
+
+    def _backup(self):
+        with self.dataLock:
+            output = ['{0} = {1}'.format(k,v) for (k,v) in self.stats.items()]
+            output = '\n'.join(output)
+            with open(STATSFILE, 'w') as f:
+                f.write(output)
+
+#======== generic abstract classes
+
+class DoSomethingPeriodic(threading.Thread):
+    """
+    Abstract DoSomethingPeriodic thread
+    """
+    def __init__(self, periodvariable):
+        self.goOn                       = True
+        # start the thread
+        threading.Thread.__init__(self)
+        self.name                       = 'DoSomethingPeriodic'
+        self.daemon                     = True
+        self.periodvariable             = periodvariable*60
+        self.currentDelay               = 0
+    def run(self):
+        try:
+            self.currentDelay = 5
+            while self.goOn:
+                self.currentDelay -= 1
+                if self.currentDelay == 0:
+                    self._doSomething()
+                    self.currentDelay = self.periodvariable
+                time.sleep(1)
+        except Exception as err:
+            logCrash(self.name, err)
+    def close(self):
+        self.goOn = False
+    def _doSomething(self):
+        raise NotImplementedError()
+
+#======== connecting to the SmartMesh IP manager
+
+class MgrThread(object):
+    """
+    Asbtract class which connects to a SmartMesh IP manager, either over serial
+    or through a JsonServer.
+    """
     def __init__(self):
 
         # local variables
         self.sol = Sol.Sol()
-        self.mac = None
-        self.serialport = None
+        self.macManager = None
 
-    #======================== private =========================================
+    def getMacManager(self):
+        if self.macManager==None:
+            resp = self.issueRawApiCommand(
+                {
+                    "manager": 0,
+                    "command": "getMoteConfig",
+                    "fields": {
+                        "macAddress": [0,0,0,0,0,0,0,0],
+                        "next": True
+                    }
+                }
+            )
+            assert resp['isAP']==True
+            self.macManager = resp['macAddress']
+        return self.macManager
 
     def _handler_dust_notifs(self, dust_notif):
         try:
 
             # update stats
-            AppData().incrStats('NUMRX_{0}'.format(dust_notif['name']))
+            AppStats().increment('NUMRX_{0}'.format(dust_notif['name']))
 
             # convert dust notification to JSON SOL Object
             sol_jsonl = self.sol.dust_to_json(
@@ -236,94 +293,32 @@ class MgrThread(object):
 
             for sol_json in sol_jsonl:
                 # update stats
-                AppData().incrStats(STAT_PUB_TOTAL_SENTTOPUBLISH)
+                AppStats().increment('PUB_TOTAL_SENTTOPUBLISH')
 
                 # publish
-                FileThread().publish(sol_json) # to the backup file
-                SendThread().publish(sol_json) # to the solserver over the Internet
+                PubFileThread().publish(sol_json) # to the backup file
+                PubServerThread().publish(sol_json) # to the solserver over the Internet
 
         except Exception as err:
             logCrash(self.name, err)
-
-    def getMacManager(self):
-        raise NotImplementedError()
-
-    def getMoteInfo(self, mote_mac):
-        raise NotImplementedError()
-
-    def handler_smartmeshipapi_POST(self, req):
-        raise NotImplementedError()
-
+    
     def close(self):
         pass
 
-class MgrSerialThread(MgrThread, threading.Thread):
+class MgrThreadSerial(MgrThread, threading.Thread):
 
     def __init__(self):
         raise NotImplementedError()
 
-    def handler_smartmeshipapi_POST(self, req):
-        raise NotImplementedError()
-
-        # abort if malformed JSON body
-        if req is None or \
-                sorted(req.keys()) != sorted(["commandArray", "fields"]):
-            raise bottle.HTTPResponse(
-                status  = 400,
-                headers = {'Content-Type': 'application/json'},
-                body    = json.dumps({'error': 'Malformed JSON body'}),
-            )
-
-        # abort if trying to subscribe
-        if req["commandArray"] == ["subscribe"]:
-            raise bottle.HTTPResponse(
-                status  = 403,
-                headers = {'Content-Type': 'application/json'},
-                body    = json.dumps({'error': 'You cannot issue a "subscribe" command'}),
-            )
-
-        # retrieve connector from mgrThread
-        connector = self.mgrThread.connector
-
-        # issue command
-        try:
-            res = connector.send(
-                commandArray = req["commandArray"],
-                fields       = req["fields"],
-            )
-        except ApiException.CommandError as err:
-            raise bottle.HTTPResponse(
-                status  = 400,
-                headers = {'Content-Type': 'application/json'},
-                body    = json.dumps({'error': str(err)}),
-            )
-        except ApiException.APIError as err:
-            raise bottle.HTTPResponse(
-                status  = 200,
-                headers = {'Content-Type': 'application/json'},
-                body    = json.dumps(
-                    {
-                        'commandArray': req["commandArray"],
-                        'fields':       {
-                            'RC':          err.rc,
-                        },
-                        'desc': str(err),
-                    }
-                ),
-            )
-
-class MgrJsonServerThread(MgrThread, threading.Thread):
+class MgrThreadJsonServer(MgrThread, threading.Thread):
 
     def __init__(self):
 
         # initialize the parent class
-        super(MgrJsonServerThread, self).__init__()
-
-        # initialize class attributes
-        self.host = str(AppConfig().get("jsonserverhost"))
+        super(MgrThreadJsonServer, self).__init__()
 
         # initialize web server
-        self.web                = bottle.Bottle()
+        self.web            = bottle.Bottle()
         self.web.route(
             path        = [
                 '/hr',
@@ -339,7 +334,7 @@ class MgrJsonServerThread(MgrThread, threading.Thread):
 
         # start the thread
         threading.Thread.__init__(self)
-        self.name       = 'MgrJsonServerThread'
+        self.name       = 'MgrThreadJsonServer'
         self.daemon     = True
         self.start()
 
@@ -349,321 +344,73 @@ class MgrJsonServerThread(MgrThread, threading.Thread):
             time.sleep(0.5)
             self.web.run(
                 host   = '0.0.0.0',
-                port   = AppConfig().get("solmanager_jsonport"),
+                port   = AppConfig().get("solmanager_tcpport_jsonserver"),
                 quiet  = True,
                 debug  = False,
             )
         except Exception as err:
             logCrash(self.name, err)
-
-    def getMotes(self):
-        try:
-            path = "/api/v1/helpers/motes"
-            r = requests.get("http://" + self.host + path)
-        except requests.exceptions.RequestException as e:
-            logCrash(self.name, e)
-        else:
-            return r.json()[self.serialport]
-
-    def getMacManager(self):
-        # get JsonServer configuration
-        try:
-            path = "/api/v1/config"
-            r = requests.get("http://" + self.host + path)
-        except requests.exceptions.RequestException as e:
-            logCrash(self.name, e)
-        else:
-            if len(r.json()["managers"]) > 1:
-                log.error("More than one manager found in JsonServer")
-            elif len(r.json()["managers"]) == 0:
-                log.warn("No manager found in JsonServer")
-            else:
-                self.serialport = r.json()["managers"][0]
-                self.mac = self._query_serialport()
-
-        return self.mac
-
-    def getMoteInfo(self, mote_mac):
-        req = {
-            "command": "getMoteInfo",
-            "fields": {
-                "macAddress": mote_mac
-            }
-        }
-        res = self.handler_smartmeshipapi_POST(req)
-        return res.json()
-
-    def getMoteConfig(self, mote_mac):
-        req = {
-            "command": "getMoteConfig",
-            "fields": {
-                "macAddress": mote_mac,
-                "next": False
-            }
-        }
-        res = self.handler_smartmeshipapi_POST(req)
-        return res.json()
-
-    def getNextPathInfo(self, mote_mac, path_id):
-        req = {
-            "command": "getNextPathInfo",
-            "fields": {
-                "macAddress": mote_mac,
-                "filter": 0,
-                "pathId": path_id
-            }
-        }
-        res = self.handler_smartmeshipapi_POST(req)
-        return res.json()
-
-    def _handler_oap(self, mote_mac, req):
-        try:
-            path = "/api/v1/oap/" + mote_mac + "/" + req
-            r = requests.get("http://" + self.host + path)
-        except requests.exceptions.RequestException as e:
-            logCrash(self.name, e)
-        else:
-            return r
-
-    def handler_smartmeshipapi_POST(self, req):
-        req["manager"] = self.serialport
-        try:
-            path = "/api/v1/raw"
-            r = requests.post("http://" + self.host + path, json=req)
-        except requests.exceptions.RequestException as e:
-            logCrash(self.name, e)
-        else:
-            return r
-
-    def _query_serialport(self):
-        host = str(AppConfig().get("jsonserverhost"))
-        path = "/api/v1/raw"
-        body = {
-            "manager": self.serialport,
-            "command": "getMoteConfig",
-            "fields": {
-                "macAddress": [0, 0, 0, 0, 0, 0, 0, 0],
-                "next": True
-            }
-        }
-
-        try:
-            r = requests.post(
-                url="http://" + host + path,
-                json=body
-            )
-        except requests.exceptions.RequestException as e:
-            logCrash(self.name, e)
-        else:
-            if "macAddress" in r.json():
-                return r.json()["macAddress"]
-            else:
-                log.error("macAddress not found in JsonServer response: %s", r.json())
-
+    
+    def issueRawApiCommand(self,json_payload):
+        r = requests.post(
+            'http://{0}/api/v1/raw'.format(AppConfig().get("jsonserverhost")),
+            json    = json_payload,
+        )
+        return json.loads(r.text)
+    
     def _webhandler_all_POST(self):
-        super(MgrJsonServerThread, self)._handler_dust_notifs(
+        super(MgrThreadJsonServer, self)._handler_dust_notifs(
             json.loads(bottle.request.body.read()),
         )
 
-class SnapshotThread(threading.Thread):
+#======== publishers
 
-    _instance = None
-    _init     = False
-
-    def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = super(SnapshotThread, cls).__new__(cls, *args, **kwargs)
-        return cls._instance
-
-    def __init__(self, mgrThread=None):
-        if self._init:
-            return
-        self._init      = True
-
-        assert mgrThread
-
-        # store params
-        self.mgrThread       = mgrThread
-
-        # local variables
-        self.doSnapshotSem   = threading.Semaphore(0)
-        self.sol             = Sol.Sol()
-        self.goOn            = True
-
-        # start thread
-        threading.Thread.__init__(self)
-        self.name            = 'SnapshotThread'
-        self.start()
-
-    def run(self):
-        while self.goOn:
-            self.doSnapshotSem.acquire()
-            if not self.goOn:
-                break
-            self._doSnapshot()
-
-    #======================== public ==========================================
-
-    def doSnapshot(self):
-        self.doSnapshotSem.release()
-
-    def close(self):
-        self.goOn = False
-        self.doSnapshotSem.release()
-
-    #======================== private =========================================
-
-    def _doSnapshot(self):
-        try:
-            # update stats
-            AppData().incrStats(STAT_SNAPSHOT_NUM_STARTED)
-            AppData().updateStats(
-                STAT_SNAPSHOT_LASTSTARTED,
-                currentUtcTime(),
-            )
-
-            snapshotSummary = []
-
-            # get MAC addresses of all motes
-            mote_mac_list = self.mgrThread.getMotes()
-
-            #-- start getMoteConfig() iteration with the 0 MAC addr
-            for mote_mac in mote_mac_list :
-                mote_config = self.mgrThread.getMoteConfig(mote_mac)
-                snapshotSummary += [mote_config]
-
-            # getMoteInfo on all motes
-            for s in snapshotSummary:
-                mote_config = self.mgrThread.getMoteInfo(s["macAddress"])
-                s.update({
-                    'numNbrs':                   mote_config["numNbrs"],
-                    'numGoodNbrs':               mote_config["numGoodNbrs"],
-                    'requestedBw':               mote_config["requestedBw"],
-                    'totalNeededBw':             mote_config["totalNeededBw"],
-                    'assignedBw':                mote_config["assignedBw"],
-                    'packetsReceived':           mote_config["packetsReceived"],
-                    'packetsLost':               mote_config["packetsLost"],
-                    'avgLatency':                mote_config["avgLatency"],
-                })
-
-            # get path info on all paths of all motes
-            for s in snapshotSummary:
-                s['paths'] = []
-                currentPathId  = 0
-                continueAsking = True
-                while continueAsking:
-                    try:
-                        path_info = self.mgrThread.getNextPathInfo(s["macAddress"], currentPathId)
-                    except ApiException.APIError:
-                        continueAsking = False
-                    else:
-                        if path_info["RC"] == 0:
-                            currentPathId  = path_info["pathId"]
-                            #s['paths'] += path_info
-                            s['paths'] += [
-                                {
-                                    'macAddress':    path_info["dest"],
-                                    'direction':     path_info["direction"],
-                                    'numLinks':      path_info["numLinks"],
-                                    'quality':       path_info["quality"],
-                                    'rssiSrcDest':   path_info["rssiSrcDest"],
-                                    'rssiDestSrc':   path_info["rssiDestSrc"],
-                                }
-                            ]
-                        else:
-                            continueAsking = False
-
-        except Exception as err:
-            AppData().incrStats(STAT_SNAPSHOT_NUM_FAIL)
-            log.warning("Cannot do Snapshot: %s", err)
-        else:
-            if self.mgrThread.getMacManager() is not None:
-                AppData().incrStats(STAT_SNAPSHOT_NUM_OK)
-
-                # create sensor object
-                sobject = {
-                    'mac':       self.mgrThread.getMacManager(),
-                    'timestamp': int(time.time()),
-                    'type':      SolDefines.SOL_TYPE_DUST_SNAPSHOT,
-                    'value':     snapshotSummary,
-                }
-
-                # publish sensor object
-                FileThread().publish(sobject)
-                SendThread().publish(sobject)
-
-class PublishThread(threading.Thread):
+class PubThread(DoSomethingPeriodic):
+    """
+    Abstract publish thread.
+    """
     def __init__(self, periodvariable):
-        self.goOn                       = True
         self.solJsonObjectsToPublish    = []
         self.dataLock                   = threading.RLock()
         self.sol                        = Sol.Sol()
-        # start the thread
-        threading.Thread.__init__(self)
-        self.name                       = 'PublishThread'
-        self.daemon                     = True
-        self.periodvariable             = periodvariable*60
-        self.currentDelay               = 0
+        # initialize parent class
+        super(PubThread, self).__init__(periodvariable)
+        self.name                       = 'PubThread'
         self.start()
-    def run(self):
-        try:
-            self.currentDelay = 5
-            while self.goOn:
-                self.currentDelay -= 1
-                if self.currentDelay == 0:
-                    self.publishNow()
-                    self.currentDelay = self.periodvariable
-                time.sleep(1)
-        except Exception as err:
-            logCrash(self.name, err)
     def getBacklogLength(self):
         with self.dataLock:
             return len(self.solJsonObjectsToPublish)
-    def close(self):
-        self.goOn = False
     def publish(self, sol_json):
         with self.dataLock:
             self.solJsonObjectsToPublish += [sol_json]
+    def _doSomething(self):
+        self._publishNow()
 
-class PeriodicSnapshotThread(PublishThread):
-    _instance = None
-    _init     = False
-    def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = super(PeriodicSnapshotThread, cls).__new__(cls, *args, **kwargs)
-        return cls._instance
-    def __init__(self):
-        if self._init:
-            return
-        self._init          = True
-        PublishThread.__init__(self, AppConfig().get("period_snapshot_min"))
-        self.name           = 'PeriodicSnapshotThread'
-    def publishNow(self):
-        SnapshotThread().doSnapshot()
-
-class FileThread(PublishThread):
-
+class PubFileThread(PubThread):
+    """
+    Singleton that writes Sol JSON objects to a file every period_pubfile_min.
+    """
     _instance = None
     _init     = False
 
     # we buffer objects for BUFFER_PERIOD second to ensure they are written to
     # file chronologically
-
     BUFFER_PERIOD = 30
+    
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
-            cls._instance = super(FileThread, cls).__new__(cls, *args, **kwargs)
+            cls._instance = super(PubFileThread, cls).__new__(cls, *args, **kwargs)
         return cls._instance
     def __init__(self):
         if self._init:
             return
         self._init          = True
-        PublishThread.__init__(self, AppConfig().get("period_filethread_min"))
-        self.name           = 'FileThread'
+        PubThread.__init__(self, AppConfig().get("period_pubfile_min"))
+        self.name           = 'PubFileThread'
 
-    def publishNow(self):
+    def _publishNow(self):
         # update stats
-        AppData().incrStats(STAT_PUBFILE_WRITES)
+        AppStats().increment('PUBFILE_WRITES')
 
         with self.dataLock:
             # order solJsonObjectsToPublish chronologically
@@ -683,33 +430,36 @@ class FileThread(PublishThread):
         if solJsonObjectsToWrite:
             self.sol.dumpToFile(
                 solJsonObjectsToWrite,
-                AppConfig().get("backupfile"),
+                BACKUPFILE,
             )
 
-class SendThread(PublishThread):
+class PubServerThread(PubThread):
+    """
+    Singleton that sends Sol JSON objects to the JsonServer every period_pubserver_min.
+    """
     _instance = None
     _init     = False
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
-            cls._instance = super(SendThread, cls).__new__(cls, *args, **kwargs)
+            cls._instance = super(PubServerThread, cls).__new__(cls, *args, **kwargs)
         return cls._instance
     def __init__(self):
         if self._init:
             return
         self._init              = True
-        PublishThread.__init__(self, AppConfig().get("period_sendthread_min"))
-        self.name               = 'SendThread'
-    def publishNow(self):
+        PubThread.__init__(self, AppConfig().get("period_pubserver_min"))
+        self.name               = 'PubServerThread'
+    def _publishNow(self):
         # stop if nothing to publish
         with self.dataLock:
             if not self.solJsonObjectsToPublish:
                 return
-
+        
         # convert objects to publish to binary until HTTP max size is reached
         object_id = 0
         with self.dataLock:
             solBinObjectsToPublish = []
-            for object_id, o in enumerate(self.solJsonObjectsToPublish):
+            for (object_id,o) in enumerate(self.solJsonObjectsToPublish):
                 solBinObjectsToPublish.append(self.sol.json_to_bin(o))
                 if len(solBinObjectsToPublish) > MAX_HTTP_SIZE:
                     break
@@ -720,7 +470,7 @@ class SendThread(PublishThread):
         # send http_payload to server
         try:
             # update stats
-            AppData().incrStats(STAT_PUBSERVER_SENDATTEMPTS)
+            AppStats().increment('PUBSERVER_SENDATTEMPTS')
             requests.packages.urllib3.disable_warnings()
             log.debug("sending objects, size:%dB", len(http_payload))
             r = requests.put(
@@ -731,7 +481,7 @@ class SendThread(PublishThread):
             )
         except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
             # update stats
-            AppData().incrStats(STAT_PUBSERVER_UNREACHABLE)
+            AppStats().increment('PUBSERVER_UNREACHABLE')
             # happens when could not contact server
             log.warning("Error when sending http payload: %s", err)
         else:
@@ -740,95 +490,206 @@ class SendThread(PublishThread):
             # clear objects
             if r.status_code == requests.codes.ok:
                 # update stats
-                AppData().incrStats(STAT_PUBSERVER_SENDOK)
+                AppStats().increment('PUBSERVER_SENDOK')
                 with self.dataLock:
                     self.solJsonObjectsToPublish = self.solJsonObjectsToPublish[object_id:]
             else:
                 # update stats
-                AppData().incrStats(STAT_PUBSERVER_SENDFAIL)
+                AppStats().increment('PUBSERVER_SENDFAIL')
                 print "Error HTTP response status: " + str(r.text)
 
-class PullThread(PublishThread):
-    """
-    This thread periodically asks the server for actions and perform them.
-    This is useful when the solmanager is not reachable by the solserver.
-    """
+#======== periodically do something
 
-    _instance = None
-    _init     = False
-    def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = super(PullThread, cls).__new__(cls, *args, **kwargs)
-        return cls._instance
-    def __init__(self):
-        if self._init:
-            return
-        self._init          = True
-        PublishThread.__init__(self, AppConfig().get("period_pullthread_min"))
-        self.name           = 'PullThread'
-    def publishNow(self):
-        self.pull_server()
-    def pull_server(self):
-        # send http_payload to server
+# publish network snapshot
+
+class SnapshotThread(DoSomethingPeriodic):
+
+    def __init__(self, mgrThread=None):
+        assert mgrThread
+
+        # store params
+        self.mgrThread       = mgrThread
+
+        # initialize parent class
+        super(SnapshotThread, self).__init__(AppConfig().get("period_snapshot_min"))
+        self.name            = 'SnapshotThread'
+        self.start()
+
+    def _doSomething(self):
+        self._doSnapshot()
+
+    def _doSnapshot(self):
         try:
             # update stats
-            AppData().incrStats(STAT_PUBSERVER_PULLATTEMPTS)
-            requests.packages.urllib3.disable_warnings()
-            r = requests.get(
-                'https://{0}/api/v1/getactions/'.format(AppConfig().get("solserver_host")),
-                headers = {'X-REALMS-Token': AppConfig().get("solserver_token")},
-                verify  = AppConfig().get("solserver_cert"),
+            AppStats().increment('SNAPSHOT_NUM_STARTED')
+            AppStats().update(
+                'SNAPSHOT_LASTSTARTED',
+                currentUtcTime(),
             )
-        except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
-            # update stats
-            AppData().incrStats(STAT_PUBSERVER_UNREACHABLE)
-            # happens when could not contact server
-            if type(err) == requests.exceptions.SSLError:
-                traceback.print_exc()
+            
+            '''
+            [
+                {   'macAddress':          [0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08],
+                    'moteId':              0x090a,      # INT16U  H
+                    'isAP':                0x0b,        # BOOL    B
+                    'state':               0x0c,        # INT8U   B
+                    'isRouting':           0x0d,        # BOOL    B
+                    'numNbrs':             0x0e,        # INT8U   B
+                    'numGoodNbrs':         0x0f,        # INT8U   B
+                    'requestedBw':         0x10111213,  # INT32U  I
+                    'totalNeededBw':       0x14151617,  # INT32U  I
+                    'assignedBw':          0x18191a1b,  # INT32U  I
+                    'packetsReceived':     0x1c1d1e1f,  # INT32U  I
+                    'packetsLost':         0x20212223,  # INT32U  I
+                    'avgLatency':          0x24252627,  # INT32U  I
+                    'paths': [
+                        {
+                            'macAddress':   [0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18],
+                            'direction':    0x2c,       # INT8U   B
+                            'numLinks':     0x2d,       # INT8U   B
+                            'quality':      0x2e,       # INT8U   B
+                            'rssiSrcDest':  -1,         # INT8    b
+                            'rssiDestSrc':  -2,         # INT8    b
+                        },
+                        {
+                            'macAddress':   [0x21,0x22,0x23,0x24,0x25,0x26,0x27,0x28],
+                            'direction':    0x2c,       # INT8U  B
+                            'numLinks':     0x2d,       # INT8U  B
+                            'quality':      0x2e,       # INT8U  B
+                            'rssiSrcDest':  -1,         # INT8   b
+                            'rssiDestSrc':  -2,         # INT8   b
+                        },
+                    ],
+                },
+                {
+                    'macAddress':           [0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38],
+                    'moteId':               0x090a,     # INT16U
+                    'isAP':                 0x0b,       # BOOL
+                    'state':                0x0c,       # INT8U
+                    'isRouting':            0x0d,       # BOOL
+                    'numNbrs':              0x0e,       # INT8U
+                    'numGoodNbrs':          0x0f,       # INT8U
+                    'requestedBw':          0x10111213, # INT32U
+                    'totalNeededBw':        0x14151617, # INT32U
+                    'assignedBw':           0x18191a1b, # INT32U
+                    'packetsReceived':      0x1c1d1e1f, # INT32U
+                    'packetsLost':          0x20212223, # INT32U
+                    'avgLatency':           0x24252627, # INT32U
+                    'paths': [
+                        {
+                            'macAddress':   [0x41,0x42,0x43,0x44,0x45,0x46,0x47,0x48],
+                            'direction':    0x2c,       # INT8U
+                            'numLinks':     0x2d,       # INT8U
+                            'quality':      0x2e,       # INT8U
+                            'rssiSrcDest':  -1,         # INT8
+                            'rssiDestSrc':  -2,         # INT8
+                        },
+                    ],
+                },
+            ]
+            '''
+            
+            snapshot = []
+
+            # getMoteConfig() on all motes
+            currentMac = [0]*8
+            while True:
+                resp = self.mgrThread.issueRawApiCommand(
+                    {
+                        "manager": 0,
+                        "command": "getMoteConfig",
+                        "fields": {
+                            "macAddress": currentMac,
+                            "next": True
+                        }
+                    }
+                )
+                if resp['RC']!=0:
+                    break
+                snapshot    += [resp]
+                currentMac   = resp['macAddress']
+            
+            # getMoteInfo() on all motes
+            for mote in snapshot:
+                resp = self.mgrThread.issueRawApiCommand(
+                    {
+                        "manager": 0,
+                        "command": "getMoteInfo",
+                        "fields": {
+                            "macAddress": mote['macAddress'],
+                        }
+                    }
+                )
+                mote.update(resp)
+            
+            # getPathInfo() on all paths on all motes
+            for mote in snapshot:
+                mote['paths'] = []
+                currentPathId  = 0
+                while True:
+                    resp = self.mgrThread.issueRawApiCommand(
+                        {
+                            "manager": 0,
+                            "command": "getNextPathInfo",
+                            "fields": {
+                                "macAddress": mote['macAddress'],
+                                "filter":     0,
+                                "pathId":     currentPathId
+                            }
+                        }
+                    )
+                    if resp["RC"]!=0:
+                        break
+                    mote['paths'] += [
+                        {
+                            'macAddress':    resp["dest"],
+                            'direction':     resp["direction"],
+                            'numLinks':      resp["numLinks"],
+                            'quality':       resp["quality"],
+                            'rssiSrcDest':   resp["rssiSrcDest"],
+                            'rssiDestSrc':   resp["rssiDestSrc"],
+                        }
+                    ]
+                    currentPathId  = resp["pathId"]
+            
+        except Exception as err:
+            AppStats().increment('SNAPSHOT_NUM_FAIL')
+            log.warning("Cannot do Snapshot: %s", err)
+            traceback.print_exc()
         else:
-            # server answered
+            if self.mgrThread.getMacManager() is not None:
+                AppStats().increment('SNAPSHOT_NUM_OK')
 
-            # clear objects
-            if r.status_code == 200:
-                # update stats
-                AppData().incrStats(STAT_PUBSERVER_PULLOK)
-                for action in r.json():
-                    self.run_action(action['action'])
-            else:
-                # update stats
-                AppData().incrStats(STAT_PUBSERVER_PULLFAIL)
-                print "Error HTTP response status: " + str(r.status_code)
+                # create sensor object
+                sobject = {
+                    'mac':       self.mgrThread.getMacManager(),
+                    'timestamp': int(time.time()),
+                    'type':      SolDefines.SOL_TYPE_DUST_SNAPSHOT,
+                    'value':     snapshot,
+                }
 
-    def run_action(self, action):
-        if action == "update":
-            # get last repo version
-            os.system("cd " + here + "/../sol/ && git checkout master && git pull origin master")
-            os.system("cd " + here + " && git checkout master && git pull origin master")
+                # publish sensor object
+                PubFileThread().publish(sobject)
+                PubServerThread().publish(sobject)
 
-            # restart program
-            python = sys.executable
-            os.execl(python, python, * sys.argv)
+# publish app stats
 
-class StatsThread(PublishThread):
+class StatsThread(DoSomethingPeriodic):
     '''
-    This thread periodically publishes the solmanager statistics
+    Publish application statistics every period_stats_min.
     '''
 
-    _instance = None
-    _init     = False
-    def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = super(StatsThread, cls).__new__(cls, *args, **kwargs)
-        return cls._instance
     def __init__(self, mgrThread):
-        if self._init:
-            return
-        self._init          = True
-        PublishThread.__init__(self, AppConfig().get("period_statsthread_min"))
-        self.name           = 'StatsThread'
-        self.mgrThread      = mgrThread
-        self.sol            = Sol.Sol()
-    def publishNow(self):
+        
+        # store params
+        self.mgrThread       = mgrThread
+        
+        # initialize parent class
+        super(StatsThread, self).__init__(AppConfig().get("period_stats_min"))
+        self.name            = 'StatsThread'
+        self.start()
+        
+    def _doSomething(self):
 
         # create sensor object
         sobject = {
@@ -843,29 +704,87 @@ class StatsThread(PublishThread):
         }
 
         # publish
-        FileThread().publish(sobject)
-        SendThread().publish(sobject)
+        PubFileThread().publish(sobject)
+        PubServerThread().publish(sobject)
 
         # update stats
-        AppData().incrStats(STAT_PUBSERVER_STATS)
+        AppStats().increment('PUBSERVER_STATS')
 
-class HTTPSServer(bottle.ServerAdapter):
-    def run(self, handler):
-        from cheroot.wsgi import Server as WSGIServer
-        from cheroot.ssl.pyopenssl import pyOpenSSLAdapter
-        server = WSGIServer((self.host, self.port), handler)
-        server.ssl_adapter = pyOpenSSLAdapter(
-            certificate = AppConfig().get("solmanager_cert"),
-            private_key = AppConfig().get("solmanager_privkey"),
-        )
+# poll for commands from JsonServer
+
+class PollCmdsThread(DoSomethingPeriodic):
+    """
+    Poll server for commands every period_pollcmds_min.
+    
+    This is useful when the solmanager is not reachable by the solserver.
+    """
+    def __init__(self):
+        # initialize parent class
+        super(PollCmdsThread, self).__init__(AppConfig().get("period_pollcmds_min"))
+        self.name                       = 'PollCmdsThread'
+        self.start()
+    def _doSomething(self):
+        self._poll_server()
+    def _poll_server(self):
+        # send http_payload to server
         try:
-            server.start()
-            log.info("Server started")
-        finally:
-            server.stop()
+            # update stats
+            AppStats().increment('PUBSERVER_PULLATTEMPTS')
+            requests.packages.urllib3.disable_warnings()
+            r = requests.get(
+                'https://{0}/api/v1/getactions/'.format(AppConfig().get("solserver_host")),
+                headers = {'X-REALMS-Token': AppConfig().get("solserver_token")},
+                verify  = AppConfig().get("solserver_cert"),
+            )
+        except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
+            # update stats
+            AppStats().increment('PUBSERVER_UNREACHABLE')
+            # happens when could not contact server
+            if type(err) == requests.exceptions.SSLError:
+                traceback.print_exc()
+        else:
+            # server answered
 
-class JsonThread(threading.Thread):
+            # clear objects
+            if r.status_code == 200:
+                # update stats
+                AppStats().increment('PUBSERVER_PULLOK')
+                for action in r.json():
+                    self._handle_command(action['action'])
+            else:
+                # update stats
+                AppStats().increment('PUBSERVER_PULLFAIL')
+                print "Error HTTP response status: " + str(r.status_code)
 
+    def _handle_command(self, action):
+        if action == "update":
+            # get last repo version
+            os.system("cd " + here + "/../sol/ && git checkout master && git pull origin master")
+            os.system("cd " + here + " && git checkout master && git pull origin master")
+
+            # restart program
+            python = sys.executable
+            os.execl(python, python, * sys.argv)
+
+#======== adding a JSON API to trigger actions on the SolManager
+
+class JsonApiThread(threading.Thread):
+    
+    class HTTPSServer(bottle.ServerAdapter):
+        def run(self, handler):
+            from cheroot.wsgi import Server as WSGIServer
+            from cheroot.ssl.pyopenssl import pyOpenSSLAdapter
+            server = WSGIServer((self.host, self.port), handler)
+            server.ssl_adapter = pyOpenSSLAdapter(
+                certificate = AppConfig().get("solmanager_cert"),
+                private_key = AppConfig().get("solmanager_privkey"),
+            )
+            try:
+                server.start()
+                log.info("Server started")
+            finally:
+                server.stop()
+    
     def __init__(self, mgrThread):
 
         # store params
@@ -893,34 +812,9 @@ class JsonThread(threading.Thread):
             callback    = self._webhandler_status_GET,
         )
         self.web.route(
-            path        = '/api/v1/config.json',
-            method      = 'GET',
-            callback    = self._webhandler_config_GET,
-        )
-        self.web.route(
-            path        = '/api/v1/config.json',
-            method      = 'POST',
-            callback    = self._webhandler_config_POST,
-        )
-        self.web.route(
-            path        = '/api/v1/flows.json',
-            method      = 'GET',
-            callback    = self._webhandler_flows_GET,
-        )
-        self.web.route(
-            path        = '/api/v1/flows.json',
-            method      = 'POST',
-            callback    = self._webhandler_flows_POST,
-        )
-        self.web.route(
             path        = '/api/v1/resend.json',
             method      = 'POST',
             callback    = self._webhandler_resend_POST,
-        )
-        self.web.route(
-            path        = '/api/v1/snapshot.json',
-            method      = 'POST',
-            callback    = self._webhandler_snapshot_POST,
         )
         self.web.route(
             path        = '/api/v1/smartmeshipapi.json',
@@ -940,8 +834,8 @@ class JsonThread(threading.Thread):
             time.sleep(0.5)
             self.web.run(
                 host   = AppConfig().get("solmanager_host"),
-                port   = AppConfig().get("solmanager_tcpport"),
-                server = HTTPSServer,
+                port   = AppConfig().get("solmanager_tcpport_solserver"),
+                server = self.HTTPSServer,
                 quiet  = True,
                 debug  = False,
             )
@@ -960,7 +854,7 @@ class JsonThread(threading.Thread):
     def _webhandler_echo_POST(self):
         try:
             # update stats
-            AppData().incrStats(STAT_JSON_NUM_REQ)
+            AppStats().increment('JSON_NUM_REQ')
 
             # authorize the client
             self._authorizeClient()
@@ -976,7 +870,7 @@ class JsonThread(threading.Thread):
     def _webhandler_status_GET(self):
         try:
             # update stats
-            AppData().incrStats(STAT_JSON_NUM_REQ)
+            AppStats().increment('JSON_NUM_REQ')
 
             # authorize the client
             self._authorizeClient()
@@ -989,7 +883,7 @@ class JsonThread(threading.Thread):
                          'utc': int(time.time()),
                          'date': currentUtcTime(),
                          'last reboot': self._exec_cmd('last reboot'),
-                         'stats': AppData().getStats()}
+                         'stats': AppStats().get()}
 
             # send response
             raise bottle.HTTPResponse(
@@ -1004,110 +898,10 @@ class JsonThread(threading.Thread):
             logCrash(self.name, err)
             raise
 
-    def _webhandler_config_GET(self):
-        try:
-            # update stats
-            AppData().incrStats(STAT_JSON_NUM_REQ)
-
-            # authorize the client
-            self._authorizeClient()
-
-            # handle
-            raise NotImplementedError("getAllConfig() is not available anymore")
-
-        except Exception as err:
-            logCrash(self.name, err)
-            raise
-
-    def _webhandler_config_POST(self):
-        try:
-            # update stats
-            AppData().incrStats(STAT_JSON_NUM_REQ)
-
-            # authorize the client
-            self._authorizeClient()
-
-            # abort if malformed JSON body
-            if bottle.request.json is None:
-                raise bottle.HTTPResponse(
-                    status  = 400,
-                    headers = {'Content-Type': 'application/json'},
-                    body    = json.dumps({'error': 'Malformed JSON body'}),
-                )
-
-            # handle
-            raise NotImplementedError("setConfig() is not available anymore")
-
-            # send response
-            raise bottle.HTTPResponse(
-                status  = 200,
-                headers = {'Content-Type': 'application/json'},
-                body    = json.dumps({'status': 'config changed'}),
-            )
-
-        except bottle.HTTPResponse:
-            raise
-        except Exception as err:
-            logCrash(self.name, err)
-            raise
-
-    def _webhandler_flows_GET(self):
-        try:
-            # update stats
-            AppData().incrStats(STAT_JSON_NUM_REQ)
-
-            # authorize the client
-            self._authorizeClient()
-
-            # handle
-            return AppData().getFlows()
-
-        except Exception as err:
-            logCrash(self.name, err)
-            raise
-
-    def _webhandler_flows_POST(self):
-        try:
-            # update stats
-            AppData().incrStats(STAT_JSON_NUM_REQ)
-
-            # authorize the client
-            self._authorizeClient()
-
-            # abort if malformed JSON body
-            if bottle.request.json is None:
-                raise bottle.HTTPResponse(
-                    status  = 400,
-                    headers = {'Content-Type': 'application/json'},
-                    body    = json.dumps({'error': 'Malformed JSON body'}),
-                )
-
-            # handle
-            for (k, v) in bottle.request.json.items():
-                try:
-                    k = int(k)
-                except Exception as err:
-                    log.warning("Error when posting flows: %s", err)
-                assert v in [FLOW_ON, FLOW_OFF]
-                AppData().setFlow(k, v)
-
-            # send response
-            raise bottle.HTTPResponse(
-                status  = 200,
-                headers = {'Content-Type': 'application/json'},
-                body    = json.dumps({'status': 'flows changed'}),
-            )
-
-        except bottle.HTTPResponse:
-            raise
-        except Exception as err:
-            logCrash(self.name, err)
-            raise
-
     def _webhandler_resend_POST(self):
         try:
             # update stats
-            AppData().incrStats(STAT_JSON_NUM_REQ)
+            AppStats().increment('JSON_NUM_REQ')
 
             # authorize the client
             self._authorizeClient()
@@ -1135,7 +929,7 @@ class JsonThread(threading.Thread):
             startTimestamp  = bottle.request.json["startTimestamp"]
             endTimestamp    = bottle.request.json["endTimestamp"]
             if action == "count":
-                sol_jsonl = self.sol.loadFromFile(AppConfig().get("backupfile"), startTimestamp, endTimestamp)
+                sol_jsonl = self.sol.loadFromFile(BACKUPFILE, startTimestamp, endTimestamp)
                 # send response
                 raise bottle.HTTPResponse(
                     status  = 200,
@@ -1143,10 +937,10 @@ class JsonThread(threading.Thread):
                     body    = json.dumps({'numObjects': len(sol_jsonl)}),
                 )
             elif action == "resend":
-                sol_jsonl = self.sol.loadFromFile(AppConfig().get("backupfile"), startTimestamp, endTimestamp)
+                sol_jsonl = self.sol.loadFromFile(BACKUPFILE, startTimestamp, endTimestamp)
                 # publish
                 for sobject in sol_jsonl:
-                    SendThread().publish(sobject)
+                    PubServerThread().publish(sobject)
                 # send response
                 raise bottle.HTTPResponse(
                     status  = 200,
@@ -1166,34 +960,10 @@ class JsonThread(threading.Thread):
             logCrash(self.name, err)
             raise
 
-    def _webhandler_snapshot_POST(self):
-        try:
-            # update stats
-            AppData().incrStats(STAT_JSON_NUM_REQ)
-
-            # authorize the client
-            self._authorizeClient()
-
-            # start the snapshot
-            SnapshotThread().doSnapshot()
-
-            # send response
-            raise bottle.HTTPResponse(
-                status  = 200,
-                headers = {'Content-Type': 'application/json'},
-                body    = json.dumps({'status': 'snapshot requested'}),
-            )
-
-        except bottle.HTTPResponse:
-            raise
-        except Exception as err:
-            logCrash(self.name, err)
-            raise
-
     def _webhandler_smartmeshipapi_POST(self):
         try:
             # update stats
-            AppData().incrStats(STAT_JSON_NUM_REQ)
+            AppStats().increment('JSON_NUM_REQ')
 
             # authorize the client
             self._authorizeClient()
@@ -1217,7 +987,7 @@ class JsonThread(threading.Thread):
 
     def _authorizeClient(self):
         if bottle.request.headers.get('X-REALMS-Token') != AppConfig().get("solmanager_token"):
-            AppData().incrStats(STAT_JSON_NUM_UNAUTHORIZED)
+            AppStats().increment('JSON_NUM_UNAUTHORIZED')
             raise bottle.HTTPResponse(
                 status  = 401,
                 headers = {'Content-Type': 'application/json'},
@@ -1232,19 +1002,21 @@ class JsonThread(threading.Thread):
             returnVal = "ERROR"
         return returnVal
 
+#======== main application thread
+
 class SolManager(threading.Thread):
 
     def __init__(self):
         self.goOn           = True
         self.threads        = {
-            "mgrThread"           : None,
-            "snapshotThread"      : None,
-            "periodicSnapThread"  : None,
-            "fileThread"          : None,
-            "sendThread"          : None,
-            "jsonThread"          : None,
+            "mgrThread"                : None,
+            "pubFileThread"            : None,
+            "pubServerThread"          : None,
+            "snapshotThread"           : None,
+            "statsThread"              : None,
+            "pollForCommandsThread"    : None,
+            "jsonApiThread"            : None,
         }
-        AppData(AppConfig().get("statsfile"))
 
         # start myself
         threading.Thread.__init__(self)
@@ -1256,24 +1028,23 @@ class SolManager(threading.Thread):
             # start threads
             log.debug("Starting threads")
             if AppConfig().get('managerconnectionmode')=='serial':
-                self.threads["mgrThread"]            = MgrSerialThread()       # connect through serial port
+                self.threads["mgrThread"]            = MgrThreadSerial()
             else:
-                self.threads["mgrThread"]            = MgrJsonServerThread()   # connect through JsonServer
+                self.threads["mgrThread"]            = MgrThreadJsonServer()
+            self.threads["pubFileThread"]            = PubFileThread()
+            self.threads["pubServerThread"]          = PubServerThread()
             self.threads["snapshotThread"]           = SnapshotThread(
                 mgrThread              = self.threads["mgrThread"],
             )
-            self.threads["periodicSnapThread"]       = PeriodicSnapshotThread()
-            self.threads["fileThread"]               = FileThread()
-            self.threads["sendThread"]               = SendThread()
-            self.threads["pullThread"]               = PullThread()
             self.threads["statsThread"]              = StatsThread(
                 mgrThread              = self.threads["mgrThread"],
             )
-            self.threads["jsonThread"]               = JsonThread(
+            self.threads["pollForCommandsThread"]    = PollCmdsThread()
+            self.threads["jsonApiThread"]            = JsonApiThread(
                 mgrThread              = self.threads["mgrThread"],
             )
 
-            # wait for all threads to have start
+            # wait for all threads to have started
             all_started = False
             while not all_started and self.goOn:
                 all_started = True
@@ -1291,10 +1062,10 @@ class SolManager(threading.Thread):
                 for t in self.threads.itervalues():
                     if not t.isAlive():
                         all_running = False
-                        log.debug("Thread %s is not running. Quiting.", t.name)
+                        log.debug("Thread {0} is not running. Quitting.".format(t.name))
                 if not all_running:
                     self.goOn = False
-                time.sleep(5)
+                time.sleep(60)
         except Exception as err:
             logCrash(self.name, err)
         self.close()
@@ -1302,7 +1073,7 @@ class SolManager(threading.Thread):
     def close(self):
         for t in self.threads.itervalues():
             t.close()
-        os._exit(0)  # bypass Cli thread
+        os._exit(0)  # bypass CLI thread
 
 #============================ main ============================================
 
@@ -1324,7 +1095,7 @@ def returnStatsGroup(stats, prefix):
     return returnVal
 
 def cli_cb_stats(params):
-    stats = AppData().getStats()
+    stats = AppStats().get()
     output  = []
     output += ['#== admin']
     output += returnStatsGroup(stats, 'ADM_')

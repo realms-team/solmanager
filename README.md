@@ -19,7 +19,13 @@ This repo contains the software to run on the manager. It:
 * copy `solmanager.cert` in the `solserver/` directory as well
 * double-click/run on `solmanager.py` to start the manager
 
+```
+                                   8080      1882    8081      8082
+SmartMesh IP Manager ------ JsonServer ------ SolManager ------ SolServer
+```
+
 ## Configuration
+
 * Create a copy of `solmanager.config.sample`, name it `solmanager.config`
 * Modify the configuration fields as you see fit for your deployment
 
