@@ -26,6 +26,7 @@ import bottle
 
 import solmanager_version
 from   SmartMeshSDK       import sdk_version
+from   SmartMeshSDK.utils import JsonManager
 from   dustCli            import DustCli
 from   solobjectlib       import Sol, \
                                  SolVersion, \
@@ -247,7 +248,7 @@ class DoSomethingPeriodic(threading.Thread):
     def close(self):
         self.goOn = False
     def _doSomething(self):
-        raise NotImplementedError()
+        raise SystemError() # abstract method
 
 #======== connecting to the SmartMesh IP manager
 
@@ -261,7 +262,7 @@ class MgrThread(object):
         # local variables
         self.sol = Sol.Sol()
         self.macManager = None
-
+    
     def getMacManager(self):
         if self.macManager==None:
             resp = self.issueRawApiCommand(
@@ -305,10 +306,31 @@ class MgrThread(object):
     def close(self):
         pass
 
-class MgrThreadSerial(MgrThread, threading.Thread):
+class MgrThreadSerial(MgrThread):
 
     def __init__(self):
-        raise NotImplementedError()
+        
+        # initialize the parent class
+        super(MgrThreadSerial, self).__init__()
+        
+        # initialize JsonManager
+        self.jsonManager          = JsonManager.JsonManager(
+            serialport            = AppConfig().get("serialport"),
+            configfilename        = 'JsonManager.config',
+            notifCb               = self._notif_cb,
+        )
+    
+    def issueRawApiCommand(self,json_payload):
+        return self.jsonManager.raw_POST(
+            manager          = json_payload['manager'],
+            commandArray     = [json_payload['command']],
+            fields           = json_payload['fields'],
+        )
+    
+    def _notif_cb(self,notifname,jsonToSend):
+        super(MgrThreadSerial, self)._handler_dust_notifs(
+            jsonToSend,
+        )
 
 class MgrThreadJsonServer(MgrThread, threading.Thread):
 
@@ -1068,9 +1090,12 @@ class SolManager(threading.Thread):
             while not all_started and self.goOn:
                 all_started = True
                 for t in self.threads.itervalues():
-                    if not t.isAlive():
-                        all_started = False
-                        log.debug("Waiting for %s to start", t.name)
+                    try:
+                        if not t.isAlive():
+                            all_started = False
+                            log.debug("Waiting for %s to start", t.name)
+                    except AttributeError:
+                        pass # happens when not a real thread
                 time.sleep(5)
             log.debug("All threads started")
 
@@ -1079,9 +1104,12 @@ class SolManager(threading.Thread):
                 # verify that all threads are running
                 all_running = True
                 for t in self.threads.itervalues():
-                    if not t.isAlive():
-                        all_running = False
-                        log.debug("Thread {0} is not running. Quitting.".format(t.name))
+                    try:
+                        if not t.isAlive():
+                            all_running = False
+                            log.debug("Thread {0} is not running. Quitting.".format(t.name))
+                    except AttributeError:
+                        pass # happens when not a real thread
                 if not all_running:
                     self.goOn = False
                 time.sleep(5)
