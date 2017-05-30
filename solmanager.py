@@ -24,9 +24,9 @@ import requests
 import OpenSSL
 import bottle
 
-import OpenCli
 import solmanager_version
 from   SmartMeshSDK       import sdk_version
+from   dustCli            import DustCli
 from   solobjectlib       import Sol, \
                                  SolVersion, \
                                  SolDefines
@@ -1017,10 +1017,29 @@ class SolManager(threading.Thread):
             "pollForCommandsThread"    : None,
             "jsonApiThread"            : None,
         }
-
+        
+        # CLI interface
+        self.cli                       = DustCli.DustCli("SolManager",self._clihandle_quit)
+        self.cli.registerCommand(
+            name                       = 'stats',
+            alias                      = 's',
+            description                = 'print the stats',
+            params                     = [],
+            callback                   = self._clihandle_stats,
+        )
+        self.cli.registerCommand(
+            name                       = 'versions',
+            alias                      = 'v',
+            description                = 'print the versions of the different components',
+            params                     = [],
+            callback                   = self._clihandle_versions,
+        )
+        self.cli.start()
+        
         # start myself
         threading.Thread.__init__(self)
         self.name                      = 'SolManager'
+        self.daemon                    = True
         self.start()
 
     def run(self):
@@ -1065,80 +1084,70 @@ class SolManager(threading.Thread):
                         log.debug("Thread {0} is not running. Quitting.".format(t.name))
                 if not all_running:
                     self.goOn = False
-                time.sleep(60)
+                time.sleep(5)
         except Exception as err:
             logCrash(self.name, err)
         self.close()
-
+    
     def close(self):
-        for t in self.threads.itervalues():
-            t.close()
-        os._exit(0)  # bypass CLI thread
-
+        os._exit(0) # bypass CLI thread
+    
+    def _clihandle_quit(self):
+        time.sleep(.3)
+        print "bye bye."
+        # all threads as daemonic, will close automatically
+    
+    def _clihandle_stats(self,params):
+        stats = AppStats().get()
+        output  = []
+        output += ['#== admin']
+        output += self._returnStatsGroup(stats, 'ADM_')
+        output += ['#== connection to manager']
+        output += self._returnStatsGroup(stats, 'MGR_')
+        output += ['#== notifications from manager']
+        output += self._returnStatsGroup(stats, 'NUMRX_')
+        output += ['#== publication']
+        output += self._returnStatsGroup(stats, 'PUB_')
+        output += ['# to file']
+        output += self._returnStatsGroup(stats, 'PUBFILE_')
+        output += ['# to server']
+        output += self._returnStatsGroup(stats, 'PUBSERVER_')
+        output += ['#== snapshot']
+        output += self._returnStatsGroup(stats, 'SNAPSHOT_')
+        output += ['#== JSON interface']
+        output += self._returnStatsGroup(stats, 'JSON_')
+        output = '\n'.join(output)
+        print output
+    
+    def _clihandle_versions(self,params):
+        output  = []
+        for (k,v) in [
+                ('SolManager',    solmanager_version.VERSION),
+                ('Sol',           SolVersion.VERSION),
+                ('SmartMesh SDK', sdk_version.VERSION),
+            ]:
+            output += ["{0:>15} {1}".format(k, '.'.join([str(b) for b in v]))]
+        output = '\n'.join(output)
+        print output
+    
+    def _returnStatsGroup(self, stats, prefix):
+        keys = []
+        for (k, v) in stats.items():
+            if k.startswith(prefix):
+                keys += [k]
+        returnVal = []
+        for k in sorted(keys):
+            returnVal += ['   {0:<30}: {1}'.format(k, stats[k])]
+        return returnVal
+    
 #============================ main ============================================
-
-solmanager  = None
-cli         = None
 
 def quitCallback():
     log.info("Quitting.")
     solmanager.goOn = False
 
-def returnStatsGroup(stats, prefix):
-    keys = []
-    for (k, v) in stats.items():
-        if k.startswith(prefix):
-            keys += [k]
-    returnVal = []
-    for k in sorted(keys):
-        returnVal += ['   {0:<30}: {1}'.format(k, stats[k])]
-    return returnVal
-
-def cli_cb_stats(params):
-    stats = AppStats().get()
-    output  = []
-    output += ['#== admin']
-    output += returnStatsGroup(stats, 'ADM_')
-    output += ['#== connection to manager']
-    output += returnStatsGroup(stats, 'MGR_')
-    output += ['#== notifications from manager']
-    output += returnStatsGroup(stats, 'NUMRX_')
-    output += ['#== publication']
-    output += returnStatsGroup(stats, 'PUB_')
-    output += ['# to file']
-    output += returnStatsGroup(stats, 'PUBFILE_')
-    output += ['# to server']
-    output += returnStatsGroup(stats, 'PUBSERVER_')
-    output += ['#== snapshot']
-    output += returnStatsGroup(stats, 'SNAPSHOT_')
-    output += ['#== JSON interface']
-    output += returnStatsGroup(stats, 'JSON_')
-    output = '\n'.join(output)
-    print output
-
 def main():
-    global solmanager
-
-    # create the solmanager instance
     solmanager = SolManager()
-
-    # start the CLI interface
-    cli = OpenCli.OpenCli(
-        "SolManager",
-        solmanager_version.VERSION,
-        quitCallback,
-        [
-            ("SmartMesh SDK", sdk_version.VERSION),
-            ("Sol", SolVersion.VERSION),
-        ],
-    )
-    cli.registerCommand(
-        'stats',
-        's',
-        'print the stats',
-        [],
-        cli_cb_stats
-    )
 
 if __name__ == '__main__':
     main()
