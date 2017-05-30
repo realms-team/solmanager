@@ -353,7 +353,7 @@ class MgrThreadJsonServer(MgrThread, threading.Thread):
     
     def issueRawApiCommand(self,json_payload):
         r = requests.post(
-            'http://{0}/api/v1/raw'.format(AppConfig().get("jsonserverhost")),
+            'http://{0}/api/v1/raw'.format(AppConfig().get("jsonserver_host")),
             json    = json_payload,
         )
         return json.loads(r.text)
@@ -833,7 +833,7 @@ class JsonApiThread(threading.Thread):
             # wait for banner
             time.sleep(0.5)
             self.web.run(
-                host   = AppConfig().get("solmanager_host"),
+                host   = '0.0.0.0',
                 port   = AppConfig().get("solmanager_tcpport_solserver"),
                 server = self.HTTPSServer,
                 quiet  = True,
@@ -1141,10 +1141,6 @@ class SolManager(threading.Thread):
         return returnVal
     
 #============================ main ============================================
-
-def quitCallback():
-    log.info("Quitting.")
-    solmanager.goOn = False
 
 def main():
     solmanager = SolManager()
