@@ -326,9 +326,9 @@ class MgrThreadSerial(MgrThread):
             fields           = json_payload['fields'],
         )
     
-    def _notif_cb(self,notifname,jsonToSend):
+    def _notif_cb(self,notifName,notifJson):
         super(MgrThreadSerial, self)._handler_dust_notifs(
-            jsonToSend,
+            notifJson,
         )
 
 class MgrThreadJsonServer(MgrThread, threading.Thread):
