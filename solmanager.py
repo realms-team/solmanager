@@ -316,7 +316,6 @@ class MgrThreadSerial(MgrThread):
         # initialize JsonManager
         self.jsonManager          = JsonManager.JsonManager(
             serialport            = AppConfig().get("serialport"),
-            configfilename        = 'JsonManager.config',
             notifCb               = self._notif_cb,
         )
     
