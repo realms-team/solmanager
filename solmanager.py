@@ -100,7 +100,7 @@ class AppConfig(object):
         config.read(CONFIGFILE)
 
         with self.dataLock:
-            for (k,v) in config.items('config'):
+            for (k,v) in config.items('solmanager'):
                 try:
                     self.config[k] = float(v)
                 except ValueError:
