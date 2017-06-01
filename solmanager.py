@@ -12,25 +12,27 @@ if __name__ == "__main__":
 
 #============================ imports =========================================
 
+# from default Python
 import time
-import threading
 import json
 import subprocess
+import threading
 import traceback
 import ConfigParser
 import logging.config
 
-import requests
+# third-party packages
 import OpenSSL
 import bottle
+import requests
 
 import solmanager_version
-from   SmartMeshSDK       import sdk_version
-from   SmartMeshSDK.utils import JsonManager
-from   dustCli            import DustCli
-from   solobjectlib       import Sol, \
-                                 SolVersion, \
-                                 SolDefines
+from   SmartMeshSDK          import sdk_version
+from   SmartMeshSDK.utils    import JsonManager
+from   dustCli               import DustCli
+from   solobjectlib          import Sol, \
+                                    SolVersion, \
+                                    SolDefines
 
 #============================ logging =========================================
 
