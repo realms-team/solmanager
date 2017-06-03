@@ -26,6 +26,7 @@ import OpenSSL
 import bottle
 import requests
 
+# project-specific
 import solmanager_version
 from   SmartMeshSDK          import sdk_version
 from   SmartMeshSDK.utils    import JsonManager
