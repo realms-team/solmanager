@@ -79,7 +79,7 @@ def logCrash(threadName, err):
 class AppConfig(object):
     """
     Singleton which contains the configuration of the application.
-    
+
     Configuration is read once from file CONFIGFILE
     """
     _instance = None
@@ -119,7 +119,7 @@ class AppConfig(object):
 class AppStats(object):
     """
     Singleton which contains the stats of the application.
-    
+
     Stats are read once from file STATSFILE.
     """
     _instance = None
@@ -169,7 +169,7 @@ class AppStats(object):
         if self._init:
             return
         self._init      = True
-        
+
         self.dataLock   = threading.RLock()
         self.stats      = {}
         try:
@@ -186,9 +186,9 @@ class AppStats(object):
         except (EnvironmentError, EOFError) as e:
             log.info("Could not read stats file: %s", e)
             self._backup()
-    
+
     # ======================= public ==========================================
-    
+
     def increment(self, statName):
         self._validateStatName(statName)
         with self.dataLock:
@@ -265,7 +265,8 @@ class MgrThread(object):
         # local variables
         self.sol = Sol.Sol()
         self.macManager = None
-    
+        self.name = 'MgrThread'
+
     def getMacManager(self):
         if self.macManager==None:
             resp = self.issueRawApiCommand(
@@ -305,30 +306,30 @@ class MgrThread(object):
 
         except Exception as err:
             logCrash(self.name, err)
-    
+
     def close(self):
         pass
 
 class MgrThreadSerial(MgrThread):
 
     def __init__(self):
-        
+
         # initialize the parent class
         super(MgrThreadSerial, self).__init__()
-        
+
         # initialize JsonManager
         self.jsonManager          = JsonManager.JsonManager(
             serialport            = AppConfig().get("serialport"),
             notifCb               = self._notif_cb,
         )
-    
+
     def issueRawApiCommand(self,json_payload):
         return self.jsonManager.raw_POST(
             manager          = json_payload['manager'],
             commandArray     = [json_payload['command']],
             fields           = json_payload['fields'],
         )
-    
+
     def _notif_cb(self,notifName,notifJson):
         super(MgrThreadSerial, self)._handler_dust_notifs(
             notifJson,
@@ -374,14 +375,14 @@ class MgrThreadJsonServer(MgrThread, threading.Thread):
             )
         except Exception as err:
             logCrash(self.name, err)
-    
+
     def issueRawApiCommand(self,json_payload):
         r = requests.post(
             'http://{0}/api/v1/raw'.format(AppConfig().get("jsonserver_host")),
             json    = json_payload,
         )
         return json.loads(r.text)
-    
+
     def _webhandler_all_POST(self):
         super(MgrThreadJsonServer, self)._handler_dust_notifs(
             json.loads(bottle.request.body.read()),
@@ -420,7 +421,7 @@ class PubFileThread(PubThread):
     # we buffer objects for BUFFER_PERIOD second to ensure they are written to
     # file chronologically
     BUFFER_PERIOD = 30
-    
+
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(PubFileThread, cls).__new__(cls, *args, **kwargs)
@@ -478,7 +479,7 @@ class PubServerThread(PubThread):
         with self.dataLock:
             if not self.solJsonObjectsToPublish:
                 return
-        
+
         # convert objects to publish to binary until HTTP max size is reached
         object_id = 0
         with self.dataLock:
@@ -550,7 +551,7 @@ class SnapshotThread(DoSomethingPeriodic):
                 'SNAPSHOT_LASTSTARTED',
                 currentUtcTime(),
             )
-            
+
             '''
             [
                 {   'macAddress':          [0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08],
@@ -612,7 +613,7 @@ class SnapshotThread(DoSomethingPeriodic):
                 },
             ]
             '''
-            
+
             snapshot = []
 
             # getMoteConfig() on all motes
@@ -632,7 +633,7 @@ class SnapshotThread(DoSomethingPeriodic):
                     break
                 snapshot    += [resp]
                 currentMac   = resp['macAddress']
-            
+
             # getMoteInfo() on all motes
             for mote in snapshot:
                 resp = self.mgrThread.issueRawApiCommand(
@@ -645,7 +646,7 @@ class SnapshotThread(DoSomethingPeriodic):
                     }
                 )
                 mote.update(resp)
-            
+
             # getPathInfo() on all paths on all motes
             for mote in snapshot:
                 mote['paths'] = []
@@ -675,7 +676,7 @@ class SnapshotThread(DoSomethingPeriodic):
                         }
                     ]
                     currentPathId  = resp["pathId"]
-            
+
         except Exception as err:
             AppStats().increment('SNAPSHOT_NUM_FAIL')
             log.warning("Cannot do Snapshot: %s", err)
@@ -704,15 +705,15 @@ class StatsThread(DoSomethingPeriodic):
     '''
 
     def __init__(self, mgrThread):
-        
+
         # store params
         self.mgrThread       = mgrThread
-        
+
         # initialize parent class
         super(StatsThread, self).__init__(AppConfig().get("period_stats_min"))
         self.name            = 'StatsThread'
         self.start()
-        
+
     def _doSomething(self):
 
         # create sensor object
@@ -739,7 +740,7 @@ class StatsThread(DoSomethingPeriodic):
 class PollCmdsThread(DoSomethingPeriodic):
     """
     Poll server for commands every period_pollcmds_min.
-    
+
     This is useful when the solmanager is not reachable by the solserver.
     """
     def __init__(self):
@@ -793,7 +794,7 @@ class PollCmdsThread(DoSomethingPeriodic):
 #======== adding a JSON API to trigger actions on the SolManager
 
 class JsonApiThread(threading.Thread):
-    
+
     class HTTPSServer(bottle.ServerAdapter):
         def run(self, handler):
             from cheroot.wsgi import Server as WSGIServer
@@ -808,7 +809,7 @@ class JsonApiThread(threading.Thread):
                 log.info("Server started")
             finally:
                 server.stop()
-    
+
     def __init__(self, mgrThread):
 
         # store params
@@ -1041,7 +1042,7 @@ class SolManager(threading.Thread):
             "pollForCommandsThread"    : None,
             "jsonApiThread"            : None,
         }
-        
+
         # CLI interface
         self.cli                       = DustCli.DustCli("SolManager",self._clihandle_quit)
         self.cli.registerCommand(
@@ -1059,7 +1060,7 @@ class SolManager(threading.Thread):
             callback                   = self._clihandle_versions,
         )
         self.cli.start()
-        
+
         # start myself
         threading.Thread.__init__(self)
         self.name                      = 'SolManager'
@@ -1118,15 +1119,15 @@ class SolManager(threading.Thread):
         except Exception as err:
             logCrash(self.name, err)
         self.close()
-    
+
     def close(self):
         os._exit(0) # bypass CLI thread
-    
+
     def _clihandle_quit(self):
         time.sleep(.3)
         print "bye bye."
         # all threads as daemonic, will close automatically
-    
+
     def _clihandle_stats(self,params):
         stats = AppStats().get()
         output  = []
@@ -1148,7 +1149,7 @@ class SolManager(threading.Thread):
         output += self._returnStatsGroup(stats, 'JSON_')
         output = '\n'.join(output)
         print output
-    
+
     def _clihandle_versions(self,params):
         output  = []
         for (k,v) in [
@@ -1159,7 +1160,7 @@ class SolManager(threading.Thread):
             output += ["{0:>15} {1}".format(k, '.'.join([str(b) for b in v]))]
         output = '\n'.join(output)
         print output
-    
+
     def _returnStatsGroup(self, stats, prefix):
         keys = []
         for (k, v) in stats.items():
@@ -1169,7 +1170,7 @@ class SolManager(threading.Thread):
         for k in sorted(keys):
             returnVal += ['   {0:<30}: {1}'.format(k, stats[k])]
         return returnVal
-    
+
 #============================ main ============================================
 
 def main():
