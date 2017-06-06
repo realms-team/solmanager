@@ -17,11 +17,11 @@ jsonserver_host              = 127.0.0.1:8080    ; only used when managerconnect
 ; local (SolManager) web servers
 solmanager_tcpport_jsonserver= 1882              ; TCP port to receive notifications from JsonServer
 solmanager_token             = SOLMANAGER_TOKEN  ; token for an external process to authenticate to SolManager
-solmanager_cert              = solmanager.cert   ; certificate of the SolManager
-solmanager_privkey           = solmanager.ppk    ; private key of the SolManager
+solmanager_certificate       = solmanager.cert   ; certificate of the SolManager
+solmanager_private_key       = solmanager.ppk    ; private key of the SolManager
 solmanager_tcpport_solserver = 8081              ; TCP port to receive commands from SolServer
 
 ; remote (SolServer) web server
 solserver_host               = 127.0.0.1:8082    ; address of the SolServer
 solserver_token              = SOLSERVER_TOKEN   ; token to authenticate to SolServer
-solserver_cert               = solserver.cert    ; certificate of the SolServer
+solserver_certificate        = solserver.cert    ; certificate of the SolServer
