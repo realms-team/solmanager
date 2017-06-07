@@ -87,8 +87,10 @@ MAX_HTTP_SIZE      = 1000 # send batches of 1kB (~30kB after ) FIXME: after what
 
 #============================ helpers =========================================
 
+
 def currentUtcTime():
     return time.strftime("%a, %d %b %Y %H:%M:%S UTC", time.gmtime())
+
 
 def logCrash(err, threadName=None):
     output         = []
@@ -115,6 +117,7 @@ def logCrash(err, threadName=None):
 #============================ classes =========================================
 
 #======== singletons
+
 
 class AppConfig(object):
     """
@@ -143,7 +146,7 @@ class AppConfig(object):
         config.read(CONFIGFILE)
 
         with self.dataLock:
-            for (k,v) in config.items('solmanager'):
+            for (k, v) in config.items('solmanager'):
                 try:
                     self.config[k] = float(v)
                 except ValueError:
@@ -152,9 +155,10 @@ class AppConfig(object):
                     except ValueError:
                         self.config[k] = v
 
-    def get(self,name):
+    def get(self, name):
         with self.dataLock:
             return self.config[name]
+
 
 class AppStats(object):
     """
@@ -218,17 +222,18 @@ class AppStats(object):
     # ======================= private =========================================
 
     def _validateStatName(self, statName):
-        if statName.startswith("NUMRX_")==False:
+        if not statName.startswith("NUMRX_"):
             assert statName in ALLSTATS
 
     def _backup(self):
         with self.dataLock:
-            output = ['{0} = {1}'.format(k,v) for (k,v) in self.stats.items()]
+            output = ['{0} = {1}'.format(k, v) for (k, v) in self.stats.items()]
             output = '\n'.join(output)
             with open(STATSFILE, 'w') as f:
                 f.write(output)
 
 #======== generic abstract classes
+
 
 class DoSomethingPeriodic(threading.Thread):
     """
@@ -242,6 +247,7 @@ class DoSomethingPeriodic(threading.Thread):
         self.daemon                     = True
         self.periodvariable             = periodvariable*60
         self.currentDelay               = 0
+
     def run(self):
         try:
             self.currentDelay = 5
@@ -253,12 +259,15 @@ class DoSomethingPeriodic(threading.Thread):
                 time.sleep(1)
         except Exception as err:
             logCrash(err, threadName=self.name)
+
     def close(self):
         self.goOn = False
+
     def _doSomething(self):
-        raise SystemError() # abstract method
+        raise SystemError()  # abstract method
 
 #======== connecting to the SmartMesh IP manager
+
 
 class MgrThread(object):
     """
@@ -272,18 +281,18 @@ class MgrThread(object):
         self.macManager = None
 
     def getMacManager(self):
-        if self.macManager==None:
+        if self.macManager is None:
             resp = self.issueRawApiCommand(
                 {
                     "manager": 0,
                     "command": "getMoteConfig",
                     "fields": {
-                        "macAddress": [0,0,0,0,0,0,0,0],
+                        "macAddress": [0, 0, 0, 0, 0, 0, 0, 0],
                         "next": True
                     }
                 }
             )
-            assert resp['isAP']==True
+            assert resp['isAP'] is True
             self.macManager = resp['macAddress']
         return self.macManager
 
@@ -300,7 +309,7 @@ class MgrThread(object):
             sol_jsonl = self.sol.dust_to_json(
                 dust_notif  = dust_notif,
                 mac_manager = self.getMacManager(),
-                timestamp   = int(time.time()), # TODO get timestamp of when data was created
+                timestamp   = int(time.time()),  # TODO get timestamp of when data was created
             )
 
             for sol_json in sol_jsonl:
@@ -308,8 +317,8 @@ class MgrThread(object):
                 AppStats().increment('PUB_TOTAL_SENTTOPUBLISH')
 
                 # publish
-                PubFileThread().publish(sol_json) # to the backup file
-                PubServerThread().publish(sol_json) # to the solserver over the Internet
+                PubFileThread().publish(sol_json)  # to the backup file
+                PubServerThread().publish(sol_json)  # to the solserver over the Internet
 
         except Exception as err:
             logCrash(err)
@@ -330,17 +339,18 @@ class MgrThreadSerial(MgrThread):
             notifCb               = self._notif_cb,
         )
 
-    def issueRawApiCommand(self,json_payload):
+    def issueRawApiCommand(self, json_payload):
         return self.jsonManager.raw_POST(
             manager          = json_payload['manager'],
             commandArray     = [json_payload['command']],
             fields           = json_payload['fields'],
         )
 
-    def _notif_cb(self,notifName,notifJson):
+    def _notif_cb(self, notifName, notifJson):
         super(MgrThreadSerial, self)._handler_dust_notifs(
             notifJson,
         )
+
 
 class MgrThreadJsonServer(MgrThread, threading.Thread):
 
@@ -383,7 +393,7 @@ class MgrThreadJsonServer(MgrThread, threading.Thread):
         except Exception as err:
             logCrash(err, threadName=self.name)
 
-    def issueRawApiCommand(self,json_payload):
+    def issueRawApiCommand(self, json_payload):
         r = requests.post(
             'http://{0}/api/v1/raw'.format(AppConfig().get("jsonserver_host")),
             json    = json_payload,
@@ -397,6 +407,7 @@ class MgrThreadJsonServer(MgrThread, threading.Thread):
 
 #======== publishers
 
+
 class PubThread(DoSomethingPeriodic):
     """
     Abstract publish thread.
@@ -409,14 +420,18 @@ class PubThread(DoSomethingPeriodic):
         super(PubThread, self).__init__(periodvariable)
         self.name                       = 'PubThread'
         self.start()
+
     def getBacklogLength(self):
         with self.dataLock:
             return len(self.solJsonObjectsToPublish)
+
     def publish(self, sol_json):
         with self.dataLock:
             self.solJsonObjectsToPublish += [sol_json]
+
     def _doSomething(self):
         self._publishNow()
+
 
 class PubFileThread(PubThread):
     """
@@ -433,6 +448,7 @@ class PubFileThread(PubThread):
         if not cls._instance:
             cls._instance = super(PubFileThread, cls).__new__(cls, *args, **kwargs)
         return cls._instance
+
     def __init__(self):
         if self._init:
             return
@@ -465,22 +481,26 @@ class PubFileThread(PubThread):
                 BACKUPFILE,
             )
 
+
 class PubServerThread(PubThread):
     """
     Singleton that sends Sol JSON objects to the JsonServer every period_pubserver_min.
     """
     _instance = None
     _init     = False
+
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
             cls._instance = super(PubServerThread, cls).__new__(cls, *args, **kwargs)
         return cls._instance
+
     def __init__(self):
         if self._init:
             return
         self._init              = True
         PubThread.__init__(self, AppConfig().get("period_pubserver_min"))
         self.name               = 'PubServerThread'
+
     def _publishNow(self):
         # stop if nothing to publish
         with self.dataLock:
@@ -491,7 +511,7 @@ class PubServerThread(PubThread):
         object_id = 0
         with self.dataLock:
             solBinObjectsToPublish = []
-            for (object_id,o) in enumerate(self.solJsonObjectsToPublish):
+            for (object_id, o) in enumerate(self.solJsonObjectsToPublish):
                 solBinObjectsToPublish.append(self.sol.json_to_bin(o))
                 if len(solBinObjectsToPublish) > MAX_HTTP_SIZE:
                     break
@@ -534,6 +554,7 @@ class PubServerThread(PubThread):
 #======== periodically do something
 
 # publish network snapshot
+
 
 class SnapshotThread(DoSomethingPeriodic):
 
@@ -637,7 +658,7 @@ class SnapshotThread(DoSomethingPeriodic):
                         }
                     }
                 )
-                if resp['RC']!=0:
+                if resp['RC'] != 0:
                     break
                 snapshot    += [resp]
                 currentMac   = resp['macAddress']
@@ -671,7 +692,7 @@ class SnapshotThread(DoSomethingPeriodic):
                             }
                         }
                     )
-                    if resp["RC"]!=0:
+                    if resp["RC"] != 0:
                         break
                     mote['paths'] += [
                         {
@@ -707,10 +728,11 @@ class SnapshotThread(DoSomethingPeriodic):
 
 # publish app stats
 
+
 class StatsThread(DoSomethingPeriodic):
-    '''
+    """
     Publish application statistics every period_stats_min.
-    '''
+    """
 
     def __init__(self, mgrThread):
 
@@ -745,6 +767,7 @@ class StatsThread(DoSomethingPeriodic):
 
 # poll for commands from JsonServer
 
+
 class PollCmdsThread(DoSomethingPeriodic):
     """
     Poll server for commands every period_pollcmds_min.
@@ -756,8 +779,10 @@ class PollCmdsThread(DoSomethingPeriodic):
         super(PollCmdsThread, self).__init__(AppConfig().get("period_pollcmds_min"))
         self.name                       = 'PollCmdsThread'
         self.start()
+
     def _doSomething(self):
         self._poll_server()
+
     def _poll_server(self):
         # send http_payload to server
         try:
@@ -801,6 +826,7 @@ class PollCmdsThread(DoSomethingPeriodic):
             os.execl(python, python, * sys.argv)
 
 #======== adding a JSON API to trigger actions on the SolManager
+
 
 class JsonApiThread(threading.Thread):
 
@@ -920,8 +946,6 @@ class JsonApiThread(threading.Thread):
                     headers = {'Content-Type': 'application/json'},
                     body    = json.dumps(crashMsg),
                 )
-
-                raise
         return hidden_decorator
 
     @_authorized_webhandler
@@ -1043,6 +1067,7 @@ class JsonApiThread(threading.Thread):
 
 #======== main application thread
 
+
 class SolManager(threading.Thread):
 
     def __init__(self):
@@ -1058,7 +1083,7 @@ class SolManager(threading.Thread):
         }
 
         # CLI interface
-        self.cli                       = DustCli.DustCli("SolManager",self._clihandle_quit)
+        self.cli                       = DustCli.DustCli("SolManager", self._clihandle_quit)
         self.cli.registerCommand(
             name                       = 'stats',
             alias                      = 's',
@@ -1085,7 +1110,7 @@ class SolManager(threading.Thread):
         try:
             # start threads
             log.debug("Starting threads")
-            if AppConfig().get('managerconnectionmode')=='serial':
+            if AppConfig().get('managerconnectionmode') == 'serial':
                 self.threads["mgrThread"]            = MgrThreadSerial()
             else:
                 self.threads["mgrThread"]            = MgrThreadJsonServer()
@@ -1112,7 +1137,7 @@ class SolManager(threading.Thread):
                             all_started = False
                             log.debug("Waiting for %s to start", t.name)
                     except AttributeError:
-                        pass # happens when not a real thread
+                        pass  # happens when not a real thread
                 time.sleep(5)
             log.debug("All threads started")
 
@@ -1126,7 +1151,7 @@ class SolManager(threading.Thread):
                             all_running = False
                             log.debug("Thread {0} is not running. Quitting.".format(t.name))
                     except AttributeError:
-                        pass # happens when not a real thread
+                        pass  # happens when not a real thread
                 if not all_running:
                     self.goOn = False
                 time.sleep(5)
@@ -1135,14 +1160,14 @@ class SolManager(threading.Thread):
         self.close()
 
     def close(self):
-        os._exit(0) # bypass CLI thread
+        os._exit(0)  # bypass CLI thread
 
     def _clihandle_quit(self):
         time.sleep(.3)
         print "bye bye."
         # all threads as daemonic, will close automatically
 
-    def _clihandle_stats(self,params):
+    def _clihandle_stats(self, params):
         stats = AppStats().get()
         output  = []
         output += ['#== admin']
@@ -1164,9 +1189,9 @@ class SolManager(threading.Thread):
         output = '\n'.join(output)
         print output
 
-    def _clihandle_versions(self,params):
+    def _clihandle_versions(self, params):
         output  = []
-        for (k,v) in [
+        for (k, v) in [
                 ('SolManager',    solmanager_version.VERSION),
                 ('Sol',           SolVersion.VERSION),
                 ('SmartMesh SDK', sdk_version.VERSION),
@@ -1186,6 +1211,7 @@ class SolManager(threading.Thread):
         return returnVal
 
 #============================ main ============================================
+
 
 def main():
     solmanager = SolManager()
