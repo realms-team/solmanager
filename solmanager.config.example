@@ -3,9 +3,9 @@
 ; activity periods
 period_pubfile_min           = 0.1               ; write data to file
 period_pubserver_min         = 0.1               ; send data to server
-period_snapshot_min          = 0.1               ; perform a full snapshot
-period_stats_min             = 0.1               ; publish stats (write to file and send)
-period_pollcmds_min          = 0.1               ; request for commands from SolServer
+period_snapshot_min          = 60                ; perform a full snapshot
+period_stats_min             = 30                ; publish stats (write to file and send)
+period_pollcmds_min          = 30                ; request for commands from SolServer
 
 ; connecting to SmartMesh IP manager
 managerconnectionmode        = serial            ; "serial" or "JsonServer"
