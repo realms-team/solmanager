@@ -529,6 +529,7 @@ class PubServerThread(PubThread):
                 # update stats
                 AppStats().increment('PUBSERVER_SENDFAIL')
                 print "Error HTTP response status: " + str(r.text)
+                log.debug(r.json())
 
 #======== periodically do something
 
@@ -787,6 +788,7 @@ class PollCmdsThread(DoSomethingPeriodic):
                 # update stats
                 AppStats().increment('PUBSERVER_PULLFAIL')
                 print "Error HTTP response status: " + str(r.status_code)
+                log.debug(r.json())
 
     def _handle_command(self, action):
         if action == "update":
