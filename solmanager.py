@@ -18,7 +18,6 @@ import json
 import subprocess
 import threading
 import traceback
-import ConfigParser
 import logging.config
 
 # third-party packages
@@ -86,53 +85,7 @@ ALLSTATS           = [
 
 MAX_HTTP_SIZE      = 1000 # send batches of 1kB (~30kB after ) FIXME: after what?
 
-#============================ helpers =========================================
-
-
 #============================ classes =========================================
-
-#======== singletons
-
-
-class AppConfig(object):
-    """
-    Singleton which contains the configuration of the application.
-
-    Configuration is read once from file CONFIGFILE
-    """
-    _instance = None
-    _init     = False
-
-    def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = super(AppConfig, cls).__new__(cls, *args, **kwargs)
-        return cls._instance
-
-    def __init__(self):
-        if self._init:
-            return
-        self._init = True
-
-        # local variables
-        self.dataLock   = threading.RLock()
-        self.config     = {}
-
-        config          = ConfigParser.ConfigParser()
-        config.read(CONFIGFILE)
-
-        with self.dataLock:
-            for (k, v) in config.items('solmanager'):
-                try:
-                    self.config[k] = float(v)
-                except ValueError:
-                    try:
-                        self.config[k] = int(v)
-                    except ValueError:
-                        self.config[k] = v
-
-    def get(self, name):
-        with self.dataLock:
-            return self.config[name]
 
 
 class AppStats(object):
@@ -310,15 +263,19 @@ class MgrThreadSerial(MgrThread):
 
         # initialize JsonManager
         self.jsonManager          = JsonManager.JsonManager(
-            serialport            = AppConfig().get("serialport"),
+            serialport            = SolUtils.AppConfig().get("serialport"),
             notifCb               = self._notif_cb,
         )
 
     def issueRawApiCommand(self, json_payload):
+        fields = {}
+        if "fields" in json_payload:
+            fields = json_payload["fields"]
+
         return self.jsonManager.raw_POST(
             manager          = json_payload['manager'],
             commandArray     = [json_payload['command']],
-            fields           = json_payload['fields'],
+            fields           = fields,
         )
 
     def _notif_cb(self, notifName, notifJson):
@@ -361,7 +318,7 @@ class MgrThreadJsonServer(MgrThread, threading.Thread):
             time.sleep(0.5)
             self.web.run(
                 host   = '0.0.0.0',
-                port   = AppConfig().get("solmanager_tcpport_jsonserver"),
+                port   = SolUtils.AppConfig().get("solmanager_tcpport_jsonserver"),
                 quiet  = True,
                 debug  = False,
             )
@@ -370,7 +327,7 @@ class MgrThreadJsonServer(MgrThread, threading.Thread):
 
     def issueRawApiCommand(self, json_payload):
         r = requests.post(
-            'http://{0}/api/v1/raw'.format(AppConfig().get("jsonserver_host")),
+            'http://{0}/api/v1/raw'.format(SolUtils.AppConfig().get("jsonserver_host")),
             json    = json_payload,
         )
         return json.loads(r.text)
@@ -428,7 +385,7 @@ class PubFileThread(PubThread):
         if self._init:
             return
         self._init          = True
-        PubThread.__init__(self, AppConfig().get("period_pubfile_min"))
+        PubThread.__init__(self, SolUtils.AppConfig().get("period_pubfile_min"))
         self.name           = 'PubFileThread'
 
     def _publishNow(self):
@@ -473,7 +430,7 @@ class PubServerThread(PubThread):
         if self._init:
             return
         self._init              = True
-        PubThread.__init__(self, AppConfig().get("period_pubserver_min"))
+        PubThread.__init__(self, SolUtils.AppConfig().get("period_pubserver_min"))
         self.name               = 'PubServerThread'
 
     def _publishNow(self):
@@ -501,10 +458,10 @@ class PubServerThread(PubThread):
             requests.packages.urllib3.disable_warnings()
             log.debug("sending objects, size:%dB", len(http_payload))
             r = requests.put(
-                'https://{0}/api/v1/o.json'.format(AppConfig().get("solserver_host")),
-                headers = {'X-REALMS-Token': AppConfig().get("solserver_token")},
+                'https://{0}/api/v1/o.json'.format(SolUtils.AppConfig().get("solserver_host")),
+                headers = {'X-REALMS-Token': SolUtils.AppConfig().get("solserver_token")},
                 json    = http_payload,
-                verify  = AppConfig().get("solserver_certificate"),
+                verify  = SolUtils.AppConfig().get("solserver_certificate"),
             )
         except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
             # update stats
@@ -540,7 +497,7 @@ class SnapshotThread(DoSomethingPeriodic):
         self.mgrThread       = mgrThread
 
         # initialize parent class
-        super(SnapshotThread, self).__init__(AppConfig().get("period_snapshot_min"))
+        super(SnapshotThread, self).__init__(SolUtils.AppConfig().get("period_snapshot_min"))
         self.name            = 'SnapshotThread'
         self.start()
 
@@ -715,7 +672,7 @@ class StatsThread(DoSomethingPeriodic):
         self.mgrThread       = mgrThread
 
         # initialize parent class
-        super(StatsThread, self).__init__(AppConfig().get("period_stats_min"))
+        super(StatsThread, self).__init__(SolUtils.AppConfig().get("period_stats_min"))
         self.name            = 'StatsThread'
         self.start()
 
@@ -751,7 +708,7 @@ class PollCmdsThread(DoSomethingPeriodic):
     """
     def __init__(self):
         # initialize parent class
-        super(PollCmdsThread, self).__init__(AppConfig().get("period_pollcmds_min"))
+        super(PollCmdsThread, self).__init__(SolUtils.AppConfig().get("period_pollcmds_min"))
         self.name                       = 'PollCmdsThread'
         self.start()
 
@@ -765,9 +722,9 @@ class PollCmdsThread(DoSomethingPeriodic):
             AppStats().increment('PUBSERVER_PULLATTEMPTS')
             requests.packages.urllib3.disable_warnings()
             r = requests.get(
-                'https://{0}/api/v1/getactions/'.format(AppConfig().get("solserver_host")),
-                headers = {'X-REALMS-Token': AppConfig().get("solserver_token")},
-                verify  = AppConfig().get("solserver_certificate"),
+                'https://{0}/api/v1/getactions/'.format(SolUtils.AppConfig().get("solserver_host")),
+                headers = {'X-REALMS-Token': SolUtils.AppConfig().get("solserver_token")},
+                verify  = SolUtils.AppConfig().get("solserver_certificate"),
             )
         except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
             # update stats
@@ -811,8 +768,8 @@ class JsonApiThread(threading.Thread):
             from cheroot.ssl.pyopenssl import pyOpenSSLAdapter
             server = WSGIServer((self.host, self.port), handler)
             server.ssl_adapter = pyOpenSSLAdapter(
-                certificate = AppConfig().get("solmanager_certificate"),
-                private_key = AppConfig().get("solmanager_private_key"),
+                certificate = SolUtils.AppConfig().get("solmanager_certificate"),
+                private_key = SolUtils.AppConfig().get("solmanager_private_key"),
             )
             try:
                 server.start()
@@ -829,9 +786,9 @@ class JsonApiThread(threading.Thread):
         self.sol                = Sol.Sol()
 
         # check if files exist
-        fcert = open(AppConfig().get("solmanager_certificate"))
+        fcert = open(SolUtils.AppConfig().get("solmanager_certificate"))
         fcert.close()
-        fkey = open(AppConfig().get("solmanager_private_key"))
+        fkey = open(SolUtils.AppConfig().get("solmanager_private_key"))
         fkey.close()
 
         # initialize web server
@@ -869,7 +826,7 @@ class JsonApiThread(threading.Thread):
             time.sleep(0.5)
             self.web.run(
                 host   = '0.0.0.0',
-                port   = AppConfig().get("solmanager_tcpport_solserver"),
+                port   = SolUtils.AppConfig().get("solmanager_tcpport_solserver"),
                 server = self.HTTPSServer,
                 quiet  = True,
                 debug  = False,
@@ -1011,13 +968,7 @@ class JsonApiThread(threading.Thread):
             self._authorizeClient()
 
             # forward to managerThread
-            res = self.mgrThread.handler_smartmeshipapi_POST(bottle.request.json)
-
-            raise bottle.HTTPResponse(
-                status  = 200,
-                headers = {'Content-Type': 'application/json'},
-                body    = res
-            )
+            return self.mgrThread.issueRawApiCommand(bottle.request.json)
 
         except bottle.HTTPResponse:
             raise
@@ -1028,7 +979,7 @@ class JsonApiThread(threading.Thread):
     #=== misc
 
     def _authorizeClient(self):
-        if bottle.request.headers.get('X-REALMS-Token') != AppConfig().get("solmanager_token"):
+        if bottle.request.headers.get('X-REALMS-Token') != SolUtils.AppConfig().get("solmanager_token"):
             AppStats().increment('JSON_NUM_UNAUTHORIZED')
             raise SolExceptions.UnauthorizedError()
 
@@ -1056,6 +1007,10 @@ class SolManager(threading.Thread):
             "pollForCommandsThread"    : None,
             "jsonApiThread"            : None,
         }
+
+        # init Singletons -- must be first init
+        SolUtils.AppConfig(config_file=CONFIGFILE)
+        SolUtils.AppStats(stats_file=STATSFILE, stats_list=ALLSTATS)
 
         # CLI interface
         self.cli                       = DustCli.DustCli("SolManager", self._clihandle_quit)
@@ -1085,7 +1040,7 @@ class SolManager(threading.Thread):
         try:
             # start threads
             log.debug("Starting threads")
-            if AppConfig().get('managerconnectionmode') == 'serial':
+            if SolUtils.AppConfig().get('managerconnectionmode') == 'serial':
                 self.threads["mgrThread"]            = MgrThreadSerial()
             else:
                 self.threads["mgrThread"]            = MgrThreadJsonServer()
