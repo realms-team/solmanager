@@ -34,7 +34,8 @@ from   dustCli               import DustCli
 from   solobjectlib          import Sol, \
                                     SolVersion, \
                                     SolDefines, \
-                                    SolExceptions
+                                    SolExceptions, \
+                                    SolUtils
 
 #============================ logging =========================================
 
@@ -87,32 +88,6 @@ MAX_HTTP_SIZE      = 1000 # send batches of 1kB (~30kB after ) FIXME: after what
 
 #============================ helpers =========================================
 
-
-def currentUtcTime():
-    return time.strftime("%a, %d %b %Y %H:%M:%S UTC", time.gmtime())
-
-
-def logCrash(err, threadName=None):
-    output         = []
-    output        += ["============================================================="]
-    output        += [currentUtcTime()]
-    output        += [""]
-    output        += ["CRASH"]
-    if threadName:
-        output    += ["Thread {0}!".format(threadName)]
-    output        += [""]
-    output         += ["=== exception type ==="]
-    output += [str(type(err))]
-    output += [""]
-    output += ["=== traceback ==="]
-    output += [traceback.format_exc()]
-    output  = '\n'.join(output)
-
-    # update stats
-    AppStats().increment('ADM_NUM_CRASHES')
-    log.critical(output)
-    print output
-    return output
 
 #============================ classes =========================================
 
@@ -258,7 +233,7 @@ class DoSomethingPeriodic(threading.Thread):
                     self.currentDelay = self.periodvariable
                 time.sleep(1)
         except Exception as err:
-            logCrash(err, threadName=self.name)
+            SolUtils.logCrash(err, AppStats(), threadName=self.name)
 
     def close(self):
         self.goOn = False
@@ -321,7 +296,7 @@ class MgrThread(object):
                 PubServerThread().publish(sol_json)  # to the solserver over the Internet
 
         except Exception as err:
-            logCrash(err)
+            SolUtils.logCrash(err, AppStats())
 
     def close(self):
         pass
@@ -391,7 +366,7 @@ class MgrThreadJsonServer(MgrThread, threading.Thread):
                 debug  = False,
             )
         except Exception as err:
-            logCrash(err, threadName=self.name)
+            SolUtils.logCrash(err, AppStats(), threadName=self.name)
 
     def issueRawApiCommand(self, json_payload):
         r = requests.post(
@@ -578,7 +553,7 @@ class SnapshotThread(DoSomethingPeriodic):
             AppStats().increment('SNAPSHOT_NUM_STARTED')
             AppStats().update(
                 'SNAPSHOT_LASTSTARTED',
-                currentUtcTime(),
+                SolUtils.currentUtcTime(),
             )
 
             '''
@@ -900,7 +875,7 @@ class JsonApiThread(threading.Thread):
                 debug  = False,
             )
         except Exception as err:
-            logCrash(err, threadName=self.name)
+            SolUtils.logCrash(err, AppStats(), threadName=self.name)
 
     #======================== public ==========================================
 
@@ -939,7 +914,7 @@ class JsonApiThread(threading.Thread):
                 )
             except Exception as err:
 
-                crashMsg = logCrash(err)
+                crashMsg = SolUtils.logCrash(err, AppStats())
 
                 return bottle.HTTPResponse(
                     status  = 500,
@@ -960,7 +935,7 @@ class JsonApiThread(threading.Thread):
             'version Sol':            SolVersion.VERSION,
             'uptime computer':        self._exec_cmd('uptime'),
             'utc':                    int(time.time()),
-            'date':                   currentUtcTime(),
+            'date':                   SolUtils.currentUtcTime(),
             'last reboot':            self._exec_cmd('last reboot'),
             'stats':                  AppStats().get(),
         }
@@ -1024,7 +999,7 @@ class JsonApiThread(threading.Thread):
         except bottle.HTTPResponse:
             raise
         except Exception as err:
-            logCrash(err, threadName=self.name)
+            SolUtils.logCrash(err, AppStats(), threadName=self.name)
             raise
 
     def _webhandler_smartmeshipapi_POST(self):
@@ -1047,7 +1022,7 @@ class JsonApiThread(threading.Thread):
         except bottle.HTTPResponse:
             raise
         except Exception as err:
-            logCrash(err, threadName=self.name)
+            SolUtils.logCrash(err, AppStats(), threadName=self.name)
             raise
 
     #=== misc
@@ -1156,7 +1131,7 @@ class SolManager(threading.Thread):
                     self.goOn = False
                 time.sleep(5)
         except Exception as err:
-            logCrash(err, threadName=self.name)
+            SolUtils.logCrash(err, AppStats(), threadName=self.name)
         self.close()
 
     def close(self):
