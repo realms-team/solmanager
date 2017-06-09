@@ -87,79 +87,6 @@ HTTP_CHUNK_SIZE      = 10 # send batches of 10 Sol objects
 
 #============================ classes =========================================
 
-
-class AppStats(object):
-    """
-    Singleton which contains the stats of the application.
-
-    Stats are read once from file STATSFILE.
-    """
-    _instance = None
-    _init     = False
-
-    def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = super(AppStats, cls).__new__(cls, *args, **kwargs)
-        return cls._instance
-
-    def __init__(self):
-        if self._init:
-            return
-        self._init      = True
-
-        self.dataLock   = threading.RLock()
-        self.stats      = {}
-        try:
-            with open(STATSFILE, 'r') as f:
-                for line in f:
-                    k        = line.split('=')[0].strip()
-                    v        = line.split('=')[1].strip()
-                    try:
-                        v    = int(v)
-                    except ValueError:
-                        pass
-                    self.stats[k] = v
-                log.info("Stats recovered from file.")
-        except (EnvironmentError, EOFError) as e:
-            log.info("Could not read stats file: %s", e)
-            self._backup()
-
-    # ======================= public ==========================================
-
-    def increment(self, statName):
-        self._validateStatName(statName)
-        with self.dataLock:
-            if statName not in self.stats:
-                self.stats[statName] = 0
-            self.stats[statName] += 1
-        self._backup()
-
-    def update(self, k, v):
-        self._validateStatName(k)
-        with self.dataLock:
-            self.stats[k] = v
-        self._backup()
-
-    def get(self):
-        with self.dataLock:
-            stats = self.stats.copy()
-        stats['PUBFILE_BACKLOG']   = PubFileThread().getBacklogLength()
-        stats['PUBSERVER_BACKLOG'] = PubServerThread().getBacklogLength()
-        return stats
-
-    # ======================= private =========================================
-
-    def _validateStatName(self, statName):
-        if not statName.startswith("NUMRX_"):
-            assert statName in ALLSTATS
-
-    def _backup(self):
-        with self.dataLock:
-            output = ['{0} = {1}'.format(k, v) for (k, v) in self.stats.items()]
-            output = '\n'.join(output)
-            with open(STATSFILE, 'w') as f:
-                f.write(output)
-
 #======== generic abstract classes
 
 
@@ -186,7 +113,7 @@ class DoSomethingPeriodic(threading.Thread):
                     self.currentDelay = self.periodvariable
                 time.sleep(1)
         except Exception as err:
-            SolUtils.logCrash(err, AppStats(), threadName=self.name)
+            SolUtils.logCrash(err, SolUtils.AppStats(), threadName=self.name)
 
     def close(self):
         self.goOn = False
@@ -231,7 +158,7 @@ class MgrThread(object):
                 return
 
             # update stats
-            AppStats().increment('NUMRX_{0}'.format(dust_notif['name']))
+            SolUtils.AppStats().increment('NUMRX_{0}'.format(dust_notif['name']))
 
             # convert dust notification to JSON SOL Object
             sol_jsonl = self.sol.dust_to_json(
@@ -242,14 +169,14 @@ class MgrThread(object):
 
             for sol_json in sol_jsonl:
                 # update stats
-                AppStats().increment('PUB_TOTAL_SENTTOPUBLISH')
+                SolUtils.AppStats().increment('PUB_TOTAL_SENTTOPUBLISH')
 
                 # publish
                 PubFileThread().publish(sol_json)  # to the backup file
                 PubServerThread().publish(sol_json)  # to the solserver over the Internet
 
         except Exception as err:
-            SolUtils.logCrash(err, AppStats())
+            SolUtils.logCrash(err, SolUtils.AppStats())
 
     def close(self):
         pass
@@ -323,7 +250,7 @@ class MgrThreadJsonServer(MgrThread, threading.Thread):
                 debug  = False,
             )
         except Exception as err:
-            SolUtils.logCrash(err, AppStats(), threadName=self.name)
+            SolUtils.logCrash(err, SolUtils.AppStats(), threadName=self.name)
 
     def issueRawApiCommand(self, json_payload):
         r = requests.post(
@@ -390,7 +317,7 @@ class PubFileThread(PubThread):
 
     def _publishNow(self):
         # update stats
-        AppStats().increment('PUBFILE_WRITES')
+        SolUtils.AppStats().increment('PUBFILE_WRITES')
 
         with self.dataLock:
             # order solJsonObjectsToPublish chronologically
@@ -405,6 +332,9 @@ class PubFileThread(PubThread):
                 if now-self.solJsonObjectsToPublish[0]['timestamp'] < self.BUFFER_PERIOD:
                     break
                 solJsonObjectsToWrite += [self.solJsonObjectsToPublish.pop(0)]
+
+            # update stats
+            SolUtils.AppStats().update("PUBFILE_BACKLOG", len(self.solJsonObjectsToPublish))
 
         # write those to file
         if solJsonObjectsToWrite:
@@ -455,7 +385,7 @@ class PubServerThread(PubThread):
         # send http_payload to server
         try:
             # update stats
-            AppStats().increment('PUBSERVER_SENDATTEMPTS')
+            SolUtils.AppStats().increment('PUBSERVER_SENDATTEMPTS')
             requests.packages.urllib3.disable_warnings()
             for payload in http_payload:
                 log.debug("sending objects, size:%dB", len(payload))
@@ -467,7 +397,7 @@ class PubServerThread(PubThread):
                 )
         except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
             # update stats
-            AppStats().increment('PUBSERVER_UNREACHABLE')
+            SolUtils.AppStats().increment('PUBSERVER_UNREACHABLE')
             # happens when could not contact server
             log.warning("Error when sending http payload: %s", err)
         else:
@@ -476,12 +406,13 @@ class PubServerThread(PubThread):
             # clear objects
             if r.status_code == requests.codes.ok:
                 # update stats
-                AppStats().increment('PUBSERVER_SENDOK')
+                SolUtils.AppStats().increment('PUBSERVER_SENDOK')
                 with self.dataLock:
                     self.solJsonObjectsToPublish = self.solJsonObjectsToPublish[object_id:]
+                    SolUtils.AppStats().update("PUBSERVER_BACKLOG", len(self.solJsonObjectsToPublish))
             else:
                 # update stats
-                AppStats().increment('PUBSERVER_SENDFAIL')
+                SolUtils.AppStats().increment('PUBSERVER_SENDFAIL')
                 print "Error HTTP response status: " + str(r.text)
                 log.debug(r.json())
 
@@ -509,8 +440,8 @@ class SnapshotThread(DoSomethingPeriodic):
     def _doSnapshot(self):
         try:
             # update stats
-            AppStats().increment('SNAPSHOT_NUM_STARTED')
-            AppStats().update(
+            SolUtils.AppStats().increment('SNAPSHOT_NUM_STARTED')
+            SolUtils.AppStats().update(
                 'SNAPSHOT_LASTSTARTED',
                 SolUtils.currentUtcTime(),
             )
@@ -641,12 +572,12 @@ class SnapshotThread(DoSomethingPeriodic):
                     currentPathId  = resp["pathId"]
 
         except Exception as err:
-            AppStats().increment('SNAPSHOT_NUM_FAIL')
+            SolUtils.AppStats().increment('SNAPSHOT_NUM_FAIL')
             log.warning("Cannot do Snapshot: %s", err)
             traceback.print_exc()
         else:
             if self.mgrThread.getMacManager() is not None:
-                AppStats().increment('SNAPSHOT_NUM_OK')
+                SolUtils.AppStats().increment('SNAPSHOT_NUM_OK')
 
                 # create sensor object
                 sobject = {
@@ -697,7 +628,7 @@ class StatsThread(DoSomethingPeriodic):
         PubServerThread().publish(sobject)
 
         # update stats
-        AppStats().increment('PUBSERVER_STATS')
+        SolUtils.AppStats().increment('PUBSERVER_STATS')
 
 # poll for commands from JsonServer
 
@@ -721,7 +652,7 @@ class PollCmdsThread(DoSomethingPeriodic):
         # send http_payload to server
         try:
             # update stats
-            AppStats().increment('PUBSERVER_PULLATTEMPTS')
+            SolUtils.AppStats().increment('PUBSERVER_PULLATTEMPTS')
             requests.packages.urllib3.disable_warnings()
             r = requests.get(
                 'https://{0}/api/v1/getactions/'.format(SolUtils.AppConfig().get("solserver_host")),
@@ -730,7 +661,7 @@ class PollCmdsThread(DoSomethingPeriodic):
             )
         except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
             # update stats
-            AppStats().increment('PUBSERVER_UNREACHABLE')
+            SolUtils.AppStats().increment('PUBSERVER_UNREACHABLE')
             # happens when could not contact server
             if type(err) == requests.exceptions.SSLError:
                 traceback.print_exc()
@@ -740,12 +671,12 @@ class PollCmdsThread(DoSomethingPeriodic):
             # clear objects
             if r.status_code == 200:
                 # update stats
-                AppStats().increment('PUBSERVER_PULLOK')
+                SolUtils.AppStats().increment('PUBSERVER_PULLOK')
                 for action in r.json():
                     self._handle_command(action['action'])
             else:
                 # update stats
-                AppStats().increment('PUBSERVER_PULLFAIL')
+                SolUtils.AppStats().increment('PUBSERVER_PULLFAIL')
                 print "Error HTTP response status: " + str(r.status_code)
                 log.debug(r.json())
 
@@ -834,7 +765,7 @@ class JsonApiThread(threading.Thread):
                 debug  = False,
             )
         except Exception as err:
-            SolUtils.logCrash(err, AppStats(), threadName=self.name)
+            SolUtils.logCrash(err, SolUtils.AppStats(), threadName=self.name)
 
     #======================== public ==========================================
 
@@ -850,7 +781,7 @@ class JsonApiThread(threading.Thread):
         def hidden_decorator(self):
             try:
                 # update stats
-                AppStats().increment('JSON_NUM_REQ')
+                SolUtils.AppStats().increment('JSON_NUM_REQ')
 
                 # authorize the client
                 self._authorizeClient()
@@ -873,7 +804,7 @@ class JsonApiThread(threading.Thread):
                 )
             except Exception as err:
 
-                crashMsg = SolUtils.logCrash(err, AppStats())
+                crashMsg = SolUtils.logCrash(err, SolUtils.AppStats())
 
                 return bottle.HTTPResponse(
                     status  = 500,
@@ -896,13 +827,13 @@ class JsonApiThread(threading.Thread):
             'utc':                    int(time.time()),
             'date':                   SolUtils.currentUtcTime(),
             'last reboot':            self._exec_cmd('last reboot'),
-            'stats':                  AppStats().get(),
+            'stats':                  SolUtils.AppStats().get(),
         }
 
     def _webhandler_resend_POST(self):
         try:
             # update stats
-            AppStats().increment('JSON_NUM_REQ')
+            SolUtils.AppStats().increment('JSON_NUM_REQ')
 
             # authorize the client
             self._authorizeClient()
@@ -958,13 +889,13 @@ class JsonApiThread(threading.Thread):
         except bottle.HTTPResponse:
             raise
         except Exception as err:
-            SolUtils.logCrash(err, AppStats(), threadName=self.name)
+            SolUtils.logCrash(err, SolUtils.AppStats(), threadName=self.name)
             raise
 
     def _webhandler_smartmeshipapi_POST(self):
         try:
             # update stats
-            AppStats().increment('JSON_NUM_REQ')
+            SolUtils.AppStats().increment('JSON_NUM_REQ')
 
             # authorize the client
             self._authorizeClient()
@@ -975,14 +906,14 @@ class JsonApiThread(threading.Thread):
         except bottle.HTTPResponse:
             raise
         except Exception as err:
-            SolUtils.logCrash(err, AppStats(), threadName=self.name)
+            SolUtils.logCrash(err, SolUtils.AppStats(), threadName=self.name)
             raise
 
     #=== misc
 
     def _authorizeClient(self):
         if bottle.request.headers.get('X-REALMS-Token') != SolUtils.AppConfig().get("solmanager_token"):
-            AppStats().increment('JSON_NUM_UNAUTHORIZED')
+            SolUtils.AppStats().increment('JSON_NUM_UNAUTHORIZED')
             raise SolExceptions.UnauthorizedError()
 
     def _exec_cmd(self, cmd):
@@ -1088,7 +1019,7 @@ class SolManager(threading.Thread):
                     self.goOn = False
                 time.sleep(5)
         except Exception as err:
-            SolUtils.logCrash(err, AppStats(), threadName=self.name)
+            SolUtils.logCrash(err, SolUtils.AppStats(), threadName=self.name)
         self.close()
 
     def close(self):
@@ -1100,7 +1031,7 @@ class SolManager(threading.Thread):
         # all threads as daemonic, will close automatically
 
     def _clihandle_stats(self, params):
-        stats = AppStats().get()
+        stats = SolUtils.AppStats().get()
         output  = []
         output += ['#== admin']
         output += self._returnStatsGroup(stats, 'ADM_')
