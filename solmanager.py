@@ -83,7 +83,7 @@ ALLSTATS           = [
     'JSON_NUM_UNAUTHORIZED',
 ]
 
-MAX_HTTP_SIZE      = 1000 # send batches of 1kB (~30kB after ) FIXME: after what?
+HTTP_CHUNK_SIZE      = 10 # send batches of 10 Sol objects
 
 #============================ classes =========================================
 
@@ -441,28 +441,30 @@ class PubServerThread(PubThread):
 
         # convert objects to publish to binary until HTTP max size is reached
         object_id = 0
+        http_payload = []
         with self.dataLock:
             solBinObjectsToPublish = []
             for (object_id, o) in enumerate(self.solJsonObjectsToPublish):
                 solBinObjectsToPublish.append(self.sol.json_to_bin(o))
-                if len(solBinObjectsToPublish) > MAX_HTTP_SIZE:
-                    break
 
-        # prepare http_payload
-        http_payload = self.sol.bin_to_http(solBinObjectsToPublish)
+        # split publish list into chunks
+        for i in xrange(0, len(solBinObjectsToPublish), HTTP_CHUNK_SIZE):
+            chunk = solBinObjectsToPublish[i: i + HTTP_CHUNK_SIZE]
+            http_payload.append(self.sol.bin_to_http(chunk))
 
         # send http_payload to server
         try:
             # update stats
             AppStats().increment('PUBSERVER_SENDATTEMPTS')
             requests.packages.urllib3.disable_warnings()
-            log.debug("sending objects, size:%dB", len(http_payload))
-            r = requests.put(
-                'https://{0}/api/v1/o.json'.format(SolUtils.AppConfig().get("solserver_host")),
-                headers = {'X-REALMS-Token': SolUtils.AppConfig().get("solserver_token")},
-                json    = http_payload,
-                verify  = SolUtils.AppConfig().get("solserver_certificate"),
-            )
+            for payload in http_payload:
+                log.debug("sending objects, size:%dB", len(payload))
+                r = requests.put(
+                    'https://{0}/api/v1/o.json'.format(SolUtils.AppConfig().get("solserver_host")),
+                    headers = {'X-REALMS-Token': SolUtils.AppConfig().get("solserver_token")},
+                    json    = payload,
+                    verify  = SolUtils.AppConfig().get("solserver_certificate"),
+                )
         except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
             # update stats
             AppStats().increment('PUBSERVER_UNREACHABLE')
