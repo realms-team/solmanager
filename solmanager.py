@@ -24,11 +24,12 @@ import logging.config
 import OpenSSL
 import bottle
 import requests
+import ibmiotf.gateway
 
 # project-specific
 import solmanager_version
 from   SmartMeshSDK          import sdk_version
-from   SmartMeshSDK.utils    import JsonManager
+from   SmartMeshSDK.utils    import JsonManager, FormatUtils
 from   dustCli               import DustCli
 from   solobjectlib          import Sol, \
                                     SolVersion, \
@@ -174,6 +175,7 @@ class MgrThread(object):
                 # publish
                 PubFileThread().publish(sol_json)  # to the backup file
                 PubServerThread().publish(sol_json)  # to the solserver over the Internet
+                PubMqttThread().publish(sol_json)  # to the mqtt server over the Internet
 
         except Exception as err:
             SolUtils.logCrash(err, SolUtils.AppStats())
@@ -346,7 +348,7 @@ class PubFileThread(PubThread):
 
 class PubServerThread(PubThread):
     """
-    Singleton that sends Sol JSON objects to the JsonServer every period_pubserver_min.
+    Singleton that sends Sol JSON objects to the solserver every period_pubserver_min.
     """
     _instance = None
     _init     = False
@@ -415,6 +417,68 @@ class PubServerThread(PubThread):
                 SolUtils.AppStats().increment('PUBSERVER_SENDFAIL')
                 print "Error HTTP response status: " + str(r.text)
                 log.debug(r.json())
+
+
+class PubMqttThread(threading.Thread):
+    """
+    Singleton that directly sends Sol JSON objects to the mqtt server
+    """
+    _instance = None
+    _init = False
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(PubMqttThread, cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+
+    def __init__(self, mgrThread=None):
+        if self._init:
+            return
+        self._init = True
+        threading.Thread.__init__(self)
+        self.name = 'PubMqttThread'
+        self.mgrThread = mgrThread
+        self.goOn = True
+        self.mqtt_client = None
+
+        # wait for mgrThread to be running
+        while mgrThread is None or self.mgrThread.macManager is None:
+            pass
+
+        # connect to MQTT server
+        try:
+            options = {
+                "org": SolUtils.AppConfig().get("mqtt_organization"),
+                "type": "manager",
+                "id": FormatUtils.formatBuffer(self.mgrThread.getMacManager()),
+                "auth-method": "token",
+                "auth-token": SolUtils.AppConfig().get("mqtt_token")
+            }
+            self.mqtt_client = ibmiotf.gateway.Client(options)
+        except ibmiotf.ConnectionException as e:
+            print e
+        else:
+            self.mqtt_client.connect()
+
+        # start self thread
+        self.start()
+
+    def run(self):
+        while self.goOn:
+            time.sleep(10)
+
+    def publish(self, sol_object):
+        if self.mqtt_client is None:
+            return
+        msg = json.JSONEncoder().encode({"g": sol_object})
+        mqtt_topic = SolDefines.solTypeToTypeName(SolDefines, sol_object["type"])
+        res = self.mqtt_client.publishGatewayEvent(mqtt_topic, "json", msg)
+        if not res:
+            log.warn("Could not publish to mqtt server")
+
+    def close(self):
+        self.goOn = False
+        self.mqtt_client.disconnect()
 
 #======== periodically do something
 
@@ -935,6 +999,7 @@ class SolManager(threading.Thread):
             "mgrThread"                : None,
             "pubFileThread"            : None,
             "pubServerThread"          : None,
+            "pubMqttThread"            : None,
             "snapshotThread"           : None,
             "statsThread"              : None,
             "pollForCommandsThread"    : None,
@@ -979,6 +1044,9 @@ class SolManager(threading.Thread):
                 self.threads["mgrThread"]            = MgrThreadJsonServer()
             self.threads["pubFileThread"]            = PubFileThread()
             self.threads["pubServerThread"]          = PubServerThread()
+            self.threads["pubMqttThread"]            = PubMqttThread(
+                mgrThread              = self.threads["mgrThread"],
+            )
             self.threads["snapshotThread"]           = SnapshotThread(
                 mgrThread              = self.threads["mgrThread"],
             )
