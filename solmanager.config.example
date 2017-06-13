@@ -25,3 +25,7 @@ solmanager_tcpport_solserver = 8081              ; TCP port to receive commands 
 solserver_host               = 127.0.0.1:8082    ; address of the SolServer
 solserver_token              = SOLSERVER_TOKEN   ; token to authenticate to SolServer
 solserver_certificate        = solserver.cert    ; certificate of the SolServer
+
+; remote mqtt server
+mqtt_organization            = org               ; ibm bluemix organisation
+mqtt_token                   = token             ; ibm bluemix token associated to manager
