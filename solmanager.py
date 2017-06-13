@@ -201,6 +201,9 @@ class MgrThreadSerial(MgrThread):
         if "fields" in json_payload:
             fields = json_payload["fields"]
 
+        if "command" not in json_payload or "manager" not in json_payload:
+            return json.dumps({'error': 'Missing parameter.'})
+
         return self.jsonManager.raw_POST(
             manager          = json_payload['manager'],
             commandArray     = [json_payload['command']],
@@ -927,83 +930,57 @@ class JsonApiThread(threading.Thread):
         }
 
     def _webhandler_resend_POST(self):
-        try:
-            # update stats
-            SolUtils.AppStats().increment('JSON_NUM_REQ')
+        # abort if malformed JSON body
+        if bottle.request.json is None:
+            raise bottle.HTTPResponse(
+                status  = 400,
+                headers = {'Content-Type': 'application/json'},
+                body    = json.dumps({'error': 'Malformed JSON body'}),
+            )
 
-            # authorize the client
-            self._authorizeClient()
-
-            # abort if malformed JSON body
-            if bottle.request.json is None:
+        # verify all fields are present
+        required_fields = ["action", "startTimestamp", "endTimestamp"]
+        for field in required_fields:
+            if field not in bottle.request.json:
                 raise bottle.HTTPResponse(
                     status  = 400,
                     headers = {'Content-Type': 'application/json'},
-                    body    = json.dumps({'error': 'Malformed JSON body'}),
+                    body    = json.dumps({'error': 'Missing field {0}'.format(field)}),
                 )
 
-            # verify all fields are present
-            required_fields = ["action", "startTimestamp", "endTimestamp"]
-            for field in required_fields:
-                if field not in bottle.request.json:
-                    raise bottle.HTTPResponse(
-                        status  = 400,
-                        headers = {'Content-Type': 'application/json'},
-                        body    = json.dumps({'error': 'Missing field {0}'.format(field)}),
-                    )
+        # handle
+        action          = bottle.request.json["action"]
+        startTimestamp  = bottle.request.json["startTimestamp"]
+        endTimestamp    = bottle.request.json["endTimestamp"]
+        if action == "count":
+            sol_jsonl = self.sol.loadFromFile(BACKUPFILE, startTimestamp, endTimestamp)
+            # send response
+            raise bottle.HTTPResponse(
+                status  = 200,
+                headers = {'Content-Type': 'application/json'},
+                body    = json.dumps({'numObjects': len(sol_jsonl)}),
+            )
+        elif action == "resend":
+            sol_jsonl = self.sol.loadFromFile(BACKUPFILE, startTimestamp, endTimestamp)
+            # publish
+            for sobject in sol_jsonl:
+                PubServerThread().publish(sobject)
+            # send response
+            raise bottle.HTTPResponse(
+                status  = 200,
+                headers = {'Content-Type': 'application/json'},
+                body    = json.dumps({'numObjects': len(sol_jsonl)}),
+            )
+        else:
+            raise bottle.HTTPResponse(
+                status  = 400,
+                headers = {'Content-Type': 'application/json'},
+                body    = json.dumps({'error': 'Unknown action {0}'.format(action)}),
+            )
 
-            # handle
-            action          = bottle.request.json["action"]
-            startTimestamp  = bottle.request.json["startTimestamp"]
-            endTimestamp    = bottle.request.json["endTimestamp"]
-            if action == "count":
-                sol_jsonl = self.sol.loadFromFile(BACKUPFILE, startTimestamp, endTimestamp)
-                # send response
-                raise bottle.HTTPResponse(
-                    status  = 200,
-                    headers = {'Content-Type': 'application/json'},
-                    body    = json.dumps({'numObjects': len(sol_jsonl)}),
-                )
-            elif action == "resend":
-                sol_jsonl = self.sol.loadFromFile(BACKUPFILE, startTimestamp, endTimestamp)
-                # publish
-                for sobject in sol_jsonl:
-                    PubServerThread().publish(sobject)
-                # send response
-                raise bottle.HTTPResponse(
-                    status  = 200,
-                    headers = {'Content-Type': 'application/json'},
-                    body    = json.dumps({'numObjects': len(sol_jsonl)}),
-                )
-            else:
-                raise bottle.HTTPResponse(
-                    status  = 400,
-                    headers = {'Content-Type': 'application/json'},
-                    body    = json.dumps({'error': 'Unknown action {0}'.format(action)}),
-                )
-
-        except bottle.HTTPResponse:
-            raise
-        except Exception as err:
-            SolUtils.logCrash(err, SolUtils.AppStats(), threadName=self.name)
-            raise
-
+    @_authorized_webhandler
     def _webhandler_smartmeshipapi_POST(self):
-        try:
-            # update stats
-            SolUtils.AppStats().increment('JSON_NUM_REQ')
-
-            # authorize the client
-            self._authorizeClient()
-
-            # forward to managerThread
-            return self.mgrThread.issueRawApiCommand(bottle.request.json)
-
-        except bottle.HTTPResponse:
-            raise
-        except Exception as err:
-            SolUtils.logCrash(err, SolUtils.AppStats(), threadName=self.name)
-            raise
+        return self.mgrThread.issueRawApiCommand(bottle.request.json)
 
     #=== misc
 
