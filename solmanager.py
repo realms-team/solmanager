@@ -175,7 +175,7 @@ class MgrThread(object):
                 # publish
                 PubFileThread().publish(sol_json)  # to the backup file
                 PubServerThread().publish(sol_json)  # to the solserver over the Internet
-                PubMqttThread().publish(sol_json)  # to the mqtt server over the Internet
+                MqttThread().publish(sol_json)  # to the mqtt server over the Internet
 
         except Exception as err:
             SolUtils.logCrash(err, SolUtils.AppStats())
@@ -419,7 +419,7 @@ class PubServerThread(PubThread):
                 log.debug(r.json())
 
 
-class PubMqttThread(threading.Thread):
+class MqttThread(threading.Thread):
     """
     Singleton that directly sends Sol JSON objects to the mqtt server
     """
@@ -428,24 +428,42 @@ class PubMqttThread(threading.Thread):
 
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
-            cls._instance = super(PubMqttThread, cls).__new__(cls, *args, **kwargs)
+            cls._instance = super(MqttThread, cls).__new__(cls, *args, **kwargs)
         return cls._instance
 
-    def __init__(self, mgrThread=None):
+    def __init__(self, mgrThread=None, snapshot_thread=None):
         if self._init:
             return
         self._init = True
         threading.Thread.__init__(self)
-        self.name = 'PubMqttThread'
+        self.name = 'MqttThread'
         self.mgrThread = mgrThread
+        self.snapshot_thread = snapshot_thread
         self.goOn = True
         self.mqtt_client = None
 
         # wait for mgrThread to be running
         while mgrThread is None or self.mgrThread.macManager is None:
+            time.sleep(5)
+            log.debug("Waiting for mgrThread to start")
             pass
 
-        # connect to MQTT server
+        # connect to server and subscribe to commands
+        self.connect()
+        self.subscribe()
+
+        # start self thread
+        self.start()
+
+    def run(self):
+        while self.goOn:
+            time.sleep(10)
+
+    def close(self):
+        self.goOn = False
+        self.mqtt_client.disconnect()
+
+    def connect(self):
         try:
             options = {
                 "org": SolUtils.AppConfig().get("mqtt_organization"),
@@ -460,25 +478,34 @@ class PubMqttThread(threading.Thread):
         else:
             self.mqtt_client.connect()
 
-        # start self thread
-        self.start()
-
-    def run(self):
-        while self.goOn:
-            time.sleep(10)
-
-    def publish(self, sol_object):
+    def publish(self, sol_object, mqtt_topic=None):
         if self.mqtt_client is None:
             return
-        msg = json.JSONEncoder().encode({"g": sol_object})
-        mqtt_topic = SolDefines.solTypeToTypeName(SolDefines, sol_object["type"])
-        res = self.mqtt_client.publishGatewayEvent(mqtt_topic, "json", msg)
-        if not res:
-            log.warn("Could not publish to mqtt server")
 
-    def close(self):
-        self.goOn = False
-        self.mqtt_client.disconnect()
+        # set topic if not provided as argument
+        if mqtt_topic is None:
+            mqtt_topic = SolDefines.solTypeToTypeName(SolDefines, sol_object["type"])
+
+        res = self.mqtt_client.publishGatewayEvent(mqtt_topic, "json", {"g": sol_object})
+        if not res:
+            log.warn("Could not publish to MQTT server")
+        else:
+            log.debug("Published to MQTT")
+
+    def subscribe(self):
+        self.mqtt_client.subscribeToGatewayCommands(command='SolManager', format='json', qos=2)
+        self.mqtt_client.commandCallback = self._gateway_command_cb
+
+    def _gateway_command_cb(self, command):
+        log.debug("Id = %s (of type = %s) received the gateway command %s at %s" % (
+                command.id, command.type, command.data, command.timestamp))
+        if command.data["command"] == "snapshot":
+            if self.snapshot_thread.last_snapshot:
+                snapshot = self.snapshot_thread.last_snapshot
+                snapshot["token"] = command.data["token"]
+                MqttThread().publish(self.snapshot_thread.last_snapshot, "SolManagerResponse")
+            else:
+                self.snapshot_thread._doSnapshot()
 
 #======== periodically do something
 
@@ -497,6 +524,9 @@ class SnapshotThread(DoSomethingPeriodic):
         super(SnapshotThread, self).__init__(SolUtils.AppConfig().get("period_snapshot_min"))
         self.name            = 'SnapshotThread'
         self.start()
+
+        # initialize local attributes
+        self.last_snapshot = None
 
     def _doSomething(self):
         self._doSnapshot()
@@ -650,10 +680,12 @@ class SnapshotThread(DoSomethingPeriodic):
                     'type':      SolDefines.SOL_TYPE_DUST_SNAPSHOT,
                     'value':     snapshot,
                 }
+                self.last_snapshot = sobject
 
                 # publish sensor object
                 PubFileThread().publish(sobject)
                 PubServerThread().publish(sobject)
+                MqttThread().publish(sobject)
 
 # publish app stats
 
@@ -999,7 +1031,7 @@ class SolManager(threading.Thread):
             "mgrThread"                : None,
             "pubFileThread"            : None,
             "pubServerThread"          : None,
-            "pubMqttThread"            : None,
+            "MqttThread"               : None,
             "snapshotThread"           : None,
             "statsThread"              : None,
             "pollForCommandsThread"    : None,
@@ -1044,11 +1076,12 @@ class SolManager(threading.Thread):
                 self.threads["mgrThread"]            = MgrThreadJsonServer()
             self.threads["pubFileThread"]            = PubFileThread()
             self.threads["pubServerThread"]          = PubServerThread()
-            self.threads["pubMqttThread"]            = PubMqttThread(
-                mgrThread              = self.threads["mgrThread"],
+            self.threads["snapshotThread"] = SnapshotThread(
+                mgrThread=self.threads["mgrThread"],
             )
-            self.threads["snapshotThread"]           = SnapshotThread(
+            self.threads["mqttThread"]               = MqttThread(
                 mgrThread              = self.threads["mgrThread"],
+                snapshot_thread        = self.threads["snapshotThread"],
             )
             self.threads["statsThread"]              = StatsThread(
                 mgrThread              = self.threads["mgrThread"],
