@@ -135,6 +135,7 @@ class MgrThread(object):
         # local variables
         self.sol = Sol.Sol()
         self.macManager = None
+        self.dataLock = threading.RLock()
 
     def getMacManager(self):
         if self.macManager is None:
@@ -161,11 +162,17 @@ class MgrThread(object):
             # update stats
             SolUtils.AppStats().increment('NUMRX_{0}'.format(dust_notif['name']))
 
+            # get time
+            epoch = None
+            if hasattr(dust_notif, "utcSecs") and hasattr(dust_notif, "utcUsecs"):
+                netTs = self._calcNetTs(dust_notif)
+                epoch = self._netTsToEpoch(netTs)
+
             # convert dust notification to JSON SOL Object
             sol_jsonl = self.sol.dust_to_json(
                 dust_notif  = dust_notif,
                 mac_manager = self.getMacManager(),
-                timestamp   = int(time.time()),  # TODO get timestamp of when data was created
+                timestamp   = epoch,
             )
 
             for sol_json in sol_jsonl:
@@ -182,6 +189,19 @@ class MgrThread(object):
 
     def close(self):
         pass
+
+    # === misc
+
+    def _calcNetTs(self, notif):
+        return int(float(notif.utcSecs) + float(notif.utcUsecs / 1000000.0))
+
+    def _syncNetTsToUtc(self, netTs):
+        with self.dataLock:
+            self.tsDiff = time.time() - netTs
+
+    def _netTsToEpoch(self, netTs):
+        with self.dataLock:
+            return int(netTs + self.tsDiff)
 
 class MgrThreadSerial(MgrThread):
 
@@ -214,7 +234,6 @@ class MgrThreadSerial(MgrThread):
         super(MgrThreadSerial, self)._handler_dust_notifs(
             notifJson,
         )
-
 
 class MgrThreadJsonServer(MgrThread, threading.Thread):
 
