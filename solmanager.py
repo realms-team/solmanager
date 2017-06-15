@@ -952,24 +952,17 @@ class JsonApiThread(threading.Thread):
             'stats':                  SolUtils.AppStats().get(),
         }
 
+    @_authorized_webhandler
     def _webhandler_resend_POST(self):
         # abort if malformed JSON body
         if bottle.request.json is None:
-            raise bottle.HTTPResponse(
-                status  = 400,
-                headers = {'Content-Type': 'application/json'},
-                body    = json.dumps({'error': 'Malformed JSON body'}),
-            )
+            return {'error': 'Malformed JSON body'}
 
         # verify all fields are present
         required_fields = ["action", "startTimestamp", "endTimestamp"]
         for field in required_fields:
             if field not in bottle.request.json:
-                raise bottle.HTTPResponse(
-                    status  = 400,
-                    headers = {'Content-Type': 'application/json'},
-                    body    = json.dumps({'error': 'Missing field {0}'.format(field)}),
-                )
+                return {'error': 'Missing field {0}'.format(field)}
 
         # handle
         action          = bottle.request.json["action"]
@@ -978,28 +971,16 @@ class JsonApiThread(threading.Thread):
         if action == "count":
             sol_jsonl = self.sol.loadFromFile(BACKUPFILE, startTimestamp, endTimestamp)
             # send response
-            raise bottle.HTTPResponse(
-                status  = 200,
-                headers = {'Content-Type': 'application/json'},
-                body    = json.dumps({'numObjects': len(sol_jsonl)}),
-            )
+            return {'numObjects': len(sol_jsonl)}
         elif action == "resend":
             sol_jsonl = self.sol.loadFromFile(BACKUPFILE, startTimestamp, endTimestamp)
             # publish
             for sobject in sol_jsonl:
                 PubServerThread().publish(sobject)
             # send response
-            raise bottle.HTTPResponse(
-                status  = 200,
-                headers = {'Content-Type': 'application/json'},
-                body    = json.dumps({'numObjects': len(sol_jsonl)}),
-            )
+            return {'numObjects': len(sol_jsonl)}
         else:
-            raise bottle.HTTPResponse(
-                status  = 400,
-                headers = {'Content-Type': 'application/json'},
-                body    = json.dumps({'error': 'Unknown action {0}'.format(action)}),
-            )
+            return {'error': 'Unknown action {0}'.format(action)}
 
     @_authorized_webhandler
     def _webhandler_smartmeshipapi_POST(self):
