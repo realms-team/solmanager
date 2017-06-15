@@ -182,7 +182,7 @@ class MgrThread(object):
                 # publish
                 PubFileThread().publish(sol_json)  # to the backup file
                 PubServerThread().publish(sol_json)  # to the solserver over the Internet
-                MqttThread().publish(sol_json)  # to the mqtt server over the Internet
+                WastonIotThread().publish(sol_json)  # to the mqtt server over the Internet
 
         except Exception as err:
             SolUtils.logCrash(err, SolUtils.AppStats())
@@ -441,16 +441,16 @@ class PubServerThread(PubThread):
                 log.debug(r.json())
 
 
-class MqttThread(threading.Thread):
+class WastonIotThread(threading.Thread):
     """
-    Singleton that directly sends Sol JSON objects to the mqtt server
+    Singleton that directly sends Sol JSON objects to the WastonIoT mqtt server
     """
     _instance = None
     _init = False
 
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
-            cls._instance = super(MqttThread, cls).__new__(cls, *args, **kwargs)
+            cls._instance = super(WastonIotThread, cls).__new__(cls, *args, **kwargs)
         return cls._instance
 
     def __init__(self, mgrThread=None, snapshot_thread=None):
@@ -458,7 +458,7 @@ class MqttThread(threading.Thread):
             return
         self._init = True
         threading.Thread.__init__(self)
-        self.name = 'MqttThread'
+        self.name = 'WastonIotThread'
         self.mgrThread = mgrThread
         self.snapshot_thread = snapshot_thread
         self.goOn = True
@@ -525,7 +525,7 @@ class MqttThread(threading.Thread):
             if self.snapshot_thread.last_snapshot:
                 snapshot = self.snapshot_thread.last_snapshot
                 snapshot["token"] = command.data["token"]
-                MqttThread().publish(self.snapshot_thread.last_snapshot, "SolManagerResponse")
+                WastonIotThread().publish(self.snapshot_thread.last_snapshot, "SolManagerResponse")
             else:
                 self.snapshot_thread._doSnapshot()
 
@@ -707,7 +707,7 @@ class SnapshotThread(DoSomethingPeriodic):
                 # publish sensor object
                 PubFileThread().publish(sobject)
                 PubServerThread().publish(sobject)
-                MqttThread().publish(sobject)
+                WastonIotThread().publish(sobject)
 
 # publish app stats
 
@@ -1027,7 +1027,7 @@ class SolManager(threading.Thread):
             "mgrThread"                : None,
             "pubFileThread"            : None,
             "pubServerThread"          : None,
-            "MqttThread"               : None,
+            "wastonIotThread"          : None,
             "snapshotThread"           : None,
             "statsThread"              : None,
             "pollForCommandsThread"    : None,
@@ -1075,7 +1075,7 @@ class SolManager(threading.Thread):
             self.threads["snapshotThread"] = SnapshotThread(
                 mgrThread=self.threads["mgrThread"],
             )
-            self.threads["mqttThread"]               = MqttThread(
+            self.threads["wastonIotThread"]          = WastonIotThread(
                 mgrThread              = self.threads["mgrThread"],
                 snapshot_thread        = self.threads["snapshotThread"],
             )
