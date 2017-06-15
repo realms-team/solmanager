@@ -471,7 +471,7 @@ class WastonIotThread(threading.Thread):
             pass
 
         # connect to server and subscribe to commands
-        self.connect()
+        self._connect()
         self.subscribe()
 
         # start self thread
@@ -485,20 +485,7 @@ class WastonIotThread(threading.Thread):
         self.goOn = False
         self.mqtt_client.disconnect()
 
-    def connect(self):
-        try:
-            options = {
-                "org": SolUtils.AppConfig().get("mqtt_organization"),
-                "type": "manager",
-                "id": FormatUtils.formatBuffer(self.mgrThread.getMacManager()),
-                "auth-method": "token",
-                "auth-token": SolUtils.AppConfig().get("mqtt_token")
-            }
-            self.mqtt_client = ibmiotf.gateway.Client(options)
-        except ibmiotf.ConnectionException as e:
-            print e
-        else:
-            self.mqtt_client.connect()
+    # ======================== public =========================================
 
     def publish(self, sol_object, mqtt_topic=None):
         if self.mqtt_client is None:
@@ -517,6 +504,23 @@ class WastonIotThread(threading.Thread):
     def subscribe(self):
         self.mqtt_client.subscribeToGatewayCommands(command='SolManager', format='json', qos=2)
         self.mqtt_client.commandCallback = self._gateway_command_cb
+
+    # ======================== private ========================================
+
+    def _connect(self):
+        try:
+            options = {
+                "org": SolUtils.AppConfig().get("mqtt_organization"),
+                "type": "manager",
+                "id": FormatUtils.formatBuffer(self.mgrThread.getMacManager()),
+                "auth-method": "token",
+                "auth-token": SolUtils.AppConfig().get("mqtt_token")
+            }
+            self.mqtt_client = ibmiotf.gateway.Client(options)
+        except ibmiotf.ConnectionException as e:
+            print e
+        else:
+            self.mqtt_client.connect()
 
     def _gateway_command_cb(self, command):
         log.debug("Id = %s (of type = %s) received the gateway command %s at %s" % (
