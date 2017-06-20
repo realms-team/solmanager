@@ -15,21 +15,27 @@ This repo contains the software to run on the manager. It:
 * Generate a private key `solmanager.ppk` and associated (self-signed) certification `solmanager.cert` for SSL protection:
     * `openssl genrsa -out solmanager.ppk 1024`
     * `openssl req -new -x509 -key solmanager.ppk -out solmanager.cert -days 1825` (you MUST enter the hostname in the entry "Common Name")
-* place both `solmanager.ppk` and `solmanager.cert` files in the `solmanager` directory
-* copy `solmanager.cert` in the `solserver` directory as well
+* place both `solmanager.ppk` and `solmanager.cert` files in the `solmanager/` directory
+* copy `solmanager.cert` in the `solserver/` directory as well
 * double-click/run on `solmanager.py` to start the manager
 
+```
+                                   8080      1882    8081      8082
+SmartMesh IP Manager ------ JsonServer ------ SolManager ------ SolServer
+```
+
 ## Configuration
+
 * Create a copy of `solmanager.config.sample`, name it `solmanager.config`
-* Modify the configuration fields you need to
+* Modify the configuration fields as you see fit for your deployment
 
 ## Supervisor
 
-For the solmanager to restart automatically
+For the solmanager to restart automatically in Linux:
 * Install supervisor: ```sudo apt-get install supervisor```
 * Place the supervisor configuration: ```sudo cp supervisord.conf.sample /etc/supervisor/conf.d/solmanager.conf```
-* In that configuration file, replace #SOL_MANAGER_PATH by the path where the solmanager directory is
-* Restart supervisor service: ```sudo service supervisor restart```
+* In that configuration file, replace #SOL_MANAGER_PATH by the path where the `solmanager/` directory is
+* Restart supervisor service: `sudo service supervisor restart`
 
 # JSON API
 
