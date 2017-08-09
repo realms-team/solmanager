@@ -501,7 +501,8 @@ class WastonIotThread(threading.Thread):
                                                        {"g": sol_object})
         else:
             res = self.mqtt_client.publishDeviceEvent("mote",
-                                                      sol_object["macAddress"],
+                                                      FormatUtils.formatBuffer(sol_object["mac"]),
+                                                      mqtt_topic,
                                                       "json",
                                                       sol_object)
         if not res:
