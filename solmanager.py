@@ -495,7 +495,15 @@ class WastonIotThread(threading.Thread):
         if mqtt_topic is None:
             mqtt_topic = SolDefines.solTypeToTypeName(SolDefines, sol_object["type"])
 
-        res = self.mqtt_client.publishGatewayEvent(mqtt_topic, "json", {"g": sol_object})
+        if self.mgrThread.macManager == sol_object["macAddress"]:
+            res = self.mqtt_client.publishGatewayEvent(mqtt_topic,
+                                                       "json",
+                                                       {"g": sol_object})
+        else:
+            res = self.mqtt_client.publishDeviceEvent("mote",
+                                                      sol_object["macAddress"],
+                                                      "json",
+                                                      sol_object)
         if not res:
             log.warn("Could not publish to MQTT server")
         else:
