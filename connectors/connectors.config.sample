@@ -1,0 +1,36 @@
+; Connectors configuration file
+
+; You can define connectors with the following mandatory fields
+;[name]                                  # connector name (must be unique)
+;url=http://api.solsystem.io:<port>      # the endpoint
+
+; The following field are optionals
+;auth_token=myAuthToken                  # authentication token
+;pubrate_min=0.1                         # publication rate (send instantly if not present)
+;subrate_min=60                          # subscribtion rate (keep connection alive if not present)
+
+; auth parameters are customisable
+; the auth_<param> will be transformed in a python dictionnary
+; For example:
+;   auth_orgid=myOrgId
+;   auth_token=myAuthToken
+; will become:
+;   auth {
+;       "orgid": myOrgId,
+;       "token": myAuthToken
+;   }
+
+;[http_1]
+;url=https://api.solsystem.io:443        # http server host
+;auth_token=DEFAULT_TOKEN                # http api token
+;pubrate_min=0.1                         # publication rate (POST instantly if not present)
+;subrate_min=60                          # poll server every hour
+
+;[mqtt_1]
+;url=mqtt://api.solsystem.io:1883        # mqtt server host
+;auth_token= myAuthToken                 # ibm bluemix token associated to manager
+;auth_orgid= myOrgId                     # ibm bluemix Organisation ID
+
+;[file_1]                                # connector name (must be unique)
+;url=file://home/pi/solmanager.backup    # absolute file path
+;pubrate_min=0.1                         # publication rate (write instantly if not present)
