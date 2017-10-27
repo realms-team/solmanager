@@ -23,10 +23,12 @@ class Connector:
         """
         pass
 
-    def publish(self, msg):
+    def publish(self, msg, topic=None):
         """
         Publish a message
         :type msg: dict
-        :param msg: a
+        :param msg: the message to send
+        :type topic: sting
+        :param topic: the topic to send to
         """
         pass
