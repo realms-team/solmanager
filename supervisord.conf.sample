@@ -5,3 +5,9 @@ autostart=true
 autorestart=true
 stderr_logfile=sol.err.log
 stdout_logfile=sol.out.log
+
+[program:serial]
+command = screen -mDS serial /dev/ttyUSB2 9600
+autostart = true
+autorestart = true
+user=pi
