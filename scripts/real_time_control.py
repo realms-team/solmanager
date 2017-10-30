@@ -13,7 +13,7 @@ cntrlMac 	= '00-17-0d-00-00-38-1b-fb'					# MAC address to control
 sensMac		= '00-17-0d-00-00-38-28-e8'					# MAC address that is sensing
 cntrlVar 	= 'temperature'							# variable to use for control
 cntrlType 	= 39								# SOL type to control on
-cntrolThesh = 50.								# threshold to apply control
+cntrolThesh 	= 50.								# threshold to apply control
 
 def macTolist(hexMac):
 	'''converts hex MAC string to list
