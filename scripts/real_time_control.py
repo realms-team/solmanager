@@ -3,17 +3,17 @@ from requests import post
 from collections import OrderedDict
 import json
 
-lsnHost 	= 'localhost'													# host to listen to for SOL objects
-lsnPort 	= 8888															# port to listen to for SOL objects
-listnUrl 	= '/backup'														# URL topic to listen to for SOL objects
-smUrl 		= 'http://localhost:8888/smartmeshipapi.json'					# SmartmeshIP URL topic to POST to commands 
-headers 	= {'content-type': 'application/json'}							# headers for JSON dump
+lsnHost 	= 'localhost'							# host to listen to for SOL objects
+lsnPort 	= 8888								# port to listen to for SOL objects
+listnUrl 	= '/backup'							# URL topic to listen to for SOL objects
+smUrl 		= 'http://localhost:8888/smartmeshipapi.json'			# SmartmeshIP URL topic to POST to commands 
+headers 	= {'content-type': 'application/json'}				# headers for JSON dump
 
-cntrlMac 	= '00-17-0d-00-00-38-1b-fb'										# MAC address to control
-sensMac		= '00-17-0d-00-00-38-28-e8'										# MAC address that is sensing
-cntrlVar 	= 'temperature'													# variable to use for control
-cntrlType 	= 39															# SOL type to control on
-cntrolThesh = 50.															# threshold to apply control
+cntrlMac 	= '00-17-0d-00-00-38-1b-fb'					# MAC address to control
+sensMac		= '00-17-0d-00-00-38-28-e8'					# MAC address that is sensing
+cntrlVar 	= 'temperature'							# variable to use for control
+cntrlType 	= 39								# SOL type to control on
+cntrolThesh = 50.								# threshold to apply control
 
 def macTolist(hexMac):
 	'''converts hex MAC string to list
@@ -30,8 +30,8 @@ def cmdJson(dMac,dat):
 
 	cmd = OrderedDict()
 	cmd['commandArray'] 		= ['sendData']
-	cmd['fields'] 				= OrderedDict()
-	cmd['fields']['macAddress'] = dMac
+	cmd['fields'] 			= OrderedDict()
+	cmd['fields']['macAddress'] 	= dMac
 	cmd['fields']['priority'] 	= 2 
 	cmd['fields']['srcPort'] 	= '0xf0b9'
 	cmd['fields']['dstPort'] 	= '0xf0b9'
