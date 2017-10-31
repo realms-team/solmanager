@@ -4,3 +4,4 @@ cherrypy>=10.2.1
 pyopenssl>=17.0.0
 pyserial>=3.3
 ibmiotf>=0.2.8
+furl>=1.0.1

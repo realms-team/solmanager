@@ -1,5 +1,7 @@
+from furl import furl
 
-class Connector:
+
+class Connector(object):
 
     def __init__(self, url, auth=None, pubrate_min=0, subrate_min=0):
         """
@@ -10,7 +12,16 @@ class Connector:
         :param pubrate_min: the publication rate
         :param subrate_min: the subscription rate
         """
-        pass
+        self.connected = False
+
+        furl_obj = furl(url)
+        self.host = furl_obj.host
+        self.port = furl_obj.port
+
+        self.pubrate_min = pubrate_min
+        self.subrate_min = subrate_min
+
+        self.auth = auth
 
     def subscribe(self, topic, cb):
         """
