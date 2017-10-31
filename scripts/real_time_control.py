@@ -1,6 +1,5 @@
 from bottle import route, request, run
 from requests import post 
-from collections import OrderedDict
 import json
 
 lsnHost 	= 'localhost'							# host to listen to for SOL objects
@@ -16,36 +15,40 @@ cntrlType 	= 39								# SOL type to control on
 cntrolThesh 	= 50.								# threshold to apply control
 
 def macTolist(hexMac):
-	'''converts hex MAC string to list
-	hexMax: 	MAC address to convert (string)
-	returns: 	list of MAC address integers''' 
+	"""
+	converts hex MAC string to list
+	:param hexMax: 	MAC address to convert (string)
+	:returns: 	list of MAC address integers
+	""" 
 
 	return [int(i,16) for i in hexMac.split('-')]
 
 def cmdJson(dMac,dat):
-	'''creates 'send data' command to specific MAC
-	dMac: 		destination mac address (string)
-	dat: 		payload data (string)
-	returns: 	cmd, ordered dict (to convert to JSON)'''
-
-	cmd = OrderedDict()
-	cmd['commandArray'] 		= ['sendData']
-	cmd['fields'] 			= OrderedDict()
-	cmd['fields']['macAddress'] 	= dMac
-	cmd['fields']['priority'] 	= 2 
-	cmd['fields']['srcPort'] 	= 0xf0b9
-	cmd['fields']['dstPort'] 	= 0xf0b9
-	cmd['fields']['options'] 	= 0
-	cmd['fields']['data'] 		= dat
-
-	return cmd
+	"""
+	creates 'send data' command to specific MAC
+	:param dMac: 	destination mac address (string)
+	:para dat: 	payload data (string)
+	:returns: 	cmd, ordered dict (to convert to JSON)
+	"""
+	return json.dumps({
+		'commandArray': ['sendData'],
+		'fields' : {
+			'macAddress' : dMac,
+			'priority': 2
+			'srcPort': 0xf0b9
+			'dstPort': 0xf0b9
+			'options': 0
+			'data': dat
+		}
+	}
 
 @route(listnUrl, method = 'POST')
 def control():
-	'''infinitely listening for POSTS on lsnHost
+	"""
+	infinitely listening for POSTS on lsnHost
 	if recieved SOL packet meets cntrolThesh conditions,
 	send POST to smartmesh serial with command to a MAC
-	''' 
+	""" 
 
 	solPl = request.json
 	print 'incoming SOL object:' 
@@ -54,7 +57,7 @@ def control():
 		if solPl['value'][cntrlVar] < cntrolThesh:
 			print 'outgoing command:'
 			sndCmd = cmdJson(macTolist(cntrlMac),1)
-			print json.dumps(sndCmd)
-			#post(smUrl, data=json.dumps(pumpOn), headers=headers)
+			print sndCmd
+			#post(smUrl, data=pumpOn, headers=headers)
 
 run(host=lsnHost, port=lsnPort)
