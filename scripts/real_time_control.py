@@ -33,8 +33,8 @@ def cmdJson(dMac,dat):
 	cmd['fields'] 			= OrderedDict()
 	cmd['fields']['macAddress'] 	= dMac
 	cmd['fields']['priority'] 	= 2 
-	cmd['fields']['srcPort'] 	= '0xf0b9'
-	cmd['fields']['dstPort'] 	= '0xf0b9'
+	cmd['fields']['srcPort'] 	= 0xf0b9
+	cmd['fields']['dstPort'] 	= 0xf0b9
 	cmd['fields']['options'] 	= 0
 	cmd['fields']['data'] 		= dat
 
