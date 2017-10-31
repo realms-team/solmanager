@@ -17,6 +17,8 @@ class Connector(object):
         furl_obj = furl(url)
         self.host = furl_obj.host
         self.port = furl_obj.port
+        self.port = furl_obj.port
+        self.proto = furl_obj.scheme
 
         self.pubrate_min = pubrate_min
         self.subrate_min = subrate_min
