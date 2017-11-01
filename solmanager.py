@@ -841,10 +841,11 @@ class JsonApiThread(threading.Thread):
             finally:
                 server.stop()
 
-    def __init__(self, mgrThread):
+    def __init__(self, mgrThread, snapshotThread):
 
         # store params
         self.mgrThread          = mgrThread
+        self.snapshotThread     = snapshotThread
 
         # local variables
         self.sol                = Sol.Sol()
@@ -857,26 +858,16 @@ class JsonApiThread(threading.Thread):
 
         # initialize web server
         self.web                = bottle.Bottle()
-        self.web.route(
-            path        = '/api/v1/echo.json',
-            method      = 'POST',
-            callback    = self._webhandler_echo_POST,
-        )
-        self.web.route(
-            path        = '/api/v1/status.json',
-            method      = 'GET',
-            callback    = self._webhandler_status_GET,
-        )
-        self.web.route(
-            path        = '/api/v1/resend.json',
-            method      = 'POST',
-            callback    = self._webhandler_resend_POST,
-        )
-        self.web.route(
-            path        = '/api/v1/smartmeshipapi.json',
-            method      = 'POST',
-            callback    = self._webhandler_smartmeshipapi_POST,
-        )
+
+        ENDPOINTS = [("echo", "POST"), ("status", "GET"), ("resend", "POST"), ("smartmeshipapi", "POST"),
+                     ("snapshot", "POST")]
+        API_VERSION = 1
+        for endpoint in ENDPOINTS:
+            self.web.route(
+                path        = '/api/v{0}/{1}.json'.format(API_VERSION, endpoint[0]),
+                method      = endpoint[1],
+                callback    = getattr(self, "_webhandler_{0}_{1}".format(*endpoint)),
+            )
 
         # start the thread
         threading.Thread.__init__(self)
@@ -995,6 +986,14 @@ class JsonApiThread(threading.Thread):
     def _webhandler_smartmeshipapi_POST(self):
         return self.mgrThread.issueRawApiCommand(bottle.request.json)
 
+    @_authorized_webhandler
+    def _webhandler_snapshot_POST(self):
+        if self.snapshotThread.last_snapshot:
+            return self.snapshotThread.last_snapshot
+        else:
+            self.snapshotThread._doSnapshot()
+            return "snapshot started"
+
     #=== misc
 
     def _authorizeClient(self):
@@ -1079,6 +1078,7 @@ class SolManager(threading.Thread):
             self.threads["pollForCommandsThread"]    = PollCmdsThread()
             self.threads["jsonApiThread"]            = JsonApiThread(
                 mgrThread              = self.threads["mgrThread"],
+                snapshotThread         = self.threads["snapshotThread"],
             )
 
             # wait for all threads to have started
