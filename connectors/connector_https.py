@@ -8,7 +8,7 @@ HTTP_CHUNK_SIZE = 10  # send batches of 10 Sol objects
 
 class ConnectorHttps(Connector):
 
-    def init(self):
+    def _start(self):
         if self.pubrate_min != 0:
             # start pubthread
             self._publish_task()
