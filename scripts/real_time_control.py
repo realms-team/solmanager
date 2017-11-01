@@ -40,8 +40,8 @@ def cmdJson(dMac,dat):
 			'options': 0,
 			'data': dat,
 		}
-	}
-
+	})
+		
 @route(listnUrl, method = 'POST')
 def control():
 	"""
