@@ -22,7 +22,7 @@ class ConnectorHttps(Connector):
         :type cb: function
         :param cb: callback function to call when receiving message with that topic
         """
-        raise NotImplementedError
+        self._subscribe_task(topic)
 
     def publish(self, msg, topic=None):
         """
@@ -72,11 +72,11 @@ class ConnectorHttps(Connector):
         # restart after pubrate_min
         threading.Timer(self.pubrate_min * 60, self._publish_task).start()
 
-    def _subscribe_task(self):
+    def _subscribe_task(self, topic):
         # poll host for commands
         try:
             r = requests.get(
-                '{0}://{1}:{2}/api/v2/getcommands/'.format(self.proto, self.host, self.port),
+                '{0}://{1}:{2}/api/v2/{3}/'.format(self.proto, self.host, self.port, topic),
                 headers={'X-REALMS-Token': self.auth["token"]},
                 verify=self.auth["cert"],
             )
