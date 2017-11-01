@@ -993,7 +993,7 @@ class JsonApiThread(threading.Thread):
 
     @_authorized_webhandler
     def _webhandler_smartmeshipapi_POST(self):
-        return self.mgrThread.issueRawApiCommand(bottle.request.json)
+        return self.mgrThread.issueRawApiCommand(json.loads(bottle.request.json))
 
     #=== misc
 
