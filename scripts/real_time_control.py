@@ -34,11 +34,11 @@ def cmdJson(dMac,dat):
 		'commandArray': ['sendData'],
 		'fields' : {
 			'macAddress' : dMac,
-			'priority': 2
-			'srcPort': 0xf0b9
-			'dstPort': 0xf0b9
-			'options': 0
-			'data': dat
+			'priority': 2,
+			'srcPort': 0xf0b9,
+			'dstPort': 0xf0b9,
+			'options': 0,
+			'data': dat,
 		}
 	}
 
