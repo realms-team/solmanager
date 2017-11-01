@@ -24,9 +24,16 @@ class ConnectorHttps(Connector):
         :type topic: sting
         :param topic: the topic to send to
         """
-        # send http_payload to server
+
+        # if pubrate_min == 0, send now
+        self._publish_now(msg, topic)
+
+        # else, add message to queue
+        self.publish_queue.append((msg, topic))
+
+    def _publish_now(self, msg, topic=None):
         try:
-            # update stats
+            # send message to server
             r = requests.put(
                 '{0}://{1}:{2}/api/v2/o.json'.format(self.proto, self.host, self.port),
                 headers = {'X-REALMS-Token': self.auth["token"]},

@@ -1,4 +1,5 @@
 from furl import furl
+import threading
 
 
 class Connector(object):
@@ -25,6 +26,11 @@ class Connector(object):
 
         self.auth = auth
 
+        self.publish_queue = []  # tuple list to store message to send
+
+        if self.pubrate_min != 0:
+            self._publish_task()  # start the publishing task
+
     def subscribe(self, topic, cb):
         """
         Subscribe to messages on a given topic
@@ -45,3 +51,7 @@ class Connector(object):
         :param topic: the topic to send to
         """
         pass
+
+    def _publish_task(self):
+        threading.Timer(self.pubrate_min*60, self._publish_task).start()
+
