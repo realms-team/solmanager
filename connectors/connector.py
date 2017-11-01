@@ -1,5 +1,7 @@
 from furl import furl
-import threading
+from   solobjectlib          import Sol
+import requests
+import json
 
 
 class Connector(object):
@@ -28,8 +30,9 @@ class Connector(object):
 
         self.publish_queue = []  # tuple list to store message to send
 
-        if self.pubrate_min != 0:
-            self._publish_task()  # start the publishing task
+        self.sol = Sol.Sol()
+
+        self._start()
 
     def subscribe(self, topic, cb):
         """
@@ -52,6 +55,8 @@ class Connector(object):
         """
         pass
 
-    def _publish_task(self):
-        threading.Timer(self.pubrate_min*60, self._publish_task).start()
-
+    @staticmethod
+    def _handle_command(command):
+        if command.data["command"] == "snapshot":
+            # TODO send POST to solmanager API
+            pass
