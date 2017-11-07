@@ -1,5 +1,24 @@
 from furl import furl
-from   solobjectlib          import Sol
+from solobjectlib import Sol
+import connectors
+
+
+def create(config_dict):
+    auth = connectors.connector.get_auth_dict(config_dict)
+    furl_obj = furl(config_dict["url"])
+    proto = furl_obj.scheme
+    if proto == "https":
+        return connectors.connector_https.ConnectorHttps(config_dict["url"], auth)
+    else:
+        raise NotImplementedError
+
+
+def get_auth_dict(config_dict):
+    auth_dict = {}
+    for key, value in config_dict.iteritems():
+        if "auth_" in key:
+            auth_dict[key[len("auth_"):]] = value
+    return auth_dict
 
 
 class Connector(object):
@@ -16,6 +35,7 @@ class Connector(object):
         self.connected = False
 
         furl_obj = furl(url)
+        self.url = url
         self.host = furl_obj.host
         self.port = furl_obj.port
         self.port = furl_obj.port
