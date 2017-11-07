@@ -856,9 +856,9 @@ class SolManager(threading.Thread):
     def close(self):
         os._exit(0)  # bypass CLI thread
 
-    def publish(self, sol_obj):
+    def publish(self, sol_json, topic="o.json"):
         for connector_name, connector in self.connectors.iteritems():
-            connector.publish(sol_obj, "o.json")
+            connector.publish(sol_json, topic)
 
     def _clihandle_quit(self):
         time.sleep(.3)
