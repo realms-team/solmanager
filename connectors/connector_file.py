@@ -1,8 +1,9 @@
 from connector import Connector
-import requests
 import threading
 import logging
 import time
+
+logger = logging.getLogger(__name__)
 
 # we buffer objects for BUFFER_PERIOD second to ensure they are written to
 # file chronologically
@@ -37,6 +38,7 @@ class ConnectorFile(Connector):
             self.publish_queue.append(msg)
 
     def _publish_now(self, msg_list):
+        logger.debug("publishing now")
         self.sol.dumpToFile(
             msg_list,
             self.host,

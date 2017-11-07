@@ -3,6 +3,8 @@ import requests
 import threading
 import logging
 
+logger = logging.getLogger(__name__)
+
 HTTP_CHUNK_SIZE = 10  # send batches of 10 Sol objects
 
 
@@ -47,7 +49,7 @@ class ConnectorHttps(Connector):
         try:
             # send message to server
             url = '{0}://{1}:{2}/api/v1/{3}'.format(self.proto, self.host, self.port, topic)
-            logging.debug(url)
+            logger.debug("Publishing now to {0}".format(url))
             requests.packages.urllib3.disable_warnings()
             r = requests.put(
                 url     = url,
@@ -57,11 +59,11 @@ class ConnectorHttps(Connector):
             )
         except requests.exceptions.RequestException as err:
             # happens when could not contact server
-            logging.warning("Error when sending http payload: %s", err)
+            logger.warning("Error when sending http payload: %s", err)
         else:
             # server answered
             if r.status_code != requests.codes.ok:
-                logging.warning("Error HTTP response status: " + str(r.text))
+                logger.warning("Error HTTP response status: " + str(r.text))
 
     def _publish_task(self):
         # split publish list into chunks
@@ -81,7 +83,7 @@ class ConnectorHttps(Connector):
         # poll host for commands
         try:
             url = '{0}://{1}:{2}/api/v1/{3}/'.format(self.proto, self.host, self.port, topic)
-            logging.debug(url)
+            logger.debug("Subscribing to {0}".format(url))
             r = requests.get(
                 url=url,
                 headers={'X-REALMS-Token': self.auth["token"]},
@@ -89,7 +91,7 @@ class ConnectorHttps(Connector):
             )
         except requests.exceptions.RequestException as err:
             # happens when could not contact server
-            logging.warning("Error when sending http payload: %s", err)
+            logger.warning("Error when sending http payload: %s", err)
         else:  # server answered
             # clear objects
             if r.status_code == 200:
@@ -98,7 +100,7 @@ class ConnectorHttps(Connector):
                     self._handle_command(item['command'])
             else:
                 # update stats
-                logging.warning("Error HTTP response status: " + str(r.text))
+                logger.warning("Error HTTP response status: " + str(r.text))
 
         # restart after subrate_min
         threading.Timer(self.subrate_min * 60, self._subscribe_task, [topic]).start()
