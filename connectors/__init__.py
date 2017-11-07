@@ -1,5 +1,6 @@
 from connectors import connector
 from connectors import connector_https
+from connectors import connector_file
 import logging.config
 
 #============================ logging =========================================

@@ -1,6 +1,7 @@
 from furl import furl
 from solobjectlib import Sol
 import connectors
+import threading
 
 
 def create(config_dict):
@@ -9,6 +10,8 @@ def create(config_dict):
     proto = furl_obj.scheme
     if proto == "https":
         return connectors.connector_https.ConnectorHttps(config_dict["url"], auth)
+    elif proto == "file":
+        return connectors.connector_file.ConnectorFile(config_dict["url"], auth)
     else:
         raise NotImplementedError
 
@@ -38,7 +41,6 @@ class Connector(object):
         self.url = url
         self.host = furl_obj.host
         self.port = furl_obj.port
-        self.port = furl_obj.port
         self.proto = furl_obj.scheme
 
         self.pubrate_min = pubrate_min
@@ -49,6 +51,8 @@ class Connector(object):
         self.publish_queue = []  # tuple list to store message to send
 
         self.sol = Sol.Sol()
+
+        self.dataLock = threading.RLock()
 
         self._start()
 
