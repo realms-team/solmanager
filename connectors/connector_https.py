@@ -1,7 +1,7 @@
 from connector import Connector
 import requests
-import warnings
 import threading
+import logging
 
 HTTP_CHUNK_SIZE = 10  # send batches of 10 Sol objects
 
@@ -42,21 +42,26 @@ class ConnectorHttps(Connector):
             self.publish_queue.append((msg, topic))
 
     def _publish_now(self, msg, topic=None):
+        sol_bin = self.sol.json_to_bin(msg)
+        sol_http = self.sol.bin_to_http([sol_bin])
         try:
             # send message to server
+            url = '{0}://{1}:{2}/api/v1/{3}'.format(self.proto, self.host, self.port, topic)
+            logging.debug(url)
+            requests.packages.urllib3.disable_warnings()
             r = requests.put(
-                '{0}://{1}:{2}/api/v2/o.json'.format(self.proto, self.host, self.port),
+                url     = url,
                 headers = {'X-REALMS-Token': self.auth["token"]},
-                json    = msg,
+                json    = sol_http,
                 verify  = self.auth["cert"],
             )
-        except (requests.exceptions.RequestException) as err:
+        except requests.exceptions.RequestException as err:
             # happens when could not contact server
-            warnings.warn("Error when sending http payload: %s", err)
+            logging.warning("Error when sending http payload: %s", err)
         else:
             # server answered
             if r.status_code != requests.codes.ok:
-                warnings.warn("Error HTTP response status: " + str(r.text))
+                logging.warning("Error HTTP response status: " + str(r.text))
 
     def _publish_task(self):
         # split publish list into chunks
@@ -75,14 +80,16 @@ class ConnectorHttps(Connector):
     def _subscribe_task(self, topic):
         # poll host for commands
         try:
+            url = '{0}://{1}:{2}/api/v1/{3}/'.format(self.proto, self.host, self.port, topic)
+            logging.debug(url)
             r = requests.get(
-                '{0}://{1}:{2}/api/v2/{3}/'.format(self.proto, self.host, self.port, topic),
+                url=url,
                 headers={'X-REALMS-Token': self.auth["token"]},
                 verify=self.auth["cert"],
             )
-        except (requests.exceptions.RequestException) as err:
+        except requests.exceptions.RequestException as err:
             # happens when could not contact server
-            warnings.warn("Error when sending http payload: %s", err)
+            logging.warning("Error when sending http payload: %s", err)
         else:  # server answered
             # clear objects
             if r.status_code == 200:
@@ -91,7 +98,7 @@ class ConnectorHttps(Connector):
                     self._handle_command(item['command'])
             else:
                 # update stats
-                warnings.warn("Error HTTP response status: " + str(r.text))
+                logging.warning("Error HTTP response status: " + str(r.text))
 
         # restart after subrate_min
-        threading.Timer(self.subrate_min * 60, self._subscribe_task).start()
+        threading.Timer(self.subrate_min * 60, self._subscribe_task, [topic]).start()

@@ -1,7 +1,5 @@
 from furl import furl
 from   solobjectlib          import Sol
-import requests
-import json
 
 
 class Connector(object):
