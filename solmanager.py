@@ -504,64 +504,6 @@ class StatsThread(DoSomethingPeriodic):
         SolUtils.AppStats().increment('PUBSERVER_STATS')
 
 
-class PollCmdsThread(DoSomethingPeriodic):
-    """
-    Poll server for commands every period_pollcmds_min.
-
-    This is useful when the solmanager is not reachable by the solserver.
-    """
-    def __init__(self):
-        # initialize parent class
-        super(PollCmdsThread, self).__init__(SolUtils.AppConfig().get("period_pollcmds_min"))
-        self.name                       = 'PollCmdsThread'
-        self.start()
-
-    def _doSomething(self):
-        self._poll_server()
-
-    def _poll_server(self):
-        # send http_payload to server
-        try:
-            # update stats
-            SolUtils.AppStats().increment('PUBSERVER_PULLATTEMPTS')
-            requests.packages.urllib3.disable_warnings()
-            r = requests.get(
-                'https://{0}/api/v1/getactions/'.format(SolUtils.AppConfig().get("solserver_host")),
-                headers = {'X-REALMS-Token': SolUtils.AppConfig().get("solserver_token")},
-                verify  = SolUtils.AppConfig().get("solserver_certificate"),
-            )
-        except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
-            # update stats
-            SolUtils.AppStats().increment('PUBSERVER_UNREACHABLE')
-            # happens when could not contact server
-            if type(err) == requests.exceptions.SSLError:
-                traceback.print_exc()
-        else:
-            # server answered
-
-            # clear objects
-            if r.status_code == 200:
-                # update stats
-                SolUtils.AppStats().increment('PUBSERVER_PULLOK')
-                for action in r.json():
-                    self._handle_command(action['action'])
-            else:
-                # update stats
-                SolUtils.AppStats().increment('PUBSERVER_PULLFAIL')
-                print "Error HTTP response status: " + str(r.status_code)
-                log.debug(r.json())
-
-    def _handle_command(self, action):
-        if action == "update":
-            # get last repo version
-            os.system("cd " + here + "/../sol/ && git checkout master && git pull origin master")
-            os.system("cd " + here + " && git checkout master && git pull origin master")
-
-            # restart program
-            python = sys.executable
-            os.execl(python, python, * sys.argv)
-
-
 class JsonApiThread(threading.Thread):
     """JSON API to trigger actions on the SolManager"""
 
@@ -762,6 +704,7 @@ class SolManager(threading.Thread):
             "statsThread"              : None,
             "jsonApiThread"            : None,
         }
+        self.connectors = {}
 
         # init Singletons -- must be first init
         SolUtils.AppConfig(config_file=CONFIGFILE)
@@ -784,14 +727,6 @@ class SolManager(threading.Thread):
             callback                   = self._clihandle_versions,
         )
         self.cli.start()
-
-        # start connectors
-        self.connectors = {}
-        config = ConfigParser.ConfigParser()
-        config.read(CONNECTORFILE)
-        connector_config = {s:dict(config.items(s)) for s in config.sections()}
-        for connector_name, connector in connector_config.iteritems():
-            self.connectors[connector_name] = connectors.connector.create(connector)
 
         # start myself
         threading.Thread.__init__(self)
@@ -835,6 +770,9 @@ class SolManager(threading.Thread):
                 time.sleep(5)
             log.debug("All threads started")
 
+            # start connector
+            self.start_connectors()
+
             # return as soon as one thread not alive
             while self.goOn:
                 # verify that all threads are running
@@ -859,6 +797,24 @@ class SolManager(threading.Thread):
     def publish(self, sol_json, topic="o.json"):
         for connector_name, connector in self.connectors.iteritems():
             connector.publish(sol_json, topic)
+
+    def start_connectors(self):
+        # start connectors
+        config = ConfigParser.ConfigParser()
+        config.read(CONNECTORFILE)
+        connector_config = {s: dict(config.items(s)) for s in config.sections()}
+        for connector_name, connector in connector_config.iteritems():
+            self.connectors[connector_name] = connectors.connector.create(connector)
+            self.connectors[connector_name].subscribe(
+                "command/{0}".format(FormatUtils.formatBuffer(self.threads["mgrThread"].macManager)),
+                self._handle_command)
+
+    def _handle_command(self, command):
+        # TODO call all command functions
+        if command == "snapshot":
+            self.threads["snapshotThread"]._doSnapshot()
+        else:
+            log.debug("command not known: {0}".format(command))
 
     def _clihandle_quit(self):
         time.sleep(.3)
