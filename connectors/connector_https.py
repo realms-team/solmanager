@@ -48,12 +48,12 @@ class ConnectorHttps(Connector):
         sol_http = self.sol.bin_to_http([sol_bin])
         try:
             # send message to server
-            url = '{0}://{1}:{2}/api/v1/{3}'.format(self.proto, self.host, self.port, topic)
+            url = '{0}://{1}:{2}/api/v2/{3}'.format(self.proto, self.host, self.port, topic)
             logger.debug("Publishing now to {0}".format(url))
             requests.packages.urllib3.disable_warnings()
             r = requests.put(
                 url     = url,
-                headers = {'X-REALMS-Token': self.auth["token"]},
+                headers = {'X-SOLSYSTEM-Token': self.auth["token"]},
                 json    = sol_http,
                 verify  = self.auth["cert"],
             )
@@ -82,7 +82,7 @@ class ConnectorHttps(Connector):
     def _subscribe_task(self, topic):
         # poll host for commands
         try:
-            url = '{0}://{1}:{2}/api/v1/{3}/'.format(self.proto, self.host, self.port, topic)
+            url = '{0}://{1}:{2}/api/v2/{3}/'.format(self.proto, self.host, self.port, topic)
             logger.debug("Subscribing to {0}".format(url))
             r = requests.get(
                 url=url,
