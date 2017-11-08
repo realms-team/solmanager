@@ -8,8 +8,13 @@ def create(config_dict):
     auth = connectors.connector.get_auth_dict(config_dict)
     furl_obj = furl(config_dict["url"])
     proto = furl_obj.scheme
-    if proto == "https":
-        return connectors.connector_https.ConnectorHttps(config_dict["url"], auth)
+
+    subrate_min = 60
+    if "subrate_min" in config_dict:
+        subrate_min = float(config_dict["subrate_min"])
+
+    if proto == "https" or proto == "http":
+        return connectors.connector_https.ConnectorHttps(config_dict["url"], auth, subrate_min=subrate_min)
     elif proto == "file":
         return connectors.connector_file.ConnectorFile(config_dict["url"], auth)
     else:
@@ -26,7 +31,7 @@ def get_auth_dict(config_dict):
 
 class Connector(object):
 
-    def __init__(self, url, auth=None, pubrate_min=0, subrate_min=0):
+    def __init__(self, url, auth=None, pubrate_min=0, subrate_min=60):
         """
         Initialize the connector instance and set the config
 
@@ -76,9 +81,3 @@ class Connector(object):
         :param topic: the topic to send to
         """
         pass
-
-    @staticmethod
-    def _handle_command(command):
-        if command.data["command"] == "snapshot":
-            # TODO send POST to solmanager API
-            pass

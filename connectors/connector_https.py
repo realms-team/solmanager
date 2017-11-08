@@ -24,7 +24,7 @@ class ConnectorHttps(Connector):
         :type cb: function
         :param cb: callback function to call when receiving message with that topic
         """
-        self._subscribe_task(topic)
+        self._subscribe_task(topic, cb)
 
     def publish(self, msg, topic=None):
         """
@@ -79,14 +79,14 @@ class ConnectorHttps(Connector):
         # restart after pubrate_min
         threading.Timer(self.pubrate_min * 60, self._publish_task).start()
 
-    def _subscribe_task(self, topic):
+    def _subscribe_task(self, topic, cb):
         # poll host for commands
         try:
             url = '{0}://{1}:{2}/api/v2/{3}/'.format(self.proto, self.host, self.port, topic)
             logger.debug("Subscribing to {0}".format(url))
             r = requests.get(
                 url=url,
-                headers={'X-REALMS-Token': self.auth["token"]},
+                headers={'X-SOLSYSTEM-Token': self.auth["token"]},
                 verify=self.auth["cert"],
             )
         except requests.exceptions.RequestException as err:
@@ -97,10 +97,11 @@ class ConnectorHttps(Connector):
             if r.status_code == 200:
                 # update stats
                 for item in r.json():
-                    self._handle_command(item['command'])
+                    print item
+                    cb(item['command'])
             else:
                 # update stats
                 logger.warning("Error HTTP response status: " + str(r.text))
 
         # restart after subrate_min
-        threading.Timer(self.subrate_min * 60, self._subscribe_task, [topic]).start()
+        threading.Timer(self.subrate_min * 60, self._subscribe_task, [topic, cb]).start()
