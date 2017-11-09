@@ -183,6 +183,7 @@ class MgrThread(object):
                 SolUtils.AppStats().increment('PUB_TOTAL_SENTTOPUBLISH')
 
                 # publish
+                log.debug("Publishing stats")
                 self.solmanager_thread.publish(sol_json)
 
         except Exception as err:
@@ -795,19 +796,28 @@ class SolManager(threading.Thread):
         os._exit(0)  # bypass CLI thread
 
     def publish(self, sol_json, topic="o.json"):
+        sol_json["manager"] = FormatUtils.formatBuffer(self.threads["mgrThread"].macManager)
         for connector_name, connector in self.connectors.iteritems():
             connector.publish(sol_json, topic)
 
     def start_connectors(self):
-        # start connectors
+        """start all the connectors defined in the configuration file"""
+        # get the configuration
         config = ConfigParser.ConfigParser()
         config.read(CONNECTORFILE)
         connector_config = {s: dict(config.items(s)) for s in config.sections()}
+
+        # get additional authentication information
+        auth_id = FormatUtils.formatBuffer(self.threads["mgrThread"].macManager)
+
+        # start the connectors
         for connector_name, connector in connector_config.iteritems():
+            # add authentication information
+            connector["auth_id"] = auth_id
+            # create the connector
             self.connectors[connector_name] = connectors.connector.create(connector)
-            self.connectors[connector_name].subscribe(
-                "command/{0}".format(FormatUtils.formatBuffer(self.threads["mgrThread"].macManager)),
-                self._handle_command)
+            # subscribe to the 'command' topic
+            self.connectors[connector_name].subscribe("command", self._handle_command)
 
     def _handle_command(self, command):
         # TODO call all command functions
