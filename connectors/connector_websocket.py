@@ -1,5 +1,4 @@
 from connector import Connector
-import requests
 import threading
 import logging
 import json
@@ -20,7 +19,11 @@ class ConnectorWebsocket(Connector):
         self.websocket_thread.start()
 
         # start pubthread
-        self._publish_task()
+        if self.pubrate_min != 0:
+            # start pubthread
+            self.publish_thread = threading.Thread(target=self._publish_task, name="ConnectorWebsocket_pubtask")
+            self.publish_thread.daemon = True
+            self.publish_thread.start()
 
     def subscribe(self, topic, cb):
         """
@@ -60,33 +63,6 @@ class ConnectorWebsocket(Connector):
 
         # restart after pubrate_min
         threading.Timer(self.pubrate_min * 60, self._publish_task).start()
-
-    def _subscribe_task(self, topic, cb):
-        # poll host for commands
-        try:
-            url = '{0}://{1}:{2}/api/v2/{3}/'.format(self.proto, self.host, self.port, topic)
-            logger.debug("Subscribing to {0}".format(url))
-            r = requests.get(
-                url=url,
-                headers={'X-SOLSYSTEM-Token': self.auth["token"]},
-                verify=self.auth["cert"],
-            )
-        except requests.exceptions.RequestException as err:
-            # happens when could not contact server
-            logger.warning("Error when sending http payload: %s", err)
-        else:  # server answered
-            # clear objects
-            if r.status_code == 200:
-                # update stats
-                for item in r.json():
-                    print item
-                    cb(item['command'])
-            else:
-                # update stats
-                logger.warning("Error HTTP response status: " + str(r.text))
-
-        # restart after subrate_min
-        threading.Timer(self.subrate_min * 60, self._subscribe_task, [topic, cb]).start()
 
     def _connect(self):
         while 1:
