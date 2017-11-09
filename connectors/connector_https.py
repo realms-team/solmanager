@@ -13,7 +13,9 @@ class ConnectorHttps(Connector):
     def _start(self):
         if self.pubrate_min != 0:
             # start pubthread
-            self._publish_task()
+            self.publish_thread = threading.Thread(target=self._publish_task, name="ConnectorHttps")
+            self.publish_thread.daemon = True
+            self.publish_thread.start()
 
     def subscribe(self, topic, cb):
         """
@@ -24,7 +26,10 @@ class ConnectorHttps(Connector):
         :type cb: function
         :param cb: callback function to call when receiving message with that topic
         """
-        self._subscribe_task(topic, cb)
+        # start pubthread
+        self.subscribe_thread = threading.Thread(target=self._subscribe_task, args=[topic, cb])
+        self.subscribe_thread.daemon = True
+        self.subscribe_thread.start()
 
     def publish(self, msg, topic=None):
         """
@@ -34,27 +39,28 @@ class ConnectorHttps(Connector):
         :type topic: sting
         :param topic: the topic to send to
         """
+        sol_bin = self.sol.json_to_bin(msg)
 
         # if pubrate_min == 0, send now
         if self.pubrate_min == 0:
-            self._publish_now(msg, topic)
+            sol_http = self.sol.bin_to_http([sol_bin])
+            self._publish_now(sol_http)
 
         # else, add message to queue
         else:
-            self.publish_queue.append((msg, topic))
+            self.publish_queue.append(sol_bin)
 
     def _publish_now(self, msg, topic=None):
-        sol_bin = self.sol.json_to_bin(msg)
-        sol_http = self.sol.bin_to_http([sol_bin])
         try:
             # send message to server
-            url = '{0}://{1}:{2}/api/v2/{3}'.format(self.proto, self.host, self.port, topic)
+            url = '{0}://{1}:{2}/api/v2/o.json'.format(self.proto, self.host, self.port)
             logger.debug("Publishing now to {0}".format(url))
             requests.packages.urllib3.disable_warnings()
             r = requests.put(
                 url     = url,
-                headers = {'X-SOLSYSTEM-Token': self.auth["token"]},
-                json    = sol_http,
+                headers = {'X-SOLSYSTEM-Token': self.auth["token"],
+                           'manager': self.auth["id"]},
+                json    = msg,
                 verify  = self.auth["cert"],
             )
         except requests.exceptions.RequestException as err:
@@ -75,7 +81,7 @@ class ConnectorHttps(Connector):
 
             # publish chunks
             for chunk in http_payload:
-                if self._publish_now(*chunk) is True:
+                if self._publish_now(chunk) is True:
                     self.publish_queue = self.publish_queue[:HTTP_CHUNK_SIZE]
 
         # restart after pubrate_min
@@ -84,7 +90,7 @@ class ConnectorHttps(Connector):
     def _subscribe_task(self, topic, cb):
         # poll host for commands
         try:
-            url = '{0}://{1}:{2}/api/v2/{3}/'.format(self.proto, self.host, self.port, topic)
+            url = '{0}://{1}:{2}/api/v2/{3}/{4}/'.format(self.proto, self.host, self.port, topic, self.auth["id"])
             logger.debug("Subscribing to {0}".format(url))
             r = requests.get(
                 url=url,
