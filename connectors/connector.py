@@ -57,6 +57,8 @@ class Connector(object):
         self.pubrate_min = pubrate_min
         self.subrate_min = subrate_min
 
+        self.cb = None
+
         self.auth = auth
 
         self.publish_queue = []  # tuple list to store message to send

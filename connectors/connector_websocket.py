@@ -97,4 +97,7 @@ class ConnectorWebsocket(Connector):
         logger.error("{0}".format(error))
 
     def _on_message(self, ws, message):
-        self.cb(message)
+        if self.cb is not None:
+            self.cb(message)
+        else:
+            logger.warn("No callback function defined")
