@@ -66,15 +66,17 @@ class ConnectorHttps(Connector):
                 logger.warning("Error HTTP response status: " + str(r.text))
 
     def _publish_task(self):
-        # split publish list into chunks
-        http_payload = []
-        for i in xrange(0, len(self.publish_queue), HTTP_CHUNK_SIZE):
-            chunk = self.publish_queue[i: i + HTTP_CHUNK_SIZE]
-            http_payload.append(self.sol.bin_to_http(chunk))
+        with self.queue_lock:
+            # split publish list into chunks
+            http_payload = []
+            for i in xrange(0, len(self.publish_queue), HTTP_CHUNK_SIZE):
+                chunk = self.publish_queue[i: i + HTTP_CHUNK_SIZE]
+                http_payload.append(self.sol.bin_to_http(chunk))
 
-        # publish chunks
-        for payload in http_payload:
-            self._publish_now(*payload)
+            # publish chunks
+            for chunk in http_payload:
+                if self._publish_now(*chunk) is True:
+                    self.publish_queue = self.publish_queue[:HTTP_CHUNK_SIZE]
 
         # restart after pubrate_min
         threading.Timer(self.pubrate_min * 60, self._publish_task).start()
