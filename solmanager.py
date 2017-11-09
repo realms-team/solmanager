@@ -46,9 +46,7 @@ log = logging.getLogger("solmanager")
 #============================ defines =========================================
 
 CONFIGFILE         = 'solmanager.config'
-CONNECTORFILE      = 'connectors.config'
 STATSFILE          = 'solmanager.stats'
-BACKUPFILE         = 'solmanager.backup'
 
 ALLSTATS           = [
     #== admin
@@ -488,7 +486,7 @@ class StatsThread(DoSomethingPeriodic):
 
         # create sensor object
         sobject = {
-            'mac':       self.mgr_thread.getMacManager(),
+            'mac':       FormatUtils.formatBuffer(self.mgr_thread.getMacManager()),
             'timestamp': int(time.time()),
             'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS,
             'value':     {
@@ -802,10 +800,13 @@ class SolManager(threading.Thread):
 
     def start_connectors(self):
         """start all the connectors defined in the configuration file"""
+        log.info("Starting connectors")
+
         # get the configuration
         config = ConfigParser.ConfigParser()
-        config.read(CONNECTORFILE)
+        config.read(CONFIGFILE)
         connector_config = {s: dict(config.items(s)) for s in config.sections()}
+        del connector_config["config"]  # config section is not a connector section
 
         # get additional authentication information
         auth_id = FormatUtils.formatBuffer(self.threads["mgrThread"].macManager)

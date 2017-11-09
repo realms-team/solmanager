@@ -1,11 +1,8 @@
 [config]
 
 ; activity periods
-period_pubfile_min           = 0.1               ; write data to file
-period_pubserver_min         = 0.1               ; send data to server
 period_snapshot_min          = 60                ; perform a full snapshot
 period_stats_min             = 30                ; publish stats (write to file and send)
-period_pollcmds_min          = 30                ; request for commands from SolServer
 
 ; connecting to SmartMesh IP manager
 managerconnectionmode        = serial            ; "serial" or "JsonServer"
@@ -21,11 +18,40 @@ solmanager_certificate       = solmanager.cert   ; certificate of the SolManager
 solmanager_private_key       = solmanager.ppk    ; private key of the SolManager
 solmanager_tcpport_solserver = 8081              ; TCP port to receive commands from SolServer
 
-; remote (SolServer) web server
-solserver_host               = 127.0.0.1:8082    ; address of the SolServer
-solserver_token              = SOLSERVER_TOKEN   ; token to authenticate to SolServer
-solserver_certificate        = solserver.cert    ; certificate of the SolServer
 
-; remote mqtt server
-mqtt_organization            = org               ; ibm bluemix organisation
-mqtt_token                   = token             ; ibm bluemix token associated to manager
+######################### Connectors configuration ############################
+
+; You can define connectors with the following mandatory fields
+;[name]                                  # connector name (must be unique)
+;url=http://api.solsystem.io:<port>      # the endpoint
+
+; The following field are optionals
+;auth_token=myAuthToken                  # authentication token
+;pubrate_min=0.1                         # publication rate (send instantly if not present)
+;subrate_min=60                          # subscribtion rate (keep connection alive if not present)
+
+; auth parameters are customisable
+; the auth_<param> will be transformed in a python dictionnary
+; For example:
+;   auth_orgid=myOrgId
+;   auth_token=myAuthToken
+; will become:
+;   auth {
+;       "orgid": myOrgId,
+;       "token": myAuthToken
+;   }
+
+;[http_1]
+;url=https://api.solsystem.io:443        # http server host
+;auth_token=DEFAULT_TOKEN                # http api token
+;pubrate_min=0.1                         # publication rate (POST instantly if not present)
+;subrate_min=60                          # poll server every hour
+
+;[mqtt_1]
+;url=mqtt://api.solsystem.io:1883        # mqtt server host
+;auth_token= myAuthToken                 # ibm bluemix token associated to manager
+;auth_orgid= myOrgId                     # ibm bluemix Organisation ID
+
+;[file_1]                                # connector name (must be unique)
+;url=file://home/pi/solmanager.backup    # absolute file path
+;pubrate_min=0.1                         # publication rate (write instantly if not present)
