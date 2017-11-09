@@ -37,7 +37,7 @@ class ConnectorFile(Connector):
         else:
             self.publish_queue.append(msg)
 
-    def _publish_now(self, msg_list):
+    def _publish_now(self, msg_list, topic=None):
         logger.debug("publishing now")
         self.sol.dumpToFile(
             msg_list,
@@ -45,7 +45,7 @@ class ConnectorFile(Connector):
         )
 
     def _publish_task(self):
-        with self.dataLock:
+        with self.queue_lock:
             # order solJsonObjectsToPublish chronologically
             self.publish_queue.sort(key=lambda i: i['timestamp'])
 
