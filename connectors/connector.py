@@ -3,6 +3,8 @@ from solobjectlib import Sol
 import connectors
 import threading
 
+# ======================== helpers ============================================
+
 
 def create(config_dict):
     auth = connectors.connector.get_auth_dict(config_dict)
@@ -17,6 +19,8 @@ def create(config_dict):
         return connectors.connector_https.ConnectorHttps(config_dict["url"], auth, subrate_min=subrate_min)
     elif proto == "file":
         return connectors.connector_file.ConnectorFile(config_dict["url"], auth)
+    elif proto == "ws":
+        return connectors.connector_websocket.ConnectorWebsocket(config_dict["url"], auth)
     else:
         raise NotImplementedError
 
@@ -28,10 +32,12 @@ def get_auth_dict(config_dict):
             auth_dict[key[len("auth_"):]] = value
     return auth_dict
 
+# ======================== Connector ==========================================
+
 
 class Connector(object):
 
-    def __init__(self, url, auth=None, pubrate_min=0, subrate_min=60):
+    def __init__(self, url, auth=None, pubrate_min=0.1, subrate_min=60):
         """
         Initialize the connector instance and set the config
 
@@ -54,10 +60,9 @@ class Connector(object):
         self.auth = auth
 
         self.publish_queue = []  # tuple list to store message to send
+        self.queue_lock = threading.RLock()  # queue multiple access locker
 
         self.sol = Sol.Sol()
-
-        self.dataLock = threading.RLock()
 
         self._start()
 
@@ -81,3 +86,9 @@ class Connector(object):
         :param topic: the topic to send to
         """
         pass
+
+    def _publish_task(self):
+        raise NotImplementedError
+
+    def _publish_now(self, msg, topic=None):
+        raise NotImplementedError
