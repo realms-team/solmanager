@@ -47,6 +47,7 @@ log = logging.getLogger("solmanager")
 
 CONFIGFILE         = 'solmanager.config'
 STATSFILE          = 'solmanager.stats'
+BACKUPFILE         = 'solmanager.backup'
 
 ALLSTATS           = [
     #== admin
@@ -794,7 +795,7 @@ class SolManager(threading.Thread):
         os._exit(0)  # bypass CLI thread
 
     def publish(self, sol_json, topic="o.json"):
-        sol_json["manager"] = FormatUtils.formatBuffer(self.threads["mgrThread"].macManager)
+        sol_json["manager"] = self.threads["mgrThread"].macManager
         for connector_name, connector in self.connectors.iteritems():
             connector.publish(sol_json, topic)
 
@@ -822,8 +823,13 @@ class SolManager(threading.Thread):
 
     def _handle_command(self, command):
         # TODO call all command functions
-        if command == "snapshot":
-            self.threads["snapshotThread"]._doSnapshot()
+        if command["command"] == "snapshot":
+            if self.threads["snapshotThread"].last_snapshot:
+                snapshot = self.threads["snapshotThread"].last_snapshot
+                snapshot["token"] = command["token"]
+                self.publish(self.threads["snapshotThread"].last_snapshot, "SolManagerResponse")
+            else:
+                self.threads["snapshotThread"]._doSnapshot()
         else:
             log.debug("command not known: {0}".format(command))
 
