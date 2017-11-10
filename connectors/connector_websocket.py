@@ -98,6 +98,6 @@ class ConnectorWebsocket(Connector):
 
     def _on_message(self, ws, message):
         if self.cb is not None:
-            self.cb(message)
+            self.cb(json.loads(message))
         else:
             logger.warn("No callback function defined")
