@@ -105,7 +105,6 @@ class ConnectorHttps(Connector):
             if r.status_code == 200:
                 # update stats
                 for item in r.json():
-                    print item
                     cb(item['command'])
             else:
                 # update stats
