@@ -45,22 +45,23 @@ class ConnectorFile(Connector):
         )
 
     def _publish_task(self):
-        with self.queue_lock:
-            # order solJsonObjectsToPublish chronologically
-            self.publish_queue.sort(key=lambda i: i['timestamp'])
+        if len(self.publish_queue) > 0:
+            with self.queue_lock:
+                # order solJsonObjectsToPublish chronologically
+                self.publish_queue.sort(key=lambda i: i['timestamp'])
 
-            # extract the JSON SOL objects heard more than BUFFER_PERIOD ago
-            now = time.time()
-            solJsonObjectsToWrite = []
-            while True:
-                if not self.publish_queue:
-                    break
-                if now - self.publish_queue[0]['timestamp'] < BUFFER_PERIOD:
-                    break
+                # extract the JSON SOL objects heard more than BUFFER_PERIOD ago
+                now = time.time()
+                solJsonObjectsToWrite = []
+                while True:
+                    if not self.publish_queue:
+                        break
+                    if now - self.publish_queue[0]['timestamp'] < BUFFER_PERIOD:
+                        break
 
-            solJsonObjectsToWrite += [self.publish_queue.pop(0)]
+                solJsonObjectsToWrite += [self.publish_queue.pop(0)]
 
-        self._publish_now(solJsonObjectsToWrite)
+            self._publish_now(solJsonObjectsToWrite)
 
         # restart after pubrate_min
         threading.Timer(self.pubrate_min * 60, self._publish_task).start()

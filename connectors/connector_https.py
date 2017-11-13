@@ -17,7 +17,7 @@ class ConnectorHttps(Connector):
             self.publish_thread.daemon = True
             self.publish_thread.start()
 
-    def subscribe(self, topic, cb):
+    def subscribe(self, cb, topic=None):
         """
         Subscribe to messages on a given topic
 
@@ -27,7 +27,7 @@ class ConnectorHttps(Connector):
         :param cb: callback function to call when receiving message with that topic
         """
         # start pubthread
-        self.subscribe_thread = threading.Thread(target=self._subscribe_task, args=[topic, cb])
+        self.subscribe_thread = threading.Thread(target=self._subscribe_task, args=[cb])
         self.subscribe_thread.daemon = True
         self.subscribe_thread.start()
 
@@ -51,6 +51,7 @@ class ConnectorHttps(Connector):
             self.publish_queue.append(sol_bin)
 
     def _publish_now(self, msg, topic=None):
+        return_val = False
         try:
             # send message to server
             url = '{0}://{1}:{2}/api/v2/o.json'.format(self.proto, self.host, self.port)
@@ -59,7 +60,7 @@ class ConnectorHttps(Connector):
             r = requests.put(
                 url     = url,
                 headers = {'X-SOLSYSTEM-Token': self.auth["token"],
-                           'manager': self.auth["id"]},
+                           'X-SOLSYSTEM-Id': self.auth["id"]},
                 json    = msg,
                 verify  = self.auth["cert"],
             )
@@ -70,6 +71,9 @@ class ConnectorHttps(Connector):
             # server answered
             if r.status_code != requests.codes.ok:
                 logger.warning("Error HTTP response status: " + str(r.text))
+            else:
+                return_val = True
+        return return_val
 
     def _publish_task(self):
         with self.queue_lock:
@@ -87,14 +91,15 @@ class ConnectorHttps(Connector):
         # restart after pubrate_min
         threading.Timer(self.pubrate_min * 60, self._publish_task).start()
 
-    def _subscribe_task(self, topic, cb):
+    def _subscribe_task(self, cb, topic="command.json"):
         # poll host for commands
         try:
-            url = '{0}://{1}:{2}/api/v2/{3}/{4}/'.format(self.proto, self.host, self.port, topic, self.auth["id"])
+            url = '{0}://{1}:{2}/api/v2/{3}'.format(self.proto, self.host, self.port, topic)
             logger.debug("Subscribing to {0}".format(url))
             r = requests.get(
                 url=url,
-                headers={'X-SOLSYSTEM-Token': self.auth["token"]},
+                headers={'X-SOLSYSTEM-Token': self.auth["token"],
+                         'X-SOLSYSTEM-Id': self.auth["id"]},
                 verify=self.auth["cert"],
             )
         except requests.exceptions.RequestException as err:

@@ -25,7 +25,9 @@ class ConnectorWebsocket(Connector):
             self.publish_thread.daemon = True
             self.publish_thread.start()
 
-    def subscribe(self, topic, cb):
+        # todo check if token is present
+
+    def subscribe(self, cb, topic="None"):
         """
         Subscribe to messages on a given topic
 
@@ -67,13 +69,17 @@ class ConnectorWebsocket(Connector):
     def _connect(self):
         while 1:
             if self.is_running is False:
-                websocket_endpoint = "{0}/websocket/{1}/".format(self.url, self.auth["id"])
+                websocket_endpoint = "{0}/api/v2/command.json".format(self.url, self.auth["id"])
                 try:
                     self.ws = websocket.WebSocketApp(websocket_endpoint,
                                                      on_message=self._on_message,
                                                      on_error=self._on_error,
                                                      on_close=self._on_close,
-                                                     on_open=self._on_open)
+                                                     on_open=self._on_open,
+                                                     header={
+                                                         'X-SOLSYSTEM-Token': self.auth["token"],
+                                                         'X-SOLSYSTEM-Id': self.auth["id"]}
+                                                     )
                 except Exception as err:
                     logger.error("Cannot create Websocket connection with {0}: {1}".format(websocket_endpoint, err))
                 else:

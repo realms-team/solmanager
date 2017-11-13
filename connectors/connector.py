@@ -68,7 +68,7 @@ class Connector(object):
 
         self._start()
 
-    def subscribe(self, topic, cb):
+    def subscribe(self, cb, topic="None"):
         """
         Subscribe to messages on a given topic
 
