@@ -819,7 +819,7 @@ class SolManager(threading.Thread):
             # create the connector
             self.connectors[connector_name] = connectors.connector.create(connector)
             # subscribe to the 'command' topic
-            self.connectors[connector_name].subscribe("command", self._handle_command)
+            self.connectors[connector_name].subscribe(self._handle_command)
 
     def _handle_command(self, command):
         # TODO call all command functions

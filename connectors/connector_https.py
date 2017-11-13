@@ -60,7 +60,9 @@ class ConnectorHttps(Connector):
             r = requests.put(
                 url     = url,
                 headers = {'X-SOLSYSTEM-Token': self.auth["token"],
-                           'X-SOLSYSTEM-Id': self.auth["id"]},
+                           'X-SOLSYSTEM-Id': self.auth["id"],
+                           'X-SOLSYSTEM-OrgId': self.auth["org_id"],
+                           },
                 json    = msg,
                 verify  = self.auth["cert"],
             )
@@ -99,7 +101,9 @@ class ConnectorHttps(Connector):
             r = requests.get(
                 url=url,
                 headers={'X-SOLSYSTEM-Token': self.auth["token"],
-                         'X-SOLSYSTEM-Id': self.auth["id"]},
+                         'X-SOLSYSTEM-Id': self.auth["id"],
+                         'X-SOLSYSTEM-OrgId': self.auth["org_id"],
+                         },
                 verify=self.auth["cert"],
             )
         except requests.exceptions.RequestException as err:
@@ -116,4 +120,4 @@ class ConnectorHttps(Connector):
                 logger.warning("Error HTTP response status: " + str(r.text))
 
         # restart after subrate_min
-        threading.Timer(self.subrate_min * 60, self._subscribe_task, [topic, cb]).start()
+        threading.Timer(self.subrate_min * 60, self._subscribe_task, [cb, topic]).start()
