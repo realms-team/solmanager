@@ -78,7 +78,8 @@ class ConnectorWebsocket(Connector):
                                                      on_open=self._on_open,
                                                      header={
                                                          'X-SOLSYSTEM-Token': self.auth["token"],
-                                                         'X-SOLSYSTEM-Id': self.auth["id"]}
+                                                         'X-SOLSYSTEM-Id': self.auth["id"],
+                                                         'X-SOLSYSTEM-OrgId': self.auth["org_id"]}
                                                      )
                 except Exception as err:
                     logger.error("Cannot create Websocket connection with {0}: {1}".format(websocket_endpoint, err))
@@ -91,7 +92,6 @@ class ConnectorWebsocket(Connector):
             else:
                 time.sleep(10)
 
-
     def _on_open(self, ws):
         logger.info("Websocket opened")
 
@@ -100,7 +100,7 @@ class ConnectorWebsocket(Connector):
         self.is_running = False
 
     def _on_error(self, ws, error):
-        logger.error("{0}".format(error))
+        logger.error("Error: {0}".format(error))
 
     def _on_message(self, ws, message):
         if self.cb is not None:
