@@ -21,10 +21,8 @@ class ConnectorHttps(Connector):
         """
         Subscribe to messages on a given topic
 
-        :type topic: basestring
-        :param topic: the topic to subscribe to (a keyword)
-        :type cb: function
-        :param cb: callback function to call when receiving message with that topic
+        :param basestring topic: the topic to subscribe to (a keyword)
+        :param function cb: callback function to call when receiving message with that topic
         """
         # start pubthread
         self.subscribe_thread = threading.Thread(target=self._subscribe_task, args=[cb])
@@ -34,10 +32,8 @@ class ConnectorHttps(Connector):
     def publish(self, msg, topic=None):
         """
         Publish a message
-        :type msg: dict
-        :param msg: the message to send
-        :type topic: sting
-        :param topic: the topic to send to
+        :param dict msg: the message to send
+        :param string topic: the topic to send to
         """
         sol_bin = self.sol.json_to_bin(msg)
 

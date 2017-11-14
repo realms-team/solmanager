@@ -41,10 +41,10 @@ class Connector(object):
         """
         Initialize the connector instance and set the config
 
-        :param url: a URL formatted endpoint
-        :param auth: a dictionary of auth fields
-        :param pubrate_min: the publication rate
-        :param subrate_min: the subscription rate
+        :param str url: a URL formatted endpoint
+        :param dict auth: a dictionary of auth fields
+        :param int pubrate_min: the publication rate
+        :param int subrate_min: the subscription rate
         """
         self.connected = False
 
@@ -72,20 +72,16 @@ class Connector(object):
         """
         Subscribe to messages on a given topic
 
-        :type topic: basestring
-        :param topic: the topic to subscribe to (a keyword)
-        :type cb: function
-        :param cb: callback function to call when receiving message with that topic
+        :param basestring topic: the topic to subscribe to (a keyword)
+        :param function cb: callback function to call when receiving message with that topic
         """
         pass
 
     def publish(self, msg, topic=None):
         """
         Publish a message
-        :type msg: dict
-        :param msg: the message to send
-        :type topic: sting
-        :param topic: the topic to send to
+        :param dict msg: the message to send
+        :param str topic: the topic to send to
         """
         pass
 

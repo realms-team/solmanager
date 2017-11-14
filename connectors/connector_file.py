@@ -23,10 +23,8 @@ class ConnectorFile(Connector):
     def publish(self, msg, topic=None):
         """
         Publish a message
-        :type msg: dict
-        :param msg: the message to send
-        :type topic: sting
-        :param topic: the topic to send to
+        :param dict msg: the message to send
+        :param string topic: the topic to send to
         """
 
         # if pubrate_min == 0, send now
