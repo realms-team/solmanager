@@ -88,7 +88,7 @@ class ConnectorHttps(Connector):
             # publish chunks
             for chunk in http_payload:
                 if self._publish_now(chunk) is True:
-                    self.publish_queue = self.publish_queue[:HTTP_CHUNK_SIZE]
+                    self.publish_queue = self.publish_queue[HTTP_CHUNK_SIZE:]
 
         # restart after pubrate_min
         threading.Timer(self.pubrate_min * 60, self._publish_task).start()
