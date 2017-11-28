@@ -9,6 +9,7 @@ if __name__ == "__main__":
     here = sys.path[0]
     sys.path.insert(0, os.path.join(here, '..', 'sol'))
     sys.path.insert(0, os.path.join(here, '..', 'smartmeshsdk', 'libs'))
+    sys.path.insert(0, os.path.join(here, '..', 'duplex'))
 
 #============================ imports =========================================
 
@@ -36,6 +37,7 @@ from   solobjectlib          import Sol, \
                                     SolDefines, \
                                     SolExceptions, \
                                     SolUtils
+from DuplexClient import DuplexClient
 
 #============================ logging =========================================
 
@@ -1048,7 +1050,23 @@ class SolManager(threading.Thread):
             params                     = [],
             callback                   = self._clihandle_versions,
         )
+        self.cli.registerCommand(
+            name='tx',
+            alias='tx',
+            description='transmit to server',
+            params=['msg'],
+            callback=self._clihandle_tx,
+        )
+
         self.cli.start()
+
+        self.duplexClient = DuplexClient.from_url(
+            server_url='http://127.0.0.1:8080/api/v1/o.json',
+            id="test",
+            token='mytoken',
+            polling_period=1,
+            from_server_cb=self.from_server_cb,
+        )
 
         # start myself
         threading.Thread.__init__(self)
@@ -1065,18 +1083,18 @@ class SolManager(threading.Thread):
             else:
                 self.threads["mgrThread"]            = MgrThreadJsonServer()
             self.threads["pubFileThread"]            = PubFileThread()
-            self.threads["pubServerThread"]          = PubServerThread()
+            # self.threads["pubServerThread"]          = PubServerThread()
             self.threads["snapshotThread"] = SnapshotThread(
                 mgrThread=self.threads["mgrThread"],
             )
-            self.threads["wastonIotThread"]          = WastonIotThread(
-                mgrThread              = self.threads["mgrThread"],
-                snapshot_thread        = self.threads["snapshotThread"],
-            )
+            # self.threads["wastonIotThread"]          = WastonIotThread(
+            #     mgrThread              = self.threads["mgrThread"],
+            #     snapshot_thread        = self.threads["snapshotThread"],
+            # )
             self.threads["statsThread"]              = StatsThread(
                 mgrThread              = self.threads["mgrThread"],
             )
-            self.threads["pollForCommandsThread"]    = PollCmdsThread()
+            # self.threads["pollForCommandsThread"]    = PollCmdsThread()
             self.threads["jsonApiThread"]            = JsonApiThread(
                 mgrThread              = self.threads["mgrThread"],
             )
@@ -1154,6 +1172,10 @@ class SolManager(threading.Thread):
         output = '\n'.join(output)
         print output
 
+    def _clihandle_tx(self, params):
+        msg = params[0]
+        self.duplexClient.to_server([{'msg': msg}])
+
     def _returnStatsGroup(self, stats, prefix):
         keys = []
         for (k, v) in stats.items():
@@ -1164,11 +1186,15 @@ class SolManager(threading.Thread):
             returnVal += ['   {0:<30}: {1}'.format(k, stats[k])]
         return returnVal
 
+    def from_server_cb(self):
+        pass
+
 #============================ main ============================================
 
 
 def main():
     solmanager = SolManager()
+
 
 if __name__ == '__main__':
     main()
