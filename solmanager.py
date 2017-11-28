@@ -177,6 +177,7 @@ class MgrThread(object):
 
             for sol_json in sol_jsonl:
                 # update stats
+                print sol_json
                 SolUtils.AppStats().increment('PUB_TOTAL_SENTTOPUBLISH')
 
                 # publish
