@@ -438,7 +438,7 @@ class PubServerThread(PubThread):
                 # update stats
                 SolUtils.AppStats().increment('PUBSERVER_SENDFAIL')
                 print "Error HTTP response status: " + str(r.text)
-                log.debug(r.json())
+                log.debug(r)
 
 
 class WastonIotThread(threading.Thread):
