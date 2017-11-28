@@ -651,7 +651,7 @@ class JsonApiThread(threading.Thread):
         startTimestamp  = bottle.request.json["startTimestamp"]
         endTimestamp    = bottle.request.json["endTimestamp"]
         if action == "count":
-            sol_jsonl = self.sol.loadFromFile(BACKUPFILE, startTimestamp, endTimestamp)
+            sol_jsonl = Sol.loadFromFile(BACKUPFILE, startTimestamp, endTimestamp)
             # send response
             return {'numObjects': len(sol_jsonl)}
         elif action == "resend":

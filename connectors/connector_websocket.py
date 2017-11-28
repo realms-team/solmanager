@@ -65,7 +65,7 @@ class ConnectorWebsocket(Connector):
     def _connect(self):
         while 1:
             if self.is_running is False:
-                websocket_endpoint = "{0}/api/v2/command.json".format(self.url, self.auth["id"])
+                websocket_endpoint = "{0}/api/v2/ws/".format(self.url, self.auth["id"])
                 try:
                     self.ws = websocket.WebSocketApp(websocket_endpoint,
                                                      on_message=self._on_message,
