@@ -20,8 +20,15 @@ This repo contains the software to run on the manager. It:
 * double-click/run on `solmanager.py` to start the manager
 
 ```
-                                   8080      1882    8081      8082
-SmartMesh IP Manager ------ JsonServer ------ SolManager ------ SolServer
+
+                         +-----+SolManager-----+ 8081      8082 +-------------+
++-------------+          |                     +--------------> |  SolServer  |
+| SmartMeshIP |          |   +-------------+   |     HTTP       +-------------+
+|   Manager   +------------->+ JsonManager |   |
+|             | API port |   +-------------+   |     MQTT       +-------------+
++-------------+          |                     + <------------> | IBM Bluemix |
+                         +---------------------+                +-------------+
+
 ```
 
 ## Configuration
@@ -354,7 +361,7 @@ Where:
 
 ### start a snapshot
 
-To start a snapshot on the manager, issue a `POST` request to the following URI 
+To start a snapshot on the manager, issue a `POST` request to the following URI
 
 ```
 /snapshot.json
