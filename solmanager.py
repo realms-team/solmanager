@@ -472,13 +472,13 @@ class WastonIotThread(threading.Thread):
 
         # connect to server and subscribe to commands
         self._connect()
-        self.subscribe()
 
         # start self thread
         self.start()
 
     def run(self):
         while self.goOn:
+            self.subscribe()
             time.sleep(10)
 
     def close(self):
