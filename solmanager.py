@@ -904,7 +904,7 @@ class SolManager(threading.Thread):
                 server_url='http://{0}/api/v1/o.json'.format(SolUtils.AppConfig().get("solserver_host")),
                 id=FormatUtils.formatBuffer(self.threads["mgrThread"].get_mac_manager()),
                 token=SolUtils.AppConfig().get("solserver_token"),
-                polling_period=1,
+                polling_period=SolUtils.AppConfig().get("period_pollcmds_min")*60,
                 from_server_cb=self.from_server_cb,
             )
 
