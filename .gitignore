@@ -5,6 +5,7 @@
 /solmanager.log
 /solmanager.cert
 /solmanager.ppk
-/sol.err.log
-/sol.out.log
 /supervisord.conf
+*.log
+.idea/
+venv/
