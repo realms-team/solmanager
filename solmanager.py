@@ -151,7 +151,7 @@ class MgrThread(object):
                 }
             )
             assert resp['isAP'] is True
-            self.macManager = resp['macAddress']
+            self.macManager = FormatUtils.formatBuffer(resp['macAddress'])
         return self.macManager
 
     def _handler_dust_notifs(self, dust_notif):
@@ -425,7 +425,7 @@ class PubServerThread(PubThread):
         SolUtils.AppStats().increment('PUBSERVER_SENDATTEMPTS')
         for payload in http_payload:
             log.debug("sending objects, size:%dB", len(payload))
-            res = self.duplex_client.to_server([{'msg': payload}])
+            res = self.duplex_client.to_server([payload])
 
         if res is False:
             SolUtils.AppStats().increment('PUBSERVER_SENDFAIL')
@@ -902,7 +902,7 @@ class SolManager(threading.Thread):
             # start the duplexClient
             self.duplex_client = DuplexClient.from_url(
                 server_url='http://{0}/api/v1/o.json'.format(SolUtils.AppConfig().get("solserver_host")),
-                id=FormatUtils.formatBuffer(self.threads["mgrThread"].get_mac_manager()),
+                id=self.threads["mgrThread"].get_mac_manager(),
                 token=SolUtils.AppConfig().get("solserver_token"),
                 polling_period=SolUtils.AppConfig().get("period_pollcmds_min")*60,
                 from_server_cb=self.from_server_cb,
