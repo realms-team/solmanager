@@ -649,68 +649,7 @@ class StatsThread(DoSomethingPeriodic):
         # update stats
         SolUtils.AppStats().increment('PUBSERVER_STATS')
 
-# poll for commands from JsonServer
-
-
-class PollCmdsThread(DoSomethingPeriodic):
-    """
-    Poll server for commands every period_pollcmds_min.
-
-    This is useful when the solmanager is not reachable by the solserver.
-    """
-    def __init__(self):
-        # initialize parent class
-        super(PollCmdsThread, self).__init__(SolUtils.AppConfig().get("period_pollcmds_min"))
-        self.name                       = 'PollCmdsThread'
-        self.start()
-
-    def _doSomething(self):
-        self._poll_server()
-
-    def _poll_server(self):
-        # send http_payload to server
-        try:
-            # update stats
-            SolUtils.AppStats().increment('PUBSERVER_PULLATTEMPTS')
-            requests.packages.urllib3.disable_warnings()
-            r = requests.get(
-                'https://{0}/api/v1/getactions/'.format(SolUtils.AppConfig().get("solserver_host")),
-                headers = {'X-REALMS-Token': SolUtils.AppConfig().get("solserver_token")},
-                verify  = SolUtils.AppConfig().get("solserver_certificate"),
-            )
-        except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
-            # update stats
-            SolUtils.AppStats().increment('PUBSERVER_UNREACHABLE')
-            # happens when could not contact server
-            if type(err) == requests.exceptions.SSLError:
-                traceback.print_exc()
-        else:
-            # server answered
-
-            # clear objects
-            if r.status_code == 200:
-                # update stats
-                SolUtils.AppStats().increment('PUBSERVER_PULLOK')
-                for action in r.json():
-                    self._handle_command(action['action'])
-            else:
-                # update stats
-                SolUtils.AppStats().increment('PUBSERVER_PULLFAIL')
-                print "Error HTTP response status: " + str(r.status_code)
-                log.debug(r.json())
-
-    def _handle_command(self, action):
-        if action == "update":
-            # get last repo version
-            os.system("cd " + here + "/../sol/ && git checkout master && git pull origin master")
-            os.system("cd " + here + " && git checkout master && git pull origin master")
-
-            # restart program
-            python = sys.executable
-            os.execl(python, python, * sys.argv)
-
 #======== adding a JSON API to trigger actions on the SolManager
-
 
 class JsonApiThread(threading.Thread):
 
@@ -1067,7 +1006,7 @@ class SolManager(threading.Thread):
 
     def _clihandle_tx(self, params):
         msg = params[0]
-        self.duplexClient.to_server([{'msg': msg}])
+        self.duplex_client.to_server([{'msg': msg}])
 
     def _returnStatsGroup(self, stats, prefix):
         keys = []
@@ -1079,8 +1018,8 @@ class SolManager(threading.Thread):
             returnVal += ['   {0:<30}: {1}'.format(k, stats[k])]
         return returnVal
 
-    def from_server_cb(self):
-        pass
+    def from_server_cb(self, o):
+        log.debug("from_server_cb: {0}".format(o))
 
 #============================ main ============================================
 
