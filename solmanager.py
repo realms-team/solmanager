@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-#============================ adjust path =====================================
+# =========================== adjust path =====================================
 
 import sys
 import os
@@ -10,7 +10,7 @@ if __name__ == "__main__":
     sys.path.insert(0, os.path.join(here, '..', 'sol'))
     sys.path.insert(0, os.path.join(here, '..', 'smartmeshsdk', 'libs'))
 
-#============================ imports =========================================
+# =========================== imports =========================================
 
 # from default Python
 import time
@@ -37,12 +37,12 @@ from   solobjectlib          import Sol, \
                                     SolExceptions, \
                                     SolUtils
 
-#============================ logging =========================================
+# =========================== logging =========================================
 
 logging.config.fileConfig('logging.conf', disable_existing_loggers=False)
 log = logging.getLogger("solmanager")
 
-#============================ defines =========================================
+# =========================== defines =========================================
 
 CONFIGFILE         = 'solmanager.config'
 STATSFILE          = 'solmanager.stats'
@@ -84,11 +84,11 @@ ALLSTATS           = [
     'JSON_NUM_UNAUTHORIZED',
 ]
 
-HTTP_CHUNK_SIZE      = 10 # send batches of 10 Sol objects
+HTTP_CHUNK_SIZE     = 10  # send batches of 10 Sol objects
 
-#============================ classes =========================================
+# =========================== classes =========================================
 
-#======== generic abstract classes
+# ======= generic abstract classes
 
 
 class DoSomethingPeriodic(threading.Thread):
@@ -122,7 +122,7 @@ class DoSomethingPeriodic(threading.Thread):
     def _doSomething(self):
         raise SystemError()  # abstract method
 
-#======== connecting to the SmartMesh IP manager
+# ======= connecting to the SmartMesh IP manager
 
 
 class MgrThread(object):
@@ -288,7 +288,7 @@ class MgrThreadJsonServer(MgrThread, threading.Thread):
             json.loads(bottle.request.body.read()),
         )
 
-#======== publishers
+# ======= publishers
 
 
 class PubThread(DoSomethingPeriodic):
@@ -438,7 +438,7 @@ class PubServerThread(PubThread):
                 # update stats
                 SolUtils.AppStats().increment('PUBSERVER_SENDFAIL')
                 print "Error HTTP response status: " + str(r.text)
-                log.debug(r.json())
+                log.debug(r)
 
 
 class WastonIotThread(threading.Thread):
@@ -472,13 +472,13 @@ class WastonIotThread(threading.Thread):
 
         # connect to server and subscribe to commands
         self._connect()
-        self.subscribe()
 
         # start self thread
         self.start()
 
     def run(self):
         while self.goOn:
+            self.subscribe()
             time.sleep(10)
 
     def close(self):
@@ -542,7 +542,7 @@ class WastonIotThread(threading.Thread):
             else:
                 self.snapshot_thread._doSnapshot()
 
-#======== periodically do something
+# ======= periodically do something
 
 # publish network snapshot
 
@@ -821,7 +821,7 @@ class PollCmdsThread(DoSomethingPeriodic):
             python = sys.executable
             os.execl(python, python, * sys.argv)
 
-#======== adding a JSON API to trigger actions on the SolManager
+# ======= adding a JSON API to trigger actions on the SolManager
 
 
 class JsonApiThread(threading.Thread):
@@ -898,14 +898,14 @@ class JsonApiThread(threading.Thread):
         except Exception as err:
             SolUtils.logCrash(err, SolUtils.AppStats(), threadName=self.name)
 
-    #======================== public ==========================================
+    # ======================= public ==========================================
 
     def close(self):
         self.web.close()
 
-    #======================== private ==========================================
+    # ======================= private ==========================================
 
-    #=== webhandlers
+    # == webhandlers
 
     # decorator
     def _authorized_webhandler(func):
@@ -993,7 +993,7 @@ class JsonApiThread(threading.Thread):
 
     @_authorized_webhandler
     def _webhandler_smartmeshipapi_POST(self):
-        return self.mgrThread.issueRawApiCommand(bottle.request.json)
+        return self.mgrThread.issueRawApiCommand(json.loads(bottle.request.json))
 
     #=== misc
 
@@ -1010,7 +1010,7 @@ class JsonApiThread(threading.Thread):
             returnVal = "ERROR"
         return returnVal
 
-#======== main application thread
+# ======= main application thread
 
 
 class SolManager(threading.Thread):
@@ -1164,7 +1164,7 @@ class SolManager(threading.Thread):
             returnVal += ['   {0:<30}: {1}'.format(k, stats[k])]
         return returnVal
 
-#============================ main ============================================
+# =========================== main ============================================
 
 
 def main():
