@@ -138,7 +138,7 @@ class MgrThread(object):
         self.macManager = None
         self.dataLock = threading.RLock()
 
-    def getMacManager(self):
+    def get_mac_manager(self):
         if self.macManager is None:
             resp = self.issueRawApiCommand(
                 {
@@ -172,7 +172,7 @@ class MgrThread(object):
             # convert dust notification to JSON SOL Object
             sol_jsonl = self.sol.dust_to_json(
                 dust_notif  = dust_notif,
-                mac_manager = self.getMacManager(),
+                mac_manager = self.get_mac_manager(),
                 timestamp   = epoch,
             )
 
@@ -224,7 +224,7 @@ class MgrThreadSerial(MgrThread):
         while self.jsonManager.managerHandlers[self.jsonManager.managerHandlers.keys()[0]].connector is None:
             time.sleep(1)
 
-        self.macManager = self.getMacManager()
+        self.macManager = self.get_mac_manager()
 
     def issueRawApiCommand(self, json_payload):
         fields = {}
@@ -596,12 +596,12 @@ class SnapshotThread(DoSomethingPeriodic):
             log.warning("Cannot do Snapshot: %s", err)
             traceback.print_exc()
         else:
-            if self.mgrThread.getMacManager() is not None:
+            if self.mgrThread.get_mac_manager() is not None:
                 SolUtils.AppStats().increment('SNAPSHOT_NUM_OK')
 
                 # create sensor object
                 sobject = {
-                    'mac':       self.mgrThread.getMacManager(),
+                    'mac':       self.mgrThread.get_mac_manager(),
                     'timestamp': int(time.time()),
                     'type':      SolDefines.SOL_TYPE_DUST_SNAPSHOT,
                     'value':     snapshot,
@@ -634,7 +634,7 @@ class StatsThread(DoSomethingPeriodic):
 
         # create sensor object
         sobject = {
-            'mac':       self.mgrThread.getMacManager(),
+            'mac':       self.mgrThread.get_mac_manager(),
             'timestamp': int(time.time()),
             'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS,
             'value':     {
@@ -897,12 +897,12 @@ class SolManager(threading.Thread):
             # wait for manager thread to start
             while self.threads["mgrThread"].macManager is None:
                 time.sleep(2)
-            log.debug("Manager MAC is {0}".format(self.threads["mgrThread"].getMacManager()))
+            log.debug("Manager MAC is {0}".format(self.threads["mgrThread"].get_mac_manager()))
 
             # start the duplexClient
             self.duplex_client = DuplexClient.from_url(
                 server_url='http://{0}/api/v1/o.json'.format(SolUtils.AppConfig().get("solserver_host")),
-                id=FormatUtils.formatBuffer(self.threads["mgrThread"].getMacManager()),
+                id=FormatUtils.formatBuffer(self.threads["mgrThread"].get_mac_manager()),
                 token=SolUtils.AppConfig().get("solserver_token"),
                 polling_period=1,
                 from_server_cb=self.from_server_cb,
