@@ -25,7 +25,6 @@ import logging.config
 import OpenSSL
 import bottle
 import requests
-import ibmiotf.gateway
 
 # project-specific
 import solmanager_version
@@ -184,7 +183,6 @@ class MgrThread(object):
                 # publish
                 PubFileThread().publish(sol_json)  # to the backup file
                 PubServerThread().publish(sol_json)  # to the solserver over the Internet
-                WastonIotThread().publish(sol_json)  # to the mqtt server over the Internet
 
         except Exception as err:
             SolUtils.logCrash(err, SolUtils.AppStats())
@@ -217,6 +215,14 @@ class MgrThreadSerial(MgrThread):
             serialport            = SolUtils.AppConfig().get("serialport"),
             notifCb               = self._notif_cb,
         )
+
+        # todo replace this by JsonManager method to know when a manager is ready
+        while self.jsonManager.managerHandlers == {}:
+            time.sleep(1)
+        while self.jsonManager.managerHandlers[self.jsonManager.managerHandlers.keys()[0]].connector is None:
+            time.sleep(1)
+
+        self.macManager = self.getMacManager()
 
     def issueRawApiCommand(self, json_payload):
         fields = {}
@@ -382,12 +388,14 @@ class PubServerThread(PubThread):
             cls._instance = super(PubServerThread, cls).__new__(cls, *args, **kwargs)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self, duplex_client=None):
         if self._init:
             return
+        assert duplex_client is not None
         self._init              = True
         PubThread.__init__(self, SolUtils.AppConfig().get("period_pubserver_min"))
         self.name               = 'PubServerThread'
+        self.duplex_client      = duplex_client
 
     def _publishNow(self):
         # stop if nothing to publish
@@ -409,145 +417,24 @@ class PubServerThread(PubThread):
             http_payload.append(self.sol.bin_to_http(chunk))
 
         # send http_payload to server
-        try:
-            # update stats
-            SolUtils.AppStats().increment('PUBSERVER_SENDATTEMPTS')
-            requests.packages.urllib3.disable_warnings()
-            for payload in http_payload:
-                log.debug("sending objects, size:%dB", len(payload))
-                r = requests.put(
-                    'https://{0}/api/v1/o.json'.format(SolUtils.AppConfig().get("solserver_host")),
-                    headers = {'X-REALMS-Token': SolUtils.AppConfig().get("solserver_token")},
-                    json    = payload,
-                    verify  = SolUtils.AppConfig().get("solserver_certificate"),
-                )
-        except (requests.exceptions.RequestException, OpenSSL.SSL.SysCallError) as err:
-            # update stats
-            SolUtils.AppStats().increment('PUBSERVER_UNREACHABLE')
-            # happens when could not contact server
-            log.warning("Error when sending http payload: %s", err)
-        else:
-            # server answered
 
-            # clear objects
-            if r.status_code == requests.codes.ok:
-                # update stats
-                SolUtils.AppStats().increment('PUBSERVER_SENDOK')
-                with self.dataLock:
-                    self.solJsonObjectsToPublish = self.solJsonObjectsToPublish[object_id:]
-                    SolUtils.AppStats().update("PUBSERVER_BACKLOG", len(self.solJsonObjectsToPublish))
-            else:
-                # update stats
-                SolUtils.AppStats().increment('PUBSERVER_SENDFAIL')
-                print "Error HTTP response status: " + str(r.text)
-                log.debug(r)
+        # update stats
+        res = False
+        SolUtils.AppStats().increment('PUBSERVER_SENDATTEMPTS')
+        for payload in http_payload:
+            log.debug("sending objects, size:%dB", len(payload))
+            res = self.duplex_client.to_server([{'msg': payload}])
 
+        if res is False:
+            SolUtils.AppStats().increment('PUBSERVER_SENDFAIL')
+        else:  # server answered
+            SolUtils.AppStats().increment('PUBSERVER_SENDOK')
+            with self.dataLock:
+                self.solJsonObjectsToPublish = self.solJsonObjectsToPublish[object_id:]
+                SolUtils.AppStats().update("PUBSERVER_BACKLOG", len(self.solJsonObjectsToPublish))
 
-class WastonIotThread(threading.Thread):
-    """
-    Singleton that directly sends Sol JSON objects to the WastonIoT mqtt server
-    """
-    _instance = None
-    _init = False
-
-    def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = super(WastonIotThread, cls).__new__(cls, *args, **kwargs)
-        return cls._instance
-
-    def __init__(self, mgrThread=None, snapshot_thread=None):
-        if self._init:
-            return
-        self._init = True
-        threading.Thread.__init__(self)
-        self.name = 'WastonIotThread'
-        self.mgrThread = mgrThread
-        self.snapshot_thread = snapshot_thread
-        self.goOn = True
-        self.mqtt_client = None
-
-        # wait for mgrThread to be running
-        while mgrThread is None or self.mgrThread.macManager is None:
-            time.sleep(5)
-            log.debug("Waiting for mgrThread to start")
-            pass
-
-        # connect to server and subscribe to commands
-        self._connect()
-
-        # start self thread
-        self.start()
-
-    def run(self):
-        while self.goOn:
-            self.subscribe()
-            time.sleep(10)
-
-    def close(self):
-        self.goOn = False
-        self.mqtt_client.disconnect()
-
-    # ======================== public =========================================
-
-    def publish(self, sol_object, mqtt_topic=None):
-        if self.mqtt_client is None:
-            return
-
-        # set topic if not provided as argument
-        if mqtt_topic is None:
-            mqtt_topic = SolDefines.solTypeToTypeName(SolDefines, sol_object["type"])
-
-        if self.mgrThread.macManager == sol_object["mac"]:
-            res = self.mqtt_client.publishGatewayEvent(mqtt_topic,
-                                                       "json",
-                                                       {"g": sol_object})
-        else:
-            res = self.mqtt_client.publishDeviceEvent("mote",
-                                                      sol_object["mac"],
-                                                      mqtt_topic,
-                                                      "json",
-                                                      sol_object)
-        if not res:
-            log.warn("Could not publish to MQTT server")
-        else:
-            log.debug("Published to MQTT")
-
-    def subscribe(self):
-        self.mqtt_client.subscribeToGatewayCommands(command='SolManager', format='json', qos=2)
-        self.mqtt_client.commandCallback = self._gateway_command_cb
-
-    # ======================== private ========================================
-
-    def _connect(self):
-        try:
-            options = {
-                "org": SolUtils.AppConfig().get("mqtt_organization"),
-                "type": "manager",
-                "id": FormatUtils.formatBuffer(self.mgrThread.getMacManager()),
-                "auth-method": "token",
-                "auth-token": SolUtils.AppConfig().get("mqtt_token")
-            }
-            self.mqtt_client = ibmiotf.gateway.Client(options)
-        except ibmiotf.ConnectionException as e:
-            print e
-        else:
-            self.mqtt_client.connect()
-
-    def _gateway_command_cb(self, command):
-        log.debug("Id = %s (of type = %s) received the gateway command %s at %s" % (
-                command.id, command.type, command.data, command.timestamp))
-        if command.data["command"] == "snapshot":
-            if self.snapshot_thread.last_snapshot:
-                snapshot = self.snapshot_thread.last_snapshot
-                snapshot["token"] = command.data["token"]
-                WastonIotThread().publish(self.snapshot_thread.last_snapshot, "SolManagerResponse")
-            else:
-                self.snapshot_thread._doSnapshot()
 
 #======== periodically do something
-
-# publish network snapshot
-
 
 class SnapshotThread(DoSomethingPeriodic):
 
@@ -722,7 +609,6 @@ class SnapshotThread(DoSomethingPeriodic):
                 # publish sensor object
                 PubFileThread().publish(sobject)
                 PubServerThread().publish(sobject)
-                WastonIotThread().publish(sobject)
 
 # publish app stats
 
@@ -1023,12 +909,12 @@ class SolManager(threading.Thread):
             "mgrThread"                : None,
             "pubFileThread"            : None,
             "pubServerThread"          : None,
-            "wastonIotThread"          : None,
             "snapshotThread"           : None,
             "statsThread"              : None,
             "pollForCommandsThread"    : None,
             "jsonApiThread"            : None,
         }
+        self.duplex_client = None,
 
         # init Singletons -- must be first init
         SolUtils.AppConfig(config_file=CONFIGFILE)
@@ -1060,14 +946,6 @@ class SolManager(threading.Thread):
 
         self.cli.start()
 
-        self.duplexClient = DuplexClient.from_url(
-            server_url='http://127.0.0.1:8080/api/v1/o.json',
-            id="test",
-            token='mytoken',
-            polling_period=1,
-            from_server_cb=self.from_server_cb,
-        )
-
         # start myself
         threading.Thread.__init__(self)
         self.name                      = 'SolManager'
@@ -1078,25 +956,40 @@ class SolManager(threading.Thread):
         try:
             # start threads
             log.debug("Starting threads")
+
+            # start manager thread
             if SolUtils.AppConfig().get('managerconnectionmode') == 'serial':
                 self.threads["mgrThread"]            = MgrThreadSerial()
             else:
                 self.threads["mgrThread"]            = MgrThreadJsonServer()
+
+            # wait for manager thread to start
+            while self.threads["mgrThread"].macManager is None:
+                time.sleep(2)
+            log.debug("Manager MAC is {0}".format(self.threads["mgrThread"].getMacManager()))
+
+            # start the duplexClient
+            self.duplex_client = DuplexClient.from_url(
+                server_url='http://{0}/api/v1/o.json'.format(SolUtils.AppConfig().get("solserver_host")),
+                id=FormatUtils.formatBuffer(self.threads["mgrThread"].getMacManager()),
+                token=SolUtils.AppConfig().get("solserver_token"),
+                polling_period=1,
+                from_server_cb=self.from_server_cb,
+            )
+
+            # start the all other threads
             self.threads["pubFileThread"]            = PubFileThread()
-            # self.threads["pubServerThread"]          = PubServerThread()
-            self.threads["snapshotThread"] = SnapshotThread(
+            self.threads["pubServerThread"]          = PubServerThread(
+                duplex_client = self.duplex_client
+            )
+            self.threads["snapshotThread"]           = SnapshotThread(
                 mgrThread=self.threads["mgrThread"],
             )
-            # self.threads["wastonIotThread"]          = WastonIotThread(
-            #     mgrThread              = self.threads["mgrThread"],
-            #     snapshot_thread        = self.threads["snapshotThread"],
-            # )
             self.threads["statsThread"]              = StatsThread(
-                mgrThread              = self.threads["mgrThread"],
+                mgrThread=self.threads["mgrThread"],
             )
-            # self.threads["pollForCommandsThread"]    = PollCmdsThread()
             self.threads["jsonApiThread"]            = JsonApiThread(
-                mgrThread              = self.threads["mgrThread"],
+                mgrThread=self.threads["mgrThread"],
             )
 
             # wait for all threads to have started
