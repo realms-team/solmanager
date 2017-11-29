@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-#============================ adjust path =====================================
+# =========================== adjust path =====================================
 
 import sys
 import os
@@ -11,7 +11,7 @@ if __name__ == "__main__":
     sys.path.insert(0, os.path.join(here, '..', 'smartmeshsdk', 'libs'))
     sys.path.insert(0, os.path.join(here, '..', 'duplex'))
 
-#============================ imports =========================================
+# =========================== imports =========================================
 
 # from default Python
 import time
@@ -38,12 +38,12 @@ from   solobjectlib          import Sol, \
                                     SolUtils
 from DuplexClient import DuplexClient
 
-#============================ logging =========================================
+# =========================== logging =========================================
 
 logging.config.fileConfig('logging.conf', disable_existing_loggers=False)
 log = logging.getLogger("solmanager")
 
-#============================ defines =========================================
+# =========================== defines =========================================
 
 CONFIGFILE         = 'solmanager.config'
 STATSFILE          = 'solmanager.stats'
@@ -85,11 +85,11 @@ ALLSTATS           = [
     'JSON_NUM_UNAUTHORIZED',
 ]
 
-HTTP_CHUNK_SIZE      = 10 # send batches of 10 Sol objects
+HTTP_CHUNK_SIZE     = 10  # send batches of 10 Sol objects
 
-#============================ classes =========================================
+# =========================== classes =========================================
 
-#======== generic abstract classes
+# ======= generic abstract classes
 
 
 class DoSomethingPeriodic(threading.Thread):
@@ -123,7 +123,7 @@ class DoSomethingPeriodic(threading.Thread):
     def _doSomething(self):
         raise SystemError()  # abstract method
 
-#======== connecting to the SmartMesh IP manager
+# ======= connecting to the SmartMesh IP manager
 
 
 class MgrThread(object):
@@ -296,7 +296,7 @@ class MgrThreadJsonServer(MgrThread, threading.Thread):
             json.loads(bottle.request.body.read()),
         )
 
-#======== publishers
+# ======= publishers
 
 
 class PubThread(DoSomethingPeriodic):
@@ -434,7 +434,7 @@ class PubServerThread(PubThread):
                 SolUtils.AppStats().update("PUBSERVER_BACKLOG", len(self.solJsonObjectsToPublish))
 
 
-#======== periodically do something
+# ======= periodically do something
 
 class SnapshotThread(DoSomethingPeriodic):
 
@@ -649,8 +649,6 @@ class StatsThread(DoSomethingPeriodic):
         # update stats
         SolUtils.AppStats().increment('PUBSERVER_STATS')
 
-#======== adding a JSON API to trigger actions on the SolManager
-
 class JsonApiThread(threading.Thread):
 
     class HTTPSServer(bottle.ServerAdapter):
@@ -725,14 +723,14 @@ class JsonApiThread(threading.Thread):
         except Exception as err:
             SolUtils.logCrash(err, SolUtils.AppStats(), threadName=self.name)
 
-    #======================== public ==========================================
+    # ======================= public ==========================================
 
     def close(self):
         self.web.close()
 
-    #======================== private ==========================================
+    # ======================= private ==========================================
 
-    #=== webhandlers
+    # == webhandlers
 
     # decorator
     def _authorized_webhandler(func):
@@ -837,8 +835,7 @@ class JsonApiThread(threading.Thread):
             returnVal = "ERROR"
         return returnVal
 
-#======== main application thread
-
+# ======= main application thread
 
 class SolManager(threading.Thread):
 
@@ -1021,8 +1018,7 @@ class SolManager(threading.Thread):
     def from_server_cb(self, o):
         log.debug("from_server_cb: {0}".format(o))
 
-#============================ main ============================================
-
+# =========================== main ============================================
 
 def main():
     solmanager = SolManager()
