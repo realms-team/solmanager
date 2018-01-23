@@ -7,5 +7,6 @@
 /solmanager.ppk
 /supervisord.conf
 *.log
+*.log.*
 .idea/
 venv/
