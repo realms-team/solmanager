@@ -211,9 +211,11 @@ class MgrThreadSerial(MgrThread):
         super(MgrThreadSerial, self).__init__()
 
         # initialize JsonManager
-        self.jsonManager          = JsonManager.JsonManager(
-            serialport            = SolUtils.AppConfig().get("serialport"),
-            notifCb               = self._notif_cb,
+        self.jsonManager = JsonManager.JsonManager(
+            autoaddmgr      = False,
+            autodeletemgr   = False,
+            serialport      = SolUtils.AppConfig().get("serialport"),
+            notifCb         = self._notif_cb,
         )
 
     def issueRawApiCommand(self, json_payload):
@@ -1048,7 +1050,6 @@ class SolManager(threading.Thread):
             params                     = [],
             callback                   = self._clihandle_versions,
         )
-        self.cli.start()
 
         # start myself
         threading.Thread.__init__(self)
