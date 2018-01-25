@@ -882,12 +882,10 @@ class SolManager(threading.Thread):
         threading.Thread.__init__(self)
         self.name                      = 'SolManager'
         self.daemon                    = True
+        self.start()
 
     def run(self):
         try:
-            # start threads
-            log.debug("Starting threads")
-
             # start manager thread
             if SolUtils.AppConfig().get('managerconnectionmode') == 'serial':
                 self.threads["mgrThread"]            = MgrThreadSerial()
@@ -906,7 +904,12 @@ class SolManager(threading.Thread):
                 token=SolUtils.AppConfig().get("solserver_token"),
                 polling_period=SolUtils.AppConfig().get("period_pollcmds_min")*60,
                 from_server_cb=self.from_server_cb,
+                buffer_tx=True,
             )
+            while self.duplex_client is None:
+                log.debug("Waiting for duplex client to be started")
+                time.sleep(1)
+            log.debug("duplex client started")
 
             # start the all other threads
             self.threads["pubFileThread"]            = PubFileThread()
