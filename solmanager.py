@@ -841,7 +841,6 @@ class JsonApiThread(threading.Thread):
 
 # ======= main application thread
 
-
 class SolManager(threading.Thread):
 
     def __init__(self):
@@ -1016,8 +1015,7 @@ class SolManager(threading.Thread):
     def from_server_cb(self, o):
         log.debug("from_server_cb: {0}".format(o))
 
-# ============================ main ===========================================
-
+# =========================== main ============================================
 
 def main():
     solmanager = SolManager()
