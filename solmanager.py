@@ -356,8 +356,6 @@ class PubServerThread(PubThread):
             chunk = solBinObjectsToPublish[i: i + HTTP_CHUNK_SIZE]
             http_payload.append(self.sol.bin_to_http(chunk))
 
-        # send http_payload to server
-
         # update stats
         res = False
         SolUtils.AppStats().increment('PUBSERVER_SENDATTEMPTS')
@@ -397,7 +395,6 @@ class SnapshotThread(DoSomethingPeriodic):
 
     def _doSnapshot(self):
         ret = self.mgrThread.jsonManager.snapshot_POST(manager=0)
-        # TODO
 
 # publish app stats
 
@@ -610,7 +607,7 @@ class SolManager(threading.Thread):
 # =========================== main ============================================
 
 def main():
-    solmanager = SolManager()
+    SolManager()
 
 
 if __name__ == '__main__':
