@@ -8,24 +8,8 @@ period_stats_min             = 30                ; publish stats (write to file 
 period_pollcmds_min          = 30                ; request for commands from SolServer
 
 ; connecting to SmartMesh IP manager
-managerconnectionmode        = serial            ; "serial" or "JsonServer"
-serialport                   = COM6              ; only used when managerconnectionmode is "serial"
+serialport                   = COM6              ; the Dust Manager serial port
 
-; JsonServer
-jsonserver_host              = 127.0.0.1:8080    ; only used when managerconnectionmode is "JsonServer"
-
-; local (SolManager) web servers
-solmanager_tcpport_jsonserver= 1882              ; TCP port to receive notifications from JsonServer
-solmanager_token             = SOLMANAGER_TOKEN  ; token for an external process to authenticate to SolManager
-solmanager_certificate       = solmanager.cert   ; certificate of the SolManager
-solmanager_private_key       = solmanager.ppk    ; private key of the SolManager
-solmanager_tcpport_solserver = 8081              ; TCP port to receive commands from SolServer
-
-; remote (SolServer) web server
-solserver_host               = 127.0.0.1:8082    ; address of the SolServer
-solserver_token              = SOLSERVER_TOKEN   ; token to authenticate to SolServer
-solserver_certificate        = solserver.cert    ; certificate of the SolServer
-
-; remote mqtt server
-mqtt_organization            = org               ; ibm bluemix organisation
-mqtt_token                   = token             ; ibm bluemix token associated to manager
+; remote (SolApi) web server
+solserver_host               = 127.0.0.1:8080    ; address of the SolApi
+;solserver_token              = {"org": "aaaaa", "token": "TDaoajj!YMn"}   ; token to authenticate to SolApi

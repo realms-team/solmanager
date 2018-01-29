@@ -16,15 +16,8 @@ if __name__ == "__main__":
 # from default Python
 import time
 import json
-import subprocess
 import threading
-import traceback
 import logging.config
-
-# third-party packages
-import OpenSSL
-import bottle
-import requests
 
 # project-specific
 import solmanager_version
@@ -34,7 +27,6 @@ from   dustCli               import DustCli
 from   solobjectlib          import Sol, \
                                     SolVersion, \
                                     SolDefines, \
-                                    SolExceptions, \
                                     SolUtils
 from DuplexClient import DuplexClient
 
@@ -128,15 +120,51 @@ class DoSomethingPeriodic(threading.Thread):
 
 class MgrThread(object):
     """
-    Asbtract class which connects to a SmartMesh IP manager, either over serial
-    or through a JsonServer.
+    Thread to start the connection with the Dust Manager using the JsonManager
     """
+
     def __init__(self):
 
         # local variables
         self.sol = Sol.Sol()
         self.macManager = None
         self.dataLock = threading.RLock()
+
+        # initialize JsonManager
+        self.jsonManager = JsonManager.JsonManager(
+            autoaddmgr      = False,
+            autodeletemgr   = False,
+            serialport      = SolUtils.AppConfig().get("serialport"),
+            notifCb         = self._notif_cb,
+        )
+
+        # todo replace this by JsonManager method to know when a manager is ready
+        while self.jsonManager.managerHandlers == {}:
+            time.sleep(1)
+        while self.jsonManager.managerHandlers[self.jsonManager.managerHandlers.keys()[0]].connector is None:
+            time.sleep(1)
+
+        self.macManager = self.get_mac_manager()
+
+    def issueRawApiCommand(self, json_payload):
+        fields = {}
+        if "fields" in json_payload:
+            fields = json_payload["fields"]
+
+        if "command" not in json_payload or "manager" not in json_payload:
+            return json.dumps({'error': 'Missing parameter.'})
+
+        return self.jsonManager.raw_POST(
+            manager          = json_payload['manager'],
+            commandArray     = [json_payload['command']],
+            fields           = fields,
+        )
+
+    def _notif_cb(self, notifName, notifJson):
+        self._handler_dust_notifs(
+            notifJson,
+            notifName
+        )
 
     def get_mac_manager(self):
         if self.macManager is None:
@@ -209,104 +237,7 @@ class MgrThread(object):
         with self.dataLock:
             return int(netTs + self.tsDiff)
 
-class MgrThreadSerial(MgrThread):
-
-    def __init__(self):
-
-        # initialize the parent class
-        super(MgrThreadSerial, self).__init__()
-
-        # initialize JsonManager
-        self.jsonManager = JsonManager.JsonManager(
-            autoaddmgr      = False,
-            autodeletemgr   = False,
-            serialport      = SolUtils.AppConfig().get("serialport"),
-            notifCb         = self._notif_cb,
-        )
-
-        # todo replace this by JsonManager method to know when a manager is ready
-        while self.jsonManager.managerHandlers == {}:
-            time.sleep(1)
-        while self.jsonManager.managerHandlers[self.jsonManager.managerHandlers.keys()[0]].connector is None:
-            time.sleep(1)
-
-        self.macManager = self.get_mac_manager()
-
-    def issueRawApiCommand(self, json_payload):
-        fields = {}
-        if "fields" in json_payload:
-            fields = json_payload["fields"]
-
-        if "command" not in json_payload or "manager" not in json_payload:
-            return json.dumps({'error': 'Missing parameter.'})
-
-        return self.jsonManager.raw_POST(
-            manager          = json_payload['manager'],
-            commandArray     = [json_payload['command']],
-            fields           = fields,
-        )
-
-    def _notif_cb(self, notifName, notifJson):
-        super(MgrThreadSerial, self)._handler_dust_notifs(
-            notifJson,
-            notifName
-        )
-
-class MgrThreadJsonServer(MgrThread, threading.Thread):
-
-    def __init__(self):
-
-        # initialize the parent class
-        super(MgrThreadJsonServer, self).__init__()
-
-        # initialize web server
-        self.web            = bottle.Bottle()
-        self.web.route(
-            path        = [
-                '/hr',
-                '/notifData',
-                '/oap',
-                '/notifLog',
-                '/notifIpData',
-                '/event',
-            ],
-            method      = 'POST',
-            callback    = self._webhandler_all_POST
-        )
-
-        # start the thread
-        threading.Thread.__init__(self)
-        self.name       = 'MgrThreadJsonServer'
-        self.daemon     = True
-        self.start()
-
-    def run(self):
-        try:
-            # wait for banner
-            time.sleep(0.5)
-            self.web.run(
-                host   = '0.0.0.0',
-                port   = SolUtils.AppConfig().get("solmanager_tcpport_jsonserver"),
-                quiet  = True,
-                debug  = False,
-            )
-        except Exception as err:
-            SolUtils.logCrash(err, SolUtils.AppStats(), threadName=self.name)
-
-    def issueRawApiCommand(self, json_payload):
-        r = requests.post(
-            'http://{0}/api/v1/raw'.format(SolUtils.AppConfig().get("jsonserver_host")),
-            json    = json_payload,
-        )
-        return json.loads(r.text)
-
-    def _webhandler_all_POST(self):
-        super(MgrThreadJsonServer, self)._handler_dust_notifs(
-            json.loads(bottle.request.body.read()),
-        )
-
 # ======= publishers
-
 
 class PubThread(DoSomethingPeriodic):
     """
@@ -507,194 +438,6 @@ class StatsThread(DoSomethingPeriodic):
         # update stats
         SolUtils.AppStats().increment('PUBSERVER_STATS')
 
-# ======== adding a JSON API to trigger actions on the SolManager
-
-class JsonApiThread(threading.Thread):
-
-    class HTTPSServer(bottle.ServerAdapter):
-        def run(self, handler):
-            from cheroot.wsgi import Server as WSGIServer
-            from cheroot.ssl.pyopenssl import pyOpenSSLAdapter
-            server = WSGIServer((self.host, self.port), handler)
-            server.ssl_adapter = pyOpenSSLAdapter(
-                certificate = SolUtils.AppConfig().get("solmanager_certificate"),
-                private_key = SolUtils.AppConfig().get("solmanager_private_key"),
-            )
-            try:
-                server.start()
-                log.info("Server started")
-            finally:
-                server.stop()
-
-    def __init__(self, mgrThread):
-
-        # store params
-        self.mgrThread          = mgrThread
-
-        # local variables
-        self.sol                = Sol.Sol()
-
-        # check if files exist
-        fcert = open(SolUtils.AppConfig().get("solmanager_certificate"))
-        fcert.close()
-        fkey = open(SolUtils.AppConfig().get("solmanager_private_key"))
-        fkey.close()
-
-        # initialize web server
-        self.web                = bottle.Bottle()
-        self.web.route(
-            path        = '/api/v1/echo.json',
-            method      = 'POST',
-            callback    = self._webhandler_echo_POST,
-        )
-        self.web.route(
-            path        = '/api/v1/status.json',
-            method      = 'GET',
-            callback    = self._webhandler_status_GET,
-        )
-        self.web.route(
-            path        = '/api/v1/resend.json',
-            method      = 'POST',
-            callback    = self._webhandler_resend_POST,
-        )
-        self.web.route(
-            path        = '/api/v1/smartmeshipapi.json',
-            method      = 'POST',
-            callback    = self._webhandler_smartmeshipapi_POST,
-        )
-
-        # start the thread
-        threading.Thread.__init__(self)
-        self.name       = 'JsonThread'
-        self.daemon     = True
-        self.start()
-
-    def run(self):
-        try:
-            # wait for banner
-            time.sleep(0.5)
-            self.web.run(
-                host   = '0.0.0.0',
-                port   = SolUtils.AppConfig().get("solmanager_tcpport_solserver"),
-                server = self.HTTPSServer,
-                quiet  = True,
-                debug  = False,
-            )
-        except Exception as err:
-            SolUtils.logCrash(err, SolUtils.AppStats(), threadName=self.name)
-
-    # ======================= public ==========================================
-
-    def close(self):
-        self.web.close()
-
-    # ======================= private ==========================================
-
-    # == webhandlers
-
-    # decorator
-    def _authorized_webhandler(func):
-        def hidden_decorator(self):
-            try:
-                # update stats
-                SolUtils.AppStats().increment('JSON_NUM_REQ')
-
-                # authorize the client
-                self._authorizeClient()
-
-                # retrieve the return value
-                returnVal = func(self)
-
-                # send back answer
-                return bottle.HTTPResponse(
-                    status  = 200,
-                    headers = {'Content-Type': 'application/json'},
-                    body    = json.dumps(returnVal),
-                )
-
-            except SolExceptions.UnauthorizedError:
-                return bottle.HTTPResponse(
-                    status  = 401,
-                    headers = {'Content-Type': 'application/json'},
-                    body    = json.dumps({'error': 'Unauthorized'}),
-                )
-            except Exception as err:
-
-                crashMsg = SolUtils.logCrash(err, SolUtils.AppStats())
-
-                return bottle.HTTPResponse(
-                    status  = 500,
-                    headers = {'Content-Type': 'application/json'},
-                    body    = json.dumps(crashMsg),
-                )
-        return hidden_decorator
-
-    @_authorized_webhandler
-    def _webhandler_echo_POST(self):
-        return bottle.request.body.read()
-
-    @_authorized_webhandler
-    def _webhandler_status_GET(self):
-        return {
-            'version solmanager':     solmanager_version.VERSION,
-            'version SmartMesh SDK':  sdk_version.VERSION,
-            'version Sol':            SolVersion.VERSION,
-            'uptime computer':        self._exec_cmd('uptime'),
-            'utc':                    int(time.time()),
-            'date':                   SolUtils.currentUtcTime(),
-            'last reboot':            self._exec_cmd('last reboot'),
-            'stats':                  SolUtils.AppStats().get(),
-        }
-
-    @_authorized_webhandler
-    def _webhandler_resend_POST(self):
-        # abort if malformed JSON body
-        if bottle.request.json is None:
-            return {'error': 'Malformed JSON body'}
-
-        # verify all fields are present
-        required_fields = ["action", "startTimestamp", "endTimestamp"]
-        for field in required_fields:
-            if field not in bottle.request.json:
-                return {'error': 'Missing field {0}'.format(field)}
-
-        # handle
-        action          = bottle.request.json["action"]
-        startTimestamp  = bottle.request.json["startTimestamp"]
-        endTimestamp    = bottle.request.json["endTimestamp"]
-        if action == "count":
-            sol_jsonl = self.sol.loadFromFile(BACKUPFILE, startTimestamp, endTimestamp)
-            # send response
-            return {'numObjects': len(sol_jsonl)}
-        elif action == "resend":
-            sol_jsonl = self.sol.loadFromFile(BACKUPFILE, startTimestamp, endTimestamp)
-            # publish
-            for sobject in sol_jsonl:
-                PubServerThread().publish(sobject)
-            # send response
-            return {'numObjects': len(sol_jsonl)}
-        else:
-            return {'error': 'Unknown action {0}'.format(action)}
-
-    @_authorized_webhandler
-    def _webhandler_smartmeshipapi_POST(self):
-        return self.mgrThread.issueRawApiCommand(json.loads(bottle.request.json))
-
-    #=== misc
-
-    def _authorizeClient(self):
-        if bottle.request.headers.get('X-REALMS-Token') != SolUtils.AppConfig().get("solmanager_token"):
-            SolUtils.AppStats().increment('JSON_NUM_UNAUTHORIZED')
-            raise SolExceptions.UnauthorizedError()
-
-    def _exec_cmd(self, cmd):
-        returnVal = None
-        try:
-            returnVal = subprocess.check_output(cmd, shell=False)
-        except:
-            returnVal = "ERROR"
-        return returnVal
-
 # ======= main application thread
 
 class SolManager(threading.Thread):
@@ -708,7 +451,6 @@ class SolManager(threading.Thread):
             "snapshotThread"           : None,
             "statsThread"              : None,
             "pollForCommandsThread"    : None,
-            "jsonApiThread"            : None,
         }
         self.duplex_client = None,
 
@@ -742,10 +484,7 @@ class SolManager(threading.Thread):
     def run(self):
         try:
             # start manager thread
-            if SolUtils.AppConfig().get('managerconnectionmode') == 'serial':
-                self.threads["mgrThread"]            = MgrThreadSerial()
-            else:
-                self.threads["mgrThread"]            = MgrThreadJsonServer()
+            self.threads["mgrThread"]            = MgrThread()
 
             # wait for manager thread to start
             while self.threads["mgrThread"].macManager is None:
@@ -775,9 +514,6 @@ class SolManager(threading.Thread):
                 mgrThread=self.threads["mgrThread"],
             )
             self.threads["statsThread"]              = StatsThread(
-                mgrThread=self.threads["mgrThread"],
-            )
-            self.threads["jsonApiThread"]            = JsonApiThread(
                 mgrThread=self.threads["mgrThread"],
             )
 
