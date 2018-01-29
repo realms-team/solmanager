@@ -181,8 +181,6 @@ class MgrThread(object):
                 mac_manager = self.get_mac_manager(),
                 timestamp   = epoch,
             )
-            if dust_notif['name'] == "snapshot":
-                print sol_jsonl
 
             for sol_json in sol_jsonl:
                 # update stats
