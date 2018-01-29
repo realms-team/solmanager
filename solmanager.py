@@ -161,8 +161,6 @@ class MgrThread(object):
             logging.warning("Cannot find notification name")
             return
 
-        if dust_notif['name'] == "snapshot":
-            print dust_notif
         try:
             # filter raw HealthReport notifications
             if dust_notif['name'] == "notifHealthReport":
