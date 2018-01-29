@@ -466,7 +466,6 @@ class SnapshotThread(DoSomethingPeriodic):
         self.last_snapshot = None
 
     def _doSomething(self):
-        return # TODO
         self._doSnapshot()
 
     def _doSnapshot(self):
