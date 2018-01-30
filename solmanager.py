@@ -83,7 +83,6 @@ HTTP_CHUNK_SIZE     = 10  # send batches of 10 Sol objects
 
 # ======= generic abstract classes
 
-
 class DoSomethingPeriodic(threading.Thread):
     """
     Abstract DoSomethingPeriodic thread
@@ -116,7 +115,6 @@ class DoSomethingPeriodic(threading.Thread):
         raise SystemError()  # abstract method
 
 # ======= connecting to the SmartMesh IP manager
-
 
 class MgrThread(object):
     """
@@ -263,7 +261,6 @@ class PubThread(DoSomethingPeriodic):
     def _doSomething(self):
         self._publishNow()
 
-
 class PubFileThread(PubThread):
     """
     Singleton that writes Sol JSON objects to a file every period_pubfile_min.
@@ -315,7 +312,6 @@ class PubFileThread(PubThread):
                 BACKUPFILE,
             )
 
-
 class PubServerThread(PubThread):
     """
     Singleton that sends Sol JSON objects to the solserver every period_pubserver_min.
@@ -328,19 +324,27 @@ class PubServerThread(PubThread):
             cls._instance = super(PubServerThread, cls).__new__(cls, *args, **kwargs)
         return cls._instance
 
-    def __init__(self, duplex_client=None):
+    def __init__(self):
         if self._init:
             return
-        assert duplex_client is not None
         self._init              = True
         PubThread.__init__(self, SolUtils.AppConfig().get("period_pubserver_min"))
         self.name               = 'PubServerThread'
-        self.duplex_client      = duplex_client
-
+        self.duplex_client      = None
+    
+    def setDuplexClient(self, duplex_client):
+        with self.dataLock:
+            self.duplex_client  = duplex_client
+    
     def _publishNow(self):
         # stop if nothing to publish
         with self.dataLock:
             if not self.solJsonObjectsToPublish:
+                return
+        
+        # stop if Duplexclient not configured yet
+        with self.dataLock:
+            if not self.duplex_client:
                 return
 
         # convert objects to publish to binary until HTTP max size is reached
@@ -371,7 +375,6 @@ class PubServerThread(PubThread):
                 self.solJsonObjectsToPublish = self.solJsonObjectsToPublish[object_id:]
                 SolUtils.AppStats().update("PUBSERVER_BACKLOG", len(self.solJsonObjectsToPublish))
 
-
 # ======= periodically do something
 
 class SnapshotThread(DoSomethingPeriodic):
@@ -397,7 +400,6 @@ class SnapshotThread(DoSomethingPeriodic):
         ret = self.mgrThread.jsonManager.snapshot_POST(manager=0)
 
 # publish app stats
-
 
 class StatsThread(DoSomethingPeriodic):
     """
@@ -449,9 +451,9 @@ class SolManager(threading.Thread):
             "statsThread"              : None,
             "pollForCommandsThread"    : None,
         }
-        self.duplex_client = None,
+        self.duplex_client = None
 
-        # init Singletons -- must be first init
+        # init Singletons
         SolUtils.AppConfig(config_file=CONFIGFILE)
         SolUtils.AppStats(stats_file=STATSFILE, stats_list=ALLSTATS)
 
@@ -490,12 +492,12 @@ class SolManager(threading.Thread):
 
             # start the duplexClient
             self.duplex_client = DuplexClient.from_url(
-                server_url='http://{0}/api/v1/o.json'.format(SolUtils.AppConfig().get("solserver_host")),
-                id=self.threads["mgrThread"].get_mac_manager(),
-                token=SolUtils.AppConfig().get("solserver_token"),
-                polling_period=SolUtils.AppConfig().get("period_pollcmds_min")*60,
-                from_server_cb=self.from_server_cb,
-                buffer_tx=False,
+                server_url        = 'http://{0}/api/v1/o.json'.format(SolUtils.AppConfig().get("solserver_host")),
+                id                = self.threads["mgrThread"].get_mac_manager(),
+                token             = SolUtils.AppConfig().get("solserver_token"),
+                polling_period    = SolUtils.AppConfig().get("period_pollcmds_min")*60,
+                from_server_cb    = self.from_server_cb,
+                buffer_tx         = False,
             )
             while self.duplex_client is None:
                 log.debug("Waiting for duplex client to be started")
@@ -504,9 +506,8 @@ class SolManager(threading.Thread):
 
             # start the all other threads
             self.threads["pubFileThread"]            = PubFileThread()
-            self.threads["pubServerThread"]          = PubServerThread(
-                duplex_client = self.duplex_client
-            )
+            self.threads["pubServerThread"]          = PubServerThread()
+            self.threads["pubServerThread"].setDuplexClient(self.duplex_client)
             self.threads["snapshotThread"]           = SnapshotThread(
                 mgrThread=self.threads["mgrThread"],
             )
@@ -602,13 +603,13 @@ class SolManager(threading.Thread):
         return returnVal
 
     def from_server_cb(self, o):
-        log.debug("from_server_cb: {0}".format(o))
+        print "from_server_cb: {0}".format(o)
+        print 'TODO: handle messages received from server'
 
 # =========================== main ============================================
 
 def main():
     SolManager()
-
 
 if __name__ == '__main__':
     main()
