@@ -124,9 +124,9 @@ class MgrThread(object):
     def __init__(self):
 
         # local variables
-        self.sol = Sol.Sol()
+        self.sol        = Sol.Sol()
         self.macManager = None
-        self.dataLock = threading.RLock()
+        self.dataLock   = threading.RLock()
 
         # initialize JsonManager
         self.jsonManager = JsonManager.JsonManager(
@@ -181,16 +181,20 @@ class MgrThread(object):
         return self.macManager
 
     def _handler_dust_notifs(self, dust_notif, notif_name=""):
-        if notif_name != "" and 'name' not in dust_notif:
+        if   (notif_name!="") and ('name' not in dust_notif):
             dust_notif['name'] = notif_name
-        elif notif_name == "" and 'name' not in dust_notif:
+        elif (notif_name=="") and ('name' not in dust_notif):
             logging.warning("Cannot find notification name")
             return
-
+        
         try:
             # filter raw HealthReport notifications
             if dust_notif['name'] == "notifHealthReport":
                 return
+            
+            # change "manager" field of snaphots (for stars to display correctly)
+            if dust_notif['name'] == "snapshot":
+                dust_notif['manager'] = self.get_mac_manager()
 
             # update stats
             SolUtils.AppStats().increment('NUMRX_{0}'.format(dust_notif['name']))
@@ -213,8 +217,8 @@ class MgrThread(object):
                 SolUtils.AppStats().increment('PUB_TOTAL_SENTTOPUBLISH')
 
                 # publish
-                PubFileThread().publish(sol_json)  # to the backup file
-                PubServerThread().publish(sol_json)  # to the solserver over the Internet
+                PubFileThread().publish(sol_json)     # to the backup file
+                PubServerThread().publish(sol_json)   # to the solserver over the Internet
 
         except Exception as err:
             SolUtils.logCrash(err, SolUtils.AppStats())
