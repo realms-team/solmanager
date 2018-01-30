@@ -1,15 +1,16 @@
 [config]
 
 ; activity periods
-period_pubfile_min           = 0.1               ; write data to file
-period_pubserver_min         = 0.1               ; send data to server
-period_snapshot_min          = 60                ; perform a full snapshot
-period_stats_min             = 30                ; publish stats (write to file and send)
-period_pollcmds_min          = 30                ; request for commands from SolServer
+period_pubfile_min           = 0.2               ; write data to file
+period_pubserver_min         = 0.2               ; send data to server
+period_snapshot_min          = 0.2               ; perform a full snapshot
+period_stats_min             = 0.2               ; publish stats (write to file and send)
+period_pollcmds_min          = 0.2               ; request for commands from SolServer
 
 ; connecting to SmartMesh IP manager
-serialport                   = COM6              ; the Dust Manager serial port
+serialport                   = COM6              ; the serial port of the SmartMesh IP Manager's API port
 
 ; remote (SolApi) web server
-solserver_host               = 127.0.0.1:8080    ; address of the SolApi
-;solserver_token              = {"org": "aaaaa", "token": "TDaoajj!YMn"}   ; token to authenticate to SolApi
+;solserver_host               = 127.0.0.1:8080    ; address of the SolApi
+solserver_host               = solapi-dev.eu-gb.mybluemix.net    ; address of the SolApi
+solserver_token              = {"org": "your_managers_org", "token": "your_managers_token"}     ; token to authenticate to SolApi
