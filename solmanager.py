@@ -18,11 +18,13 @@ import time
 import json
 import threading
 import logging.config
+import base64
 
 # project-specific
 import solmanager_version
 from   SmartMeshSDK          import sdk_version
-from   SmartMeshSDK.utils    import JsonManager, FormatUtils
+from   SmartMeshSDK.utils    import JsonManager, \
+                                    FormatUtils
 from   dustCli               import DustCli
 from   solobjectlib          import Sol, \
                                     SolVersion, \
@@ -76,8 +78,6 @@ ALLSTATS           = [
     'JSON_NUM_REQ',
     'JSON_NUM_UNAUTHORIZED',
 ]
-
-HTTP_CHUNK_SIZE     = 10  # send batches of 10 Sol objects
 
 # =========================== classes =========================================
 
@@ -141,45 +141,77 @@ class MgrThread(object):
             time.sleep(1)
         while self.jsonManager.managerHandlers[self.jsonManager.managerHandlers.keys()[0]].connector is None:
             time.sleep(1)
-
+        
+        # record the manager's MAC address
         self.macManager = self.get_mac_manager()
-
-    def issueRawApiCommand(self, json_payload):
-        fields = {}
-        if "fields" in json_payload:
-            fields = json_payload["fields"]
-
-        if "command" not in json_payload or "manager" not in json_payload:
-            return json.dumps({'error': 'Missing parameter.'})
-
-        return self.jsonManager.raw_POST(
-            manager          = json_payload['manager'],
-            commandArray     = [json_payload['command']],
-            fields           = fields,
-        )
-
+    
+    # ======================= public ==========================================
+    
+    def get_mac_manager(self):
+        if self.macManager is None:
+            resp = self.jsonManager.raw_POST(
+                manager          = 0,
+                commandArray     = ["getMoteConfig"],
+                fields           = {
+                    "macAddress": [0, 0, 0, 0, 0, 0, 0, 0],
+                    "next": True
+                },
+            )
+            assert resp['isAP'] is True
+            self.macManager = FormatUtils.formatBuffer(resp['macAddress'])
+        return self.macManager
+    
+    def from_server_cb(self,o):
+        '''
+        o = {
+            'type':          'manager',
+            'id':            '00-17-0d-00-00-30-3c-03',
+            'format':        'json',
+            'command':       'JsonManager',
+            'timestamp':     '2018-01-30 15:55:12.056165+00:00',
+            'data':          {
+                'function':  'status_GET',
+                'args':      {},
+                'token':     'myToken',
+            }
+        }
+        '''
+        try:
+            if o['command']=='JsonManager':
+                assert o['data']['function'].split('_')[-1] in ['GET','PUT','POST','DELETE']
+                # find the function to call
+                func = getattr(self.jsonManager,o['data']['function'])
+                # call the function
+                res = func(**o['data']['args'])
+                # format response
+                value = {
+                    'success':   True,
+                    'return':    res,
+                }
+                if 'token' in o['data']:
+                    value['token'] = o['data']['token']
+                json_res = {
+                    'type':          'JsonManagerResponse',
+                    'mac':           o['id'],
+                    'manager':       o['id'],
+                    'value':         value,
+                }
+                # publish the result
+                PubServerThread().publishJson(json_res)
+        except Exception as err:
+            log.warning("could not execute {0}",o)
+    
+    def close(self):
+        pass
+    
+    # ======================= private =========================================
+    
     def _notif_cb(self, notifName, notifJson):
         self._handler_dust_notifs(
             notifJson,
             notifName
         )
-
-    def get_mac_manager(self):
-        if self.macManager is None:
-            resp = self.issueRawApiCommand(
-                {
-                    "manager": 0,
-                    "command": "getMoteConfig",
-                    "fields": {
-                        "macAddress": [0, 0, 0, 0, 0, 0, 0, 0],
-                        "next": True
-                    }
-                }
-            )
-            assert resp['isAP'] is True
-            self.macManager = FormatUtils.formatBuffer(resp['macAddress'])
-        return self.macManager
-
+    
     def _handler_dust_notifs(self, dust_notif, notif_name=""):
         if   (notif_name!="") and ('name' not in dust_notif):
             dust_notif['name'] = notif_name
@@ -217,15 +249,12 @@ class MgrThread(object):
                 SolUtils.AppStats().increment('PUB_TOTAL_SENTTOPUBLISH')
 
                 # publish
-                PubFileThread().publish(sol_json)     # to the backup file
-                PubServerThread().publish(sol_json)   # to the solserver over the Internet
+                PubFileThread().publishBinary(sol_json)     # to the backup file
+                PubServerThread().publishBinary(sol_json)   # to the solserver over the Internet
 
         except Exception as err:
             SolUtils.logCrash(err, SolUtils.AppStats())
-
-    def close(self):
-        pass
-
+    
     # === misc
 
     def _calcNetTs(self, notif):
@@ -246,9 +275,10 @@ class PubThread(DoSomethingPeriodic):
     Abstract publish thread.
     """
     def __init__(self, periodvariable):
-        self.solJsonObjectsToPublish    = []
-        self.dataLock                   = threading.RLock()
         self.sol                        = Sol.Sol()
+        self.dataLock                   = threading.RLock()
+        self.toPublishBinary            = []
+        self.toPublishJson              = []
         # initialize parent class
         super(PubThread, self).__init__(periodvariable)
         self.name                       = 'PubThread'
@@ -256,11 +286,15 @@ class PubThread(DoSomethingPeriodic):
 
     def getBacklogLength(self):
         with self.dataLock:
-            return len(self.solJsonObjectsToPublish)
+            return len(self.toPublishBinary)+len(self.toPublishJson)
 
-    def publish(self, sol_json):
+    def publishBinary(self, o):
         with self.dataLock:
-            self.solJsonObjectsToPublish += [sol_json]
+            self.toPublishBinary += [o]
+    
+    def publishJson(self, o):
+        with self.dataLock:
+            self.toPublishJson   += [o]
 
     def _doSomething(self):
         self._publishNow()
@@ -280,7 +314,10 @@ class PubFileThread(PubThread):
         if not cls._instance:
             cls._instance = super(PubFileThread, cls).__new__(cls, *args, **kwargs)
         return cls._instance
-
+    
+    def toPublishJson(self, o):
+        raise SystemError('toPublishJson not supported in PubFileThread')
+    
     def __init__(self):
         if self._init:
             return
@@ -293,21 +330,21 @@ class PubFileThread(PubThread):
         SolUtils.AppStats().increment('PUBFILE_WRITES')
 
         with self.dataLock:
-            # order solJsonObjectsToPublish chronologically
-            self.solJsonObjectsToPublish.sort(key=lambda i: i['timestamp'])
+            # order toPublishBinary chronologically
+            self.toPublishBinary.sort(key=lambda i: i['timestamp'])
 
             # extract the JSON SOL objects heard more than BUFFER_PERIOD ago
             now = time.time()
             solJsonObjectsToWrite = []
             while True:
-                if not self.solJsonObjectsToPublish:
+                if not self.toPublishBinary:
                     break
-                if now-self.solJsonObjectsToPublish[0]['timestamp'] < self.BUFFER_PERIOD:
+                if now-self.toPublishBinary[0]['timestamp'] < self.BUFFER_PERIOD:
                     break
-                solJsonObjectsToWrite += [self.solJsonObjectsToPublish.pop(0)]
+                solJsonObjectsToWrite += [self.toPublishBinary.pop(0)]
 
             # update stats
-            SolUtils.AppStats().update("PUBFILE_BACKLOG", len(self.solJsonObjectsToPublish))
+            SolUtils.AppStats().update("PUBFILE_BACKLOG", len(self.toPublishBinary))
 
         # write those to file
         if solJsonObjectsToWrite:
@@ -341,43 +378,25 @@ class PubServerThread(PubThread):
             self.duplex_client  = duplex_client
     
     def _publishNow(self):
-        # stop if nothing to publish
-        with self.dataLock:
-            if not self.solJsonObjectsToPublish:
-                return
-        
-        # stop if Duplexclient not configured yet
+        # stop if duplex_client not configured yet
         with self.dataLock:
             if not self.duplex_client:
                 return
 
-        # convert objects to publish to binary until HTTP max size is reached
-        object_id = 0
-        http_payload = []
+        # convert objects and publish
         with self.dataLock:
-            solBinObjectsToPublish = []
-            for (object_id, o) in enumerate(self.solJsonObjectsToPublish):
-                solBinObjectsToPublish.append(self.sol.json_to_bin(o))
-
-        # split publish list into chunks
-        for i in xrange(0, len(solBinObjectsToPublish), HTTP_CHUNK_SIZE):
-            chunk = solBinObjectsToPublish[i: i + HTTP_CHUNK_SIZE]
-            http_payload.append(self.sol.bin_to_http(chunk))
-
-        # update stats
-        res = False
-        SolUtils.AppStats().increment('PUBSERVER_SENDATTEMPTS')
-        for payload in http_payload:
-            log.debug("sending objects, size:%dB", len(payload))
-            res = self.duplex_client.to_server([payload])
-
-        if res is False:
-            SolUtils.AppStats().increment('PUBSERVER_SENDFAIL')
-        else:  # server answered
-            SolUtils.AppStats().increment('PUBSERVER_SENDOK')
-            with self.dataLock:
-                self.solJsonObjectsToPublish = self.solJsonObjectsToPublish[object_id:]
-                SolUtils.AppStats().update("PUBSERVER_BACKLOG", len(self.solJsonObjectsToPublish))
+            while self.toPublishBinary:
+                o = self.toPublishBinary.pop(0)
+                o = self.sol.json_to_bin(o)
+                o = base64.b64encode(''.join(chr(b) for b in o))
+                o = json.dumps(['b',o])
+                log.debug("sending binary object, size: {0} B".format(len(o)))
+                self.duplex_client.to_server(o)
+            while self.toPublishJson:
+                o = self.toPublishJson.pop(0)
+                o = json.dumps(['j',o])
+                log.debug("sending json object, size: {0} B".format(len(o)))
+                self.duplex_client.to_server(o)
 
 # ======= periodically do something
 
@@ -435,8 +454,8 @@ class StatsThread(DoSomethingPeriodic):
         }
 
         # publish
-        PubFileThread().publish(sobject)
-        PubServerThread().publish(sobject)
+        PubFileThread().publishBinary(sobject)
+        PubServerThread().publishBinary(sobject)
 
         # update stats
         SolUtils.AppStats().increment('PUBSERVER_STATS')
@@ -606,9 +625,10 @@ class SolManager(threading.Thread):
             returnVal += ['   {0:<30}: {1}'.format(k, stats[k])]
         return returnVal
 
-    def from_server_cb(self, o):
-        print "from_server_cb: {0}".format(o)
-        print 'TODO: handle messages received from server'
+    def from_server_cb(self, os):
+        log.debug("from_server_cb: {0}".format(os))
+        for o in os:
+            self.threads["mgrThread"].from_server_cb(o)
 
 # =========================== main ============================================
 
