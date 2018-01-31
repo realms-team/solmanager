@@ -163,22 +163,22 @@ class MgrThread(object):
         return self.macManager
     
     def from_server_cb(self,o):
-        '''
-        o = {
-            'type':          'manager',
-            'id':            '00-17-0d-00-00-30-3c-03',
-            'format':        'json',
-            'command':       'JsonManager',
-            'timestamp':     '2018-01-30 15:55:12.056165+00:00',
-            'data':          {
-                'function':  'status_GET',
-                'args':      {},
-                'token':     'myToken',
-            }
-        }
-        '''
         try:
-            if o['command']=='JsonManager':
+            if   o['command']=='JsonManager':
+                '''
+                o = {
+                    'type':          'manager',
+                    'id':            '00-17-0d-00-00-30-3c-03',
+                    'format':        'json',
+                    'command':       'JsonManager',
+                    'timestamp':     '2018-01-30 15:55:12.056165+00:00',
+                    'data':          {
+                        'function':  'status_GET',
+                        'args':      {},
+                        'token':     'myToken',
+                    }
+                }
+                '''
                 assert o['data']['function'].split('_')[-1] in ['GET','PUT','POST','DELETE']
                 # find the function to call
                 func = getattr(self.jsonManager,o['data']['function'])
@@ -194,13 +194,58 @@ class MgrThread(object):
                 json_res = {
                     'type':          'JsonManagerResponse',
                     'mac':           o['id'],
-                    'manager':       o['id'],
+                    'manager':       self.macManager,
+                    'value':         value,
+                }
+                # publish the result
+                PubServerThread().publishJson(json_res)
+            elif o['command']=='oap':
+                '''
+                o = {
+                    'type':          'mote',
+                    'id':            '00-17-0d-00-00-38-03-69',
+                    'format':        'json',
+                    'command':       'oap',
+                    'timestamp':     '2018-01-30 15:55:12.056165+00:00',
+                    'data':          {
+                        'function':  'digital_out_PUT',
+                        'args':      {
+                            "pin" :       2,
+                            "body":       {
+                                "value":  1
+                            }
+                        },
+                        'token':     'myToken',
+                    }
+                }
+                '''
+                assert o['data']['function'].split('_')[-1] in ['GET','PUT','POST','DELETE']
+                # find the function to call
+                func = getattr(self.jsonManager,'oap_{0}'.format(o['data']['function']))
+                # format the args
+                args = o['data']['args']
+                args['mac'] = o['id']
+                # call the function
+                res = func(**args)
+                # format response
+                value = {
+                    'success':   True,
+                    'return':    res,
+                }
+                if 'token' in o['data']:
+                    value['token'] = o['data']['token']
+                json_res = {
+                    'type':          'oapResponse',
+                    'mac':           o['id'],
+                    'manager':       self.macManager,
                     'value':         value,
                 }
                 # publish the result
                 PubServerThread().publishJson(json_res)
         except Exception as err:
-            log.warning("could not execute {0}: {1}".format(o,traceback.format_exc()))
+            msg = "could not execute {0}: {1}".format(o,traceback.format_exc())
+            print msg
+            log.warning(msg)
     
     def close(self):
         pass
