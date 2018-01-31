@@ -179,6 +179,8 @@ class MgrThread(object):
                     }
                 }
                 '''
+                assert o['type']=='manager'
+                assert o['format']=='json'
                 assert o['data']['function'].split('_')[-1] in ['GET','PUT','POST','DELETE']
                 # find the function to call
                 func = getattr(self.jsonManager,o['data']['function'])
@@ -219,6 +221,8 @@ class MgrThread(object):
                     }
                 }
                 '''
+                assert o['type']=='mote'
+                assert o['format']=='json'
                 assert o['data']['function'].split('_')[-1] in ['GET','PUT','POST','DELETE']
                 # find the function to call
                 func = getattr(self.jsonManager,'oap_{0}'.format(o['data']['function']))
