@@ -19,6 +19,7 @@ import json
 import threading
 import logging.config
 import base64
+import traceback
 
 # project-specific
 import solmanager_version
@@ -199,7 +200,7 @@ class MgrThread(object):
                 # publish the result
                 PubServerThread().publishJson(json_res)
         except Exception as err:
-            log.warning("could not execute {0}",o)
+            log.warning("could not execute {0}: {1}".format(o,traceback.format_exc()))
     
     def close(self):
         pass
