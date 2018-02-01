@@ -23,7 +23,8 @@ import traceback
 
 # project-specific
 import solmanager_version
-from   SmartMeshSDK          import sdk_version
+from   SmartMeshSDK          import sdk_version, \
+                                    ApiException
 from   SmartMeshSDK.utils    import JsonManager, \
                                     FormatUtils
 from   dustCli               import DustCli
@@ -142,12 +143,19 @@ class MgrThread(object):
             time.sleep(1)
         while self.jsonManager.managerHandlers[self.jsonManager.managerHandlers.keys()[0]].connector is None:
             time.sleep(1)
-        
+
         # record the manager's MAC address
-        self.macManager = self.get_mac_manager()
-    
+        while self.macManager is None:
+            try:
+                self.macManager = self.get_mac_manager()
+            except ApiException.ConnectionError as err:
+                log.warn(err)
+                time.sleep(1)
+        log.debug("Connected to manager {0}".format(self.macManager))
+
+
     # ======================= public ==========================================
-    
+
     def get_mac_manager(self):
         if self.macManager is None:
             resp = self.jsonManager.raw_POST(
@@ -161,7 +169,7 @@ class MgrThread(object):
             assert resp['isAP'] is True
             self.macManager = FormatUtils.formatBuffer(resp['macAddress'])
         return self.macManager
-    
+
     def from_server_cb(self,o):
         try:
             if   o['command']=='JsonManager':
@@ -250,30 +258,30 @@ class MgrThread(object):
             msg = "could not execute {0}: {1}".format(o,traceback.format_exc())
             print msg
             log.warning(msg)
-    
+
     def close(self):
         pass
-    
+
     # ======================= private =========================================
-    
+
     def _notif_cb(self, notifName, notifJson):
         self._handler_dust_notifs(
             notifJson,
             notifName
         )
-    
+
     def _handler_dust_notifs(self, dust_notif, notif_name=""):
         if   (notif_name!="") and ('name' not in dust_notif):
             dust_notif['name'] = notif_name
         elif (notif_name=="") and ('name' not in dust_notif):
             logging.warning("Cannot find notification name")
             return
-        
+
         try:
             # filter raw HealthReport notifications
             if dust_notif['name'] == "notifHealthReport":
                 return
-            
+
             # change "manager" field of snaphots (for stars to display correctly)
             if dust_notif['name'] == "snapshot":
                 dust_notif['manager'] = self.get_mac_manager()
@@ -304,7 +312,7 @@ class MgrThread(object):
 
         except Exception as err:
             SolUtils.logCrash(err, SolUtils.AppStats())
-    
+
     # === misc
 
     def _calcNetTs(self, notif):
@@ -341,7 +349,7 @@ class PubThread(DoSomethingPeriodic):
     def publishBinary(self, o):
         with self.dataLock:
             self.toPublishBinary += [o]
-    
+
     def publishJson(self, o):
         with self.dataLock:
             self.toPublishJson   += [o]
@@ -364,10 +372,10 @@ class PubFileThread(PubThread):
         if not cls._instance:
             cls._instance = super(PubFileThread, cls).__new__(cls, *args, **kwargs)
         return cls._instance
-    
+
     def toPublishJson(self, o):
         raise SystemError('toPublishJson not supported in PubFileThread')
-    
+
     def __init__(self):
         if self._init:
             return
@@ -422,11 +430,11 @@ class PubServerThread(PubThread):
         PubThread.__init__(self, SolUtils.AppConfig().get("period_pubserver_min"))
         self.name               = 'PubServerThread'
         self.duplex_client      = None
-    
+
     def setDuplexClient(self, duplex_client):
         with self.dataLock:
             self.duplex_client  = duplex_client
-    
+
     def _publishNow(self):
         # stop if duplex_client not configured yet
         with self.dataLock:
@@ -557,11 +565,6 @@ class SolManager(threading.Thread):
         try:
             # start manager thread
             self.threads["mgrThread"]            = MgrThread()
-
-            # wait for manager thread to start
-            while self.threads["mgrThread"].macManager is None:
-                time.sleep(2)
-            log.debug("Manager MAC is {0}".format(self.threads["mgrThread"].get_mac_manager()))
 
             # start the duplexClient
             self.duplex_client = DuplexClient.from_url(
