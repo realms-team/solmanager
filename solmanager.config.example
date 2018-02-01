@@ -12,5 +12,5 @@ serialport                   = COM6              ; the serial port of the SmartM
 
 ; remote (SolApi) web server
 ;solserver_host               = 127.0.0.1:8080    ; address of the SolApi
-solserver_host               = solapi-dev.eu-gb.mybluemix.net    ; address of the SolApi
+solserver_host               = api.solsystem.io  ; address of the SolApi
 solserver_token              = {"org": "your_managers_org", "token": "your_managers_token"}     ; token to authenticate to SolApi
