@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+__version__ = (0,0,0,3)
+
 # =========================== adjust path =====================================
 
 import sys
@@ -22,7 +24,6 @@ import base64
 import traceback
 
 # project-specific
-import solmanager_version
 from   SmartMeshSDK          import sdk_version, \
                                     ApiException
 from   SmartMeshSDK.utils    import JsonManager, \
@@ -80,6 +81,15 @@ ALLSTATS           = [
     'JSON_NUM_REQ',
     'JSON_NUM_UNAUTHORIZED',
 ]
+
+# =========================== helpers =========================================
+
+def getVersions():
+    return {
+        'SolManager'    : list(__version__),
+        'Sol'           : list(SolVersion.VERSION),
+        'SmartMesh SDK' : list(sdk_version.VERSION)
+    }
 
 # =========================== classes =========================================
 
@@ -504,11 +514,7 @@ class StatsThread(DoSomethingPeriodic):
             'mac':       self.mgrThread.get_mac_manager(),
             'timestamp': int(time.time()),
             'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS,
-            'value':     {
-                'sol_version'           : list(SolVersion.VERSION),
-                'solmanager_version'    : list(solmanager_version.VERSION),
-                'sdk_version'           : list(sdk_version.VERSION)
-            },
+            'value':     getVersions(),
         }
 
         # publish
@@ -539,7 +545,11 @@ class SolManager(threading.Thread):
         SolUtils.AppStats(stats_file=STATSFILE, stats_list=ALLSTATS)
 
         # CLI interface
-        self.cli                       = DustCli.DustCli("SolManager", self._clihandle_quit)
+        self.cli                       = DustCli.DustCli(
+            appName     = "SolManager",
+            quit_cb     = self._clihandle_quit,
+            versions    = getVersions(),
+        )
         self.cli.registerCommand(
             name                       = 'stats',
             alias                      = 's',
@@ -655,11 +665,7 @@ class SolManager(threading.Thread):
 
     def _clihandle_versions(self, params):
         output  = []
-        for (k, v) in [
-                ('SolManager',    solmanager_version.VERSION),
-                ('Sol',           SolVersion.VERSION),
-                ('SmartMesh SDK', sdk_version.VERSION),
-            ]:
+        for (k,v) in getVersions().items():
             output += ["{0:>15} {1}".format(k, '.'.join([str(b) for b in v]))]
         output = '\n'.join(output)
         print output
