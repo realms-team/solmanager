@@ -248,12 +248,23 @@ class MgrThread(object):
                 args = o['data']['args']
                 args['mac'] = o['id']
                 # call the function
-                res = func(**args)
-                # format response
-                value = {
-                    'success':   True,
-                    'return':    res,
-                }
+                try:
+                    res = func(**args)
+                except NameError:
+                    value = {
+                        'success':     False,
+                        'error':       'timeout',
+                    }
+                except Exception as err:
+                    value = {
+                        'success':     False,
+                        'error':       str(err),
+                    }
+                else:
+                    value = {
+                        'success':     True,
+                        'return':      res,
+                    }
                 if 'token' in o['data']:
                     value['token'] = o['data']['token']
                 json_res = {
