@@ -1,16 +1,15 @@
 [config]
 
 ; activity periods
-period_pubfile_min           = 0.2               ; write data to file
-period_pubserver_min         = 0.2               ; send data to server
-period_snapshot_min          = 0.2               ; perform a full snapshot
-period_stats_min             = 0.2               ; publish stats (write to file and send)
-period_pollcmds_min          = 0.2               ; request for commands from SolServer
+period_pollserver_min    = 0.05                                           ; request for commands from SolServer
+period_pubfile_min       = 1.0                                            ; write data to file
+period_snapshot_min      = 1.0                                            ; perform a full snapshot
+period_stats_min         = 1.0                                            ; publish stats (write to file and send)
 
 ; connecting to SmartMesh IP manager
-serialport                   = COM6              ; the serial port of the SmartMesh IP Manager's API port
+serialport               = COM6                                           ; the serial port of the SmartMesh IP Manager's API port
 
 ; remote (SolApi) web server
-;solserver_host               = 127.0.0.1:8080    ; address of the SolApi
-solserver_host               = api.solsystem.io  ; address of the SolApi
-solserver_token              = {"org": "your_managers_org", "token": "your_managers_token"}     ; token to authenticate to SolApi
+;solserver_host          = 127.0.0.1:8080                                 ; address of the SolApi
+solserver_host           = api-dev.solsystem.io                           ; address of the SolApi
+solserver_token          = {"org":"myorg", "token":"mytoken"}             ; token to authenticate to the SolApi

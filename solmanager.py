@@ -218,7 +218,7 @@ class MgrThread(object):
                     'value':         value,
                 }
                 # publish the result
-                PubServerThread().publishJson(json_res)
+                PubServer().publishJson(json_res)
             elif o['command']=='oap':
                 '''
                 o = {
@@ -263,7 +263,7 @@ class MgrThread(object):
                     'value':         value,
                 }
                 # publish the result
-                PubServerThread().publishJson(json_res)
+                PubServer().publishJson(json_res)
         except Exception as err:
             msg = "could not execute {0}: {1}".format(o,traceback.format_exc())
             print msg
@@ -317,8 +317,8 @@ class MgrThread(object):
                 SolUtils.AppStats().increment('PUB_TOTAL_SENTTOPUBLISH')
 
                 # publish
-                PubFileThread().publishBinary(sol_json)     # to the backup file
-                PubServerThread().publishBinary(sol_json)   # to the solserver over the Internet
+                PubFile().publishBinary(sol_json)     # to the backup file
+                PubServer().publishBinary(sol_json)   # to the solserver over the Internet
 
         except Exception as err:
             SolUtils.logCrash(err, SolUtils.AppStats())
@@ -338,7 +338,7 @@ class MgrThread(object):
 
 # ======= publishers
 
-class PubThread(DoSomethingPeriodic):
+class Pub(DoSomethingPeriodic):
     """
     Abstract publish thread.
     """
@@ -348,8 +348,8 @@ class PubThread(DoSomethingPeriodic):
         self.toPublishBinary            = []
         self.toPublishJson              = []
         # initialize parent class
-        super(PubThread, self).__init__(periodvariable)
-        self.name                       = 'PubThread'
+        super(Pub, self).__init__(periodvariable)
+        self.name                       = 'Pub'
         self.start()
 
     def getBacklogLength(self):
@@ -367,7 +367,7 @@ class PubThread(DoSomethingPeriodic):
     def _doSomething(self):
         self._publishNow()
 
-class PubFileThread(PubThread):
+class PubFile(Pub):
     """
     Singleton that writes Sol JSON objects to a file every period_pubfile_min.
     """
@@ -380,18 +380,18 @@ class PubFileThread(PubThread):
 
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
-            cls._instance = super(PubFileThread, cls).__new__(cls, *args, **kwargs)
+            cls._instance = super(PubFile, cls).__new__(cls, *args, **kwargs)
         return cls._instance
 
     def toPublishJson(self, o):
-        raise SystemError('toPublishJson not supported in PubFileThread')
+        raise SystemError('toPublishJson not supported in PubFile')
 
     def __init__(self):
         if self._init:
             return
         self._init          = True
-        PubThread.__init__(self, SolUtils.AppConfig().get("period_pubfile_min"))
-        self.name           = 'PubFileThread'
+        Pub.__init__(self, SolUtils.AppConfig().get("period_pubfile_min"))
+        self.name           = 'PubFile'
 
     def _publishNow(self):
         # update stats
@@ -421,50 +421,57 @@ class PubFileThread(PubThread):
                 BACKUPFILE,
             )
 
-class PubServerThread(PubThread):
+class PubServer(Pub):
     """
-    Singleton that sends Sol JSON objects to the solserver every period_pubserver_min.
+    Singleton that sends objects to the solserver.
     """
     _instance = None
     _init     = False
 
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
-            cls._instance = super(PubServerThread, cls).__new__(cls, *args, **kwargs)
+            cls._instance = super(PubServer, cls).__new__(cls, *args, **kwargs)
         return cls._instance
 
     def __init__(self):
         if self._init:
             return
         self._init              = True
-        PubThread.__init__(self, SolUtils.AppConfig().get("period_pubserver_min"))
-        self.name               = 'PubServerThread'
+        Pub.__init__(self, 60) # 60 is an arbitrary large value
+        self.name               = 'PubServer'
         self.duplex_client      = None
 
     def setDuplexClient(self, duplex_client):
         with self.dataLock:
             self.duplex_client  = duplex_client
-
-    def _publishNow(self):
+    
+    def publishBinary(self, o):
         # stop if duplex_client not configured yet
         with self.dataLock:
             if not self.duplex_client:
                 return
 
-        # convert objects and publish
+        # convert objects and push to duplex_client
+        o = self.sol.json_to_bin(o)
+        o = base64.b64encode(''.join(chr(b) for b in o))
+        o = json.dumps(['b',o])
+        log.debug("sending binary object, size: {0} B".format(len(o)))
+        self.duplex_client.to_server(o)
+    
+    def publishJson(self, o):
+        # stop if duplex_client not configured yet
         with self.dataLock:
-            while self.toPublishBinary:
-                o = self.toPublishBinary.pop(0)
-                o = self.sol.json_to_bin(o)
-                o = base64.b64encode(''.join(chr(b) for b in o))
-                o = json.dumps(['b',o])
-                log.debug("sending binary object, size: {0} B".format(len(o)))
-                self.duplex_client.to_server(o)
-            while self.toPublishJson:
-                o = self.toPublishJson.pop(0)
-                o = json.dumps(['j',o])
-                log.debug("sending json object, size: {0} B".format(len(o)))
-                self.duplex_client.to_server(o)
+            if not self.duplex_client:
+                return
+        
+        # convert objects and push to duplex_client
+        o = self.toPublishJson.pop(0)
+        o = json.dumps(['j',o])
+        log.debug("sending json object, size: {0} B".format(len(o)))
+        self.duplex_client.to_server(o)
+
+    def _doSomething(self):
+        pass # actually nothing to do periodically
 
 # ======= periodically do something
 
@@ -518,8 +525,8 @@ class StatsThread(DoSomethingPeriodic):
         }
 
         # publish
-        PubFileThread().publishBinary(sobject)
-        PubServerThread().publishBinary(sobject)
+        PubFile().publishBinary(sobject)
+        PubServer().publishBinary(sobject)
 
         # update stats
         SolUtils.AppStats().increment('PUBSERVER_STATS')
@@ -532,8 +539,8 @@ class SolManager(threading.Thread):
         self.goOn           = True
         self.threads        = {
             "mgrThread"                : None,
-            "pubFileThread"            : None,
-            "pubServerThread"          : None,
+            "pubFile"                  : None,
+            "pubServer"                : None,
             "snapshotThread"           : None,
             "statsThread"              : None,
             "pollForCommandsThread"    : None,
@@ -581,19 +588,19 @@ class SolManager(threading.Thread):
                 server_url        = 'http://{0}/api/v1/o.json'.format(SolUtils.AppConfig().get("solserver_host")),
                 id                = self.threads["mgrThread"].get_mac_manager(),
                 token             = SolUtils.AppConfig().get("solserver_token"),
-                polling_period    = SolUtils.AppConfig().get("period_pollcmds_min")*60,
+                polling_period    = SolUtils.AppConfig().get("period_pollserver_min")*60,
                 from_server_cb    = self.from_server_cb,
                 buffer_tx         = False,
             )
             while self.duplex_client is None:
-                log.debug("Waiting for duplex client to be started")
+                log.warning("Waiting for duplex client to be started")
                 time.sleep(1)
             log.debug("duplex client started")
 
             # start the all other threads
-            self.threads["pubFileThread"]            = PubFileThread()
-            self.threads["pubServerThread"]          = PubServerThread()
-            self.threads["pubServerThread"].setDuplexClient(self.duplex_client)
+            self.threads["pubFile"]                  = PubFile()
+            self.threads["pubServer"]                = PubServer()
+            self.threads["pubServer"].setDuplexClient(self.duplex_client)
             self.threads["snapshotThread"]           = SnapshotThread(
                 mgrThread=self.threads["mgrThread"],
             )
