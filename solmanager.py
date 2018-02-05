@@ -267,7 +267,7 @@ class MgrThread(object):
         except Exception as err:
             msg = "could not execute {0}: {1}".format(o,traceback.format_exc())
             print msg
-            log.warning(msg)
+            log.error(msg)
 
     def close(self):
         pass
@@ -311,7 +311,7 @@ class MgrThread(object):
                 mac_manager = self.get_mac_manager(),
                 timestamp   = epoch,
             )
-
+            
             for sol_json in sol_jsonl:
                 # update stats
                 SolUtils.AppStats().increment('PUB_TOTAL_SENTTOPUBLISH')
@@ -465,7 +465,6 @@ class PubServer(Pub):
                 return
         
         # convert objects and push to duplex_client
-        o = self.toPublishJson.pop(0)
         o = json.dumps(['j',o])
         log.debug("sending json object, size: {0} B".format(len(o)))
         self.duplex_client.to_server(o)
@@ -475,7 +474,7 @@ class PubServer(Pub):
 
 # ======= periodically do something
 
-class SnapshotThread(DoSomethingPeriodic):
+class SolSnapshotThread(DoSomethingPeriodic):
 
     def __init__(self, mgrThread=None):
         assert mgrThread
@@ -484,8 +483,8 @@ class SnapshotThread(DoSomethingPeriodic):
         self.mgrThread       = mgrThread
 
         # initialize parent class
-        super(SnapshotThread, self).__init__(SolUtils.AppConfig().get("period_snapshot_min"))
-        self.name            = 'SnapshotThread'
+        super(SolSnapshotThread, self).__init__(SolUtils.AppConfig().get("period_snapshot_min"))
+        self.name            = 'SolSnapshotThread'
         self.start()
 
         # initialize local attributes
@@ -541,7 +540,7 @@ class SolManager(threading.Thread):
             "mgrThread"                : None,
             "pubFile"                  : None,
             "pubServer"                : None,
-            "snapshotThread"           : None,
+            "solSnapshotThread"        : None,
             "statsThread"              : None,
             "pollForCommandsThread"    : None,
         }
@@ -601,7 +600,7 @@ class SolManager(threading.Thread):
             self.threads["pubFile"]                  = PubFile()
             self.threads["pubServer"]                = PubServer()
             self.threads["pubServer"].setDuplexClient(self.duplex_client)
-            self.threads["snapshotThread"]           = SnapshotThread(
+            self.threads["solSnapshotThread"]        = SolSnapshotThread(
                 mgrThread=self.threads["mgrThread"],
             )
             self.threads["statsThread"]              = StatsThread(
@@ -616,11 +615,11 @@ class SolManager(threading.Thread):
                     try:
                         if not t.isAlive():
                             all_started = False
-                            log.debug("Waiting for %s to start", t.name)
+                            log.info("Waiting for %s to start", t.name)
                     except AttributeError:
                         pass  # happens when not a real thread
                 time.sleep(5)
-            log.debug("All threads started")
+            log.info("All threads started")
 
             # return as soon as one thread not alive
             while self.goOn:
