@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-__version__ = (0,0,0,3)
+__version__ = (2, 0, 0, 0)
 
 # =========================== adjust path =====================================
 
@@ -323,7 +323,7 @@ class MgrThread(object):
                 mac_manager = self.get_mac_manager(),
                 timestamp   = epoch,
             )
-            
+
             for sol_json in sol_jsonl:
                 # update stats
                 SolUtils.AppStats().increment('PUB_TOTAL_SENTTOPUBLISH')
@@ -456,7 +456,7 @@ class PubServer(Pub):
     def setDuplexClient(self, duplex_client):
         with self.dataLock:
             self.duplex_client  = duplex_client
-    
+
     def publishBinary(self, o):
         # stop if duplex_client not configured yet
         with self.dataLock:
@@ -469,13 +469,13 @@ class PubServer(Pub):
         o = json.dumps(['b',o])
         log.debug("sending binary object, size: {0} B".format(len(o)))
         self.duplex_client.to_server(o)
-    
+
     def publishJson(self, o):
         # stop if duplex_client not configured yet
         with self.dataLock:
             if not self.duplex_client:
                 return
-        
+
         # convert objects and push to duplex_client
         o = json.dumps(['j',o])
         log.debug("sending json object, size: {0} B".format(len(o)))
@@ -549,7 +549,7 @@ class SolManager(threading.Thread):
     def __init__(self,configfile):
         # store params
         self.configfile     = configfile
-        
+
         # local variables
         self.goOn           = True
         self.threads        = {
