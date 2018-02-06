@@ -1,6 +1,0 @@
-bottle>=0.12.13
-requests>=2.13.0
-cherrypy>=10.2.1
-pyopenssl>=17.0.0
-pyserial>=3.3
-ibmiotf>=0.2.8

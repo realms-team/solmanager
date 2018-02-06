@@ -1,10 +1,9 @@
 [program:solmanager]
 directory=#SOL_MANAGER_PATH
-command=screen -LmDS solmanager /usr/bin/python solmanager.py
+command=screen -mDS solmanager /usr/bin/python solmanager.py
 autostart=true
 autorestart=true
-stderr_logfile=sol.err.log
-stdout_logfile=sol.out.log
+user=pi
 
 [program:serial]
 command = screen -mDS serial /dev/ttyUSB2 9600
