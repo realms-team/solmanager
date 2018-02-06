@@ -22,6 +22,7 @@ import threading
 import logging.config
 import base64
 import traceback
+import argparse
 
 # project-specific
 from   SmartMeshSDK          import sdk_version, \
@@ -42,7 +43,7 @@ log = logging.getLogger("solmanager")
 
 # =========================== defines =========================================
 
-CONFIGFILE         = 'solmanager.config'
+DFLT_CONFIGFILE    = 'solmanager.config'
 STATSFILE          = 'solmanager.stats'
 BACKUPFILE         = 'solmanager.backup'
 
@@ -545,7 +546,11 @@ class StatsThread(DoSomethingPeriodic):
 
 class SolManager(threading.Thread):
 
-    def __init__(self):
+    def __init__(self,configfile):
+        # store params
+        self.configfile     = configfile
+        
+        # local variables
         self.goOn           = True
         self.threads        = {
             "mgrThread"                : None,
@@ -558,7 +563,7 @@ class SolManager(threading.Thread):
         self.duplex_client = None
 
         # init Singletons
-        SolUtils.AppConfig(config_file=CONFIGFILE)
+        SolUtils.AppConfig(config_file=self.configfile)
         SolUtils.AppStats(stats_file=STATSFILE, stats_list=ALLSTATS)
 
         # CLI interface
@@ -708,8 +713,11 @@ class SolManager(threading.Thread):
 
 # =========================== main ============================================
 
-def main():
-    SolManager()
+def main(args):
+    SolManager(**args)
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--configfile',     default=DFLT_CONFIGFILE)
+    args = vars(parser.parse_args())
+    main(args)
