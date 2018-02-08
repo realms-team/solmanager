@@ -163,7 +163,7 @@ class MgrThread(object):
             self.macManager = FormatUtils.formatBuffer(resp['macAddress'])
         return self.macManager
 
-    def from_server_cb(self,o):
+    def from_server_cb_MgrThread(self,o):
         try:
             if   o['command']=='JsonManager':
                 '''
@@ -182,26 +182,32 @@ class MgrThread(object):
                 '''
                 assert o['type']=='manager'
                 assert o['format']=='json'
-                assert o['data']['function'].split('_')[-1] in ['GET','PUT','POST','DELETE']
-                # find the function to call
-                func = getattr(self.jsonManager,o['data']['function'])
-                # call the function
-                res = func(**o['data']['args'])
-                # format response
-                value = {
-                    'success':   True,
-                    'return':    res,
-                }
-                if 'token' in o['data']:
-                    value['token'] = o['data']['token']
-                json_res = {
-                    'type':          'JsonManagerResponse',
-                    'mac':           o['id'],
-                    'manager':       self.macManager,
-                    'value':         value,
-                }
-                # publish the result
-                PubServer().publishJson(json_res)
+                try:
+                    assert o['data']['function'].split('_')[-1] in ['GET','PUT','POST','DELETE']
+                    # find the function to call
+                    func = getattr(self.jsonManager,o['data']['function'])
+                    # call the function
+                    res = func(**o['data']['args'])
+                except Exception as err:
+                    value = {
+                        'success':   False,
+                        'return':    str(err),
+                    }
+                else:
+                    value = {
+                        'success':   True,
+                        'return':    res,
+                    }
+                finally:
+                    if 'token' in o['data']:
+                        value['token'] = o['data']['token']
+                    json_res = {
+                        'type':          'JsonManagerResponse',
+                        'mac':           o['id'],
+                        'manager':       self.macManager,
+                        'value':         value,
+                    }
+                    PubServer().publishJson(json_res)
             elif o['command']=='oap':
                 '''
                 o = {
@@ -224,14 +230,14 @@ class MgrThread(object):
                 '''
                 assert o['type']=='mote'
                 assert o['format']=='json'
-                assert o['data']['function'].split('_')[-1] in ['GET','PUT','POST','DELETE']
-                # find the function to call
-                func = getattr(self.jsonManager,'oap_{0}'.format(o['data']['function']))
-                # format the args
-                args = o['data']['args']
-                args['mac'] = o['id']
-                # call the function
                 try:
+                    assert o['data']['function'].split('_')[-1] in ['GET','PUT','POST','DELETE']
+                    # find the function to call
+                    func = getattr(self.jsonManager,'oap_{0}'.format(o['data']['function']))
+                    # format the args
+                    args = o['data']['args']
+                    args['mac'] = o['id']
+                    # call the function
                     res = func(**args)
                 except NameError:
                     value = {
@@ -248,20 +254,18 @@ class MgrThread(object):
                         'success':     True,
                         'return':      res,
                     }
-                if 'token' in o['data']:
-                    value['token'] = o['data']['token']
-                json_res = {
-                    'type':          'oapResponse',
-                    'mac':           o['id'],
-                    'manager':       self.macManager,
-                    'value':         value,
-                }
-                # publish the result
-                PubServer().publishJson(json_res)
+                finally:
+                    if 'token' in o['data']:
+                        value['token'] = o['data']['token']
+                    json_res = {
+                        'type':          'oapResponse',
+                        'mac':           o['id'],
+                        'manager':       self.macManager,
+                        'value':         value,
+                    }
+                    PubServer().publishJson(json_res)
         except Exception as err:
-            msg = "could not execute {0}: {1}".format(o,traceback.format_exc())
-            print msg
-            log.error(msg)
+            log.error("could not execute {0}: {1}".format(o,traceback.format_exc()))
 
     def close(self):
         pass
@@ -602,7 +606,7 @@ class SolManager(threading.Thread):
                 id                = self.threads["mgrThread"].get_mac_manager(),
                 token             = SolUtils.AppConfig().get("solserver_token"),
                 polling_period    = SolUtils.AppConfig().get("period_pollserver_min")*60,
-                from_server_cb    = self.from_server_cb,
+                from_server_cb    = self.from_server_cb_JsonManager,
                 buffer_tx         = False,
             )
             while self.duplex_client is None:
@@ -698,14 +702,26 @@ class SolManager(threading.Thread):
             returnVal += ['   {0:<30}: {1}'.format(k, stats[k])]
         return returnVal
 
-    def from_server_cb(self, os):
+    def from_server_cb_JsonManager(self, os):
         
         # update stats
         SolUtils.AppStats().increment('PUBSERVER_FROMSERVER')
         
-        log.debug("from_server_cb: {0}".format(os))
+        log.debug("from_server_cb_JsonManager: {0}".format(os))
         for o in os:
-            self.threads["mgrThread"].from_server_cb(o)
+            try:
+                name    = '{0}.{1}.{2}'.format(
+                    o['id'],
+                    o['command'],
+                    o['data']['function'],
+                )
+            except:
+                name    = 'from_server'
+            threading.Thread(
+                target  = self.threads["mgrThread"].from_server_cb_MgrThread,
+                args    = (o,),
+                name    = name,
+            ).start()
 
 # =========================== main ============================================
 
