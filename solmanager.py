@@ -11,7 +11,7 @@ if __name__ == "__main__":
     here = sys.path[0]
     sys.path.insert(0, os.path.join(here, 'libs', 'sol-REL-1.4.0.0'))
     sys.path.insert(0, os.path.join(here, 'libs', 'smartmeshsdk-REL-1.1.2.4', 'libs'))
-    sys.path.insert(0, os.path.join(here, 'libs', 'duplex'))
+    sys.path.insert(0, os.path.join(here, 'libs', 'duplex-REL-1.0.0.0'))
 
 # =========================== imports =========================================
 
@@ -34,7 +34,7 @@ from   solobjectlib          import Sol, \
                                     SolVersion, \
                                     SolDefines, \
                                     SolUtils
-from   DuplexClient import DuplexClient
+from   DuplexClient          import DuplexClient
 
 # =========================== logging =========================================
 
