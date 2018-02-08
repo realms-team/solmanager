@@ -76,6 +76,38 @@ def getVersions():
 
 # =========================== classes =========================================
 
+class Tracer(object):
+    """
+    Singleton that writes trace to CLI
+    """
+    _instance = None
+    _init     = False
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(Tracer, cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+    
+    def __init__(self):
+        if self._init:
+            return
+        self._init           = True
+        self.dataLock        = threading.RLock()
+        self.traceOn         = False
+    
+    #======================== public ==========================================
+    
+    def setTraceOn(self,newTraceOn):
+        assert newTraceOn in [True,False]
+        with self.dataLock:
+            self.traceOn     = newTraceOn
+    
+    def trace(self,msg):
+        with self.dataLock:
+            go = self.traceOn
+        if go:
+            print msg
+
 # ======= generic abstract classes
 
 class DoSomethingPeriodic(threading.Thread):
@@ -286,6 +318,9 @@ class MgrThread(object):
             return
 
         try:
+            # trace
+            Tracer().trace('from manager: {0}'.format(dust_notif['name']))
+            
             # filter raw HealthReport notifications
             if dust_notif['name'] == "notifHealthReport":
                 return
@@ -402,7 +437,10 @@ class PubFile(Pub,DoSomethingPeriodic):
     def _publishNow(self):
         # update stats
         SolUtils.AppStats().increment('PUBFILE_WRITES')
-
+        
+        # trace
+        Tracer().trace('write to backup file')
+        
         with self.dataLock:
             # order toPublishBinary chronologically
             self.toPublishBinary.sort(key=lambda i: i['timestamp'])
@@ -505,9 +543,10 @@ class SolSnapshotThread(DoSomethingPeriodic):
         self._doSnapshot()
 
     def _doSnapshot(self):
+        # trace
+        Tracer().trace('trigger snapshot')
+        
         ret = self.mgrThread.jsonManager.snapshot_POST(manager=0)
-
-# publish app stats
 
 class StatsThread(DoSomethingPeriodic):
     """
@@ -525,7 +564,10 @@ class StatsThread(DoSomethingPeriodic):
         self.start()
 
     def _doSomething(self):
-
+        
+        # trace
+        Tracer().trace('collect statistics')
+        
         # create sensor object
         sobject = {
             'mac':       self.mgrThread.get_mac_manager(),
@@ -667,7 +709,12 @@ class SolManager(threading.Thread):
         # all threads as daemonic, will close automatically
 
     def _clihandle_trace(self, params):
-        print 'TODO _clihandle_trace {0}'.format(params)
+        if params[0]=='on':
+            Tracer().setTraceOn(True)
+            print 'trace on'
+        else:
+            Tracer().setTraceOn(False)
+            print 'trace off'
        
     def _clihandle_stats(self, params):
         stats = SolUtils.AppStats().get()
