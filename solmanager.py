@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-__version__ = (2, 0, 0, 0)
+__version__ = (2, 0, 1, 0)
 
 # =========================== adjust path =====================================
 
@@ -50,37 +50,19 @@ BACKUPFILE         = 'solmanager.backup'
 ALLSTATS           = [
     #== admin
     'ADM_NUM_CRASHES',
-    #== connection to manager
-    'MGR_NUM_CONNECT_ATTEMPTS',
-    'MGR_NUM_CONNECT_OK',
-    'MGR_NUM_DISCONNECTS',
-    'MGR_NUM_TIMESYNC',
     #== notifications from manager
     # note: we count the number of notifications form the manager, for each time, e.g. NUMRX_NOTIFDATA
     # all stats start with "NUMRX_"
     #== publication
     'PUB_TOTAL_SENTTOPUBLISH',
     # to file
+    'PUBFILE_PUBBINARY',
     'PUBFILE_BACKLOG',
     'PUBFILE_WRITES',
     # to server
-    'PUBSERVER_BACKLOG',
-    'PUBSERVER_SENDATTEMPTS',
-    'PUBSERVER_UNREACHABLE',
-    'PUBSERVER_SENDOK',
-    'PUBSERVER_SENDFAIL',
-    'PUBSERVER_STATS',
-    'PUBSERVER_PULLATTEMPTS',
-    'PUBSERVER_PULLOK',
-    'PUBSERVER_PULLFAIL',
-    #== snapshot
-    'SNAPSHOT_NUM_STARTED',
-    'SNAPSHOT_LASTSTARTED',
-    'SNAPSHOT_NUM_OK',
-    'SNAPSHOT_NUM_FAIL',
-    #== JSON interface
-    'JSON_NUM_REQ',
-    'JSON_NUM_UNAUTHORIZED',
+    'PUBSERVER_PUBBINARY',
+    'PUBSERVER_PUBJSON',
+    'PUBSERVER_FROMSERVER',
 ]
 
 # =========================== helpers =========================================
@@ -89,10 +71,42 @@ def getVersions():
     return {
         'SolManager'    : list(__version__),
         'Sol'           : list(SolVersion.VERSION),
-        'SmartMesh SDK' : list(sdk_version.VERSION)
+        'SmartMesh SDK' : list(sdk_version.VERSION),
     }
 
 # =========================== classes =========================================
+
+class Tracer(object):
+    """
+    Singleton that writes trace to CLI
+    """
+    _instance = None
+    _init     = False
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(Tracer, cls).__new__(cls, *args, **kwargs)
+        return cls._instance
+    
+    def __init__(self):
+        if self._init:
+            return
+        self._init           = True
+        self.dataLock        = threading.RLock()
+        self.traceOn         = False
+    
+    #======================== public ==========================================
+    
+    def setTraceOn(self,newTraceOn):
+        assert newTraceOn in [True,False]
+        with self.dataLock:
+            self.traceOn     = newTraceOn
+    
+    def trace(self,msg):
+        with self.dataLock:
+            go = self.traceOn
+        if go:
+            print msg
 
 # ======= generic abstract classes
 
@@ -181,7 +195,7 @@ class MgrThread(object):
             self.macManager = FormatUtils.formatBuffer(resp['macAddress'])
         return self.macManager
 
-    def from_server_cb(self,o):
+    def from_server_cb_MgrThread(self,o):
         try:
             if   o['command']=='JsonManager':
                 '''
@@ -200,26 +214,32 @@ class MgrThread(object):
                 '''
                 assert o['type']=='manager'
                 assert o['format']=='json'
-                assert o['data']['function'].split('_')[-1] in ['GET','PUT','POST','DELETE']
-                # find the function to call
-                func = getattr(self.jsonManager,o['data']['function'])
-                # call the function
-                res = func(**o['data']['args'])
-                # format response
-                value = {
-                    'success':   True,
-                    'return':    res,
-                }
-                if 'token' in o['data']:
-                    value['token'] = o['data']['token']
-                json_res = {
-                    'type':          'JsonManagerResponse',
-                    'mac':           o['id'],
-                    'manager':       self.macManager,
-                    'value':         value,
-                }
-                # publish the result
-                PubServer().publishJson(json_res)
+                try:
+                    assert o['data']['function'].split('_')[-1] in ['GET','PUT','POST','DELETE']
+                    # find the function to call
+                    func = getattr(self.jsonManager,o['data']['function'])
+                    # call the function
+                    res = func(**o['data']['args'])
+                except Exception as err:
+                    value = {
+                        'success':   False,
+                        'return':    str(err),
+                    }
+                else:
+                    value = {
+                        'success':   True,
+                        'return':    res,
+                    }
+                finally:
+                    if 'token' in o['data']:
+                        value['token'] = o['data']['token']
+                    json_res = {
+                        'type':          'JsonManagerResponse',
+                        'mac':           o['id'],
+                        'manager':       self.macManager,
+                        'value':         value,
+                    }
+                    PubServer().publishJson(json_res)
             elif o['command']=='oap':
                 '''
                 o = {
@@ -242,14 +262,14 @@ class MgrThread(object):
                 '''
                 assert o['type']=='mote'
                 assert o['format']=='json'
-                assert o['data']['function'].split('_')[-1] in ['GET','PUT','POST','DELETE']
-                # find the function to call
-                func = getattr(self.jsonManager,'oap_{0}'.format(o['data']['function']))
-                # format the args
-                args = o['data']['args']
-                args['mac'] = o['id']
-                # call the function
                 try:
+                    assert o['data']['function'].split('_')[-1] in ['GET','PUT','POST','DELETE']
+                    # find the function to call
+                    func = getattr(self.jsonManager,'oap_{0}'.format(o['data']['function']))
+                    # format the args
+                    args = o['data']['args']
+                    args['mac'] = o['id']
+                    # call the function
                     res = func(**args)
                 except NameError:
                     value = {
@@ -266,20 +286,18 @@ class MgrThread(object):
                         'success':     True,
                         'return':      res,
                     }
-                if 'token' in o['data']:
-                    value['token'] = o['data']['token']
-                json_res = {
-                    'type':          'oapResponse',
-                    'mac':           o['id'],
-                    'manager':       self.macManager,
-                    'value':         value,
-                }
-                # publish the result
-                PubServer().publishJson(json_res)
+                finally:
+                    if 'token' in o['data']:
+                        value['token'] = o['data']['token']
+                    json_res = {
+                        'type':          'oapResponse',
+                        'mac':           o['id'],
+                        'manager':       self.macManager,
+                        'value':         value,
+                    }
+                    PubServer().publishJson(json_res)
         except Exception as err:
-            msg = "could not execute {0}: {1}".format(o,traceback.format_exc())
-            print msg
-            log.error(msg)
+            log.error("could not execute {0}: {1}".format(o,traceback.format_exc()))
 
     def close(self):
         pass
@@ -300,6 +318,9 @@ class MgrThread(object):
             return
 
         try:
+            # trace
+            Tracer().trace('from manager: {0}'.format(dust_notif['name']))
+            
             # filter raw HealthReport notifications
             if dust_notif['name'] == "notifHealthReport":
                 return
@@ -325,9 +346,6 @@ class MgrThread(object):
             )
 
             for sol_json in sol_jsonl:
-                # update stats
-                SolUtils.AppStats().increment('PUB_TOTAL_SENTTOPUBLISH')
-
                 # publish
                 PubFile().publishBinary(sol_json)     # to the backup file
                 PubServer().publishBinary(sol_json)   # to the solserver over the Internet
@@ -350,36 +368,21 @@ class MgrThread(object):
 
 # ======= publishers
 
-class Pub(DoSomethingPeriodic):
+class Pub(object):
     """
     Abstract publish thread.
     """
-    def __init__(self, periodvariable):
-        self.sol                        = Sol.Sol()
-        self.dataLock                   = threading.RLock()
-        self.toPublishBinary            = []
-        self.toPublishJson              = []
-        # initialize parent class
-        super(Pub, self).__init__(periodvariable)
-        self.name                       = 'Pub'
-        self.start()
-
-    def getBacklogLength(self):
-        with self.dataLock:
-            return len(self.toPublishBinary)+len(self.toPublishJson)
-
+    def __init__(self):
+        self.sol             = Sol.Sol()
+        self.dataLock        = threading.RLock()
+    
     def publishBinary(self, o):
-        with self.dataLock:
-            self.toPublishBinary += [o]
+        raise SystemError("abstract method")
 
     def publishJson(self, o):
-        with self.dataLock:
-            self.toPublishJson   += [o]
+        raise SystemError("abstract method")
 
-    def _doSomething(self):
-        self._publishNow()
-
-class PubFile(Pub):
+class PubFile(Pub,DoSomethingPeriodic):
     """
     Singleton that writes Sol JSON objects to a file every period_pubfile_min.
     """
@@ -394,21 +397,50 @@ class PubFile(Pub):
         if not cls._instance:
             cls._instance = super(PubFile, cls).__new__(cls, *args, **kwargs)
         return cls._instance
-
-    def toPublishJson(self, o):
-        raise SystemError('toPublishJson not supported in PubFile')
-
+    
     def __init__(self):
         if self._init:
             return
-        self._init          = True
-        Pub.__init__(self, SolUtils.AppConfig().get("period_pubfile_min"))
-        self.name           = 'PubFile'
-
+        self._init           = True
+        self.toPublishBinary = []
+        # initialize parent classes
+        Pub.__init__(self)
+        DoSomethingPeriodic.__init__(self, SolUtils.AppConfig().get("period_pubfile_min"))
+        self.name            = 'PubFile'
+        self.start()
+    
+    #======================== public ==========================================
+    
+    def publishBinary(self, o):
+        
+        # update stats
+        SolUtils.AppStats().increment('PUBFILE_PUBBINARY')
+        
+        with self.dataLock:
+            self.toPublishBinary += [o]
+            
+            # update stats
+            SolUtils.AppStats().update("PUBFILE_BACKLOG", len(self.toPublishBinary))
+    
+    def publishJson(self, o):
+        raise SystemError('publishJson not supported in PubFile')
+    
+    def getBacklogLength(self):
+        with self.dataLock:
+            return len(self.toPublishBinary)
+    
+    #======================== private =========================================
+    
+    def _doSomething(self):
+        self._publishNow()
+    
     def _publishNow(self):
         # update stats
         SolUtils.AppStats().increment('PUBFILE_WRITES')
-
+        
+        # trace
+        Tracer().trace('write to backup file')
+        
         with self.dataLock:
             # order toPublishBinary chronologically
             self.toPublishBinary.sort(key=lambda i: i['timestamp'])
@@ -449,10 +481,12 @@ class PubServer(Pub):
         if self._init:
             return
         self._init              = True
-        Pub.__init__(self, 60) # 60 is an arbitrary large value
+        Pub.__init__(self)
         self.name               = 'PubServer'
         self.duplex_client      = None
-
+    
+    #======================== public ==========================================
+    
     def setDuplexClient(self, duplex_client):
         with self.dataLock:
             self.duplex_client  = duplex_client
@@ -462,7 +496,10 @@ class PubServer(Pub):
         with self.dataLock:
             if not self.duplex_client:
                 return
-
+        
+        # update stats
+        SolUtils.AppStats().increment('PUBSERVER_PUBBINARY')
+        
         # convert objects and push to duplex_client
         o = self.sol.json_to_bin(o)
         o = base64.b64encode(''.join(chr(b) for b in o))
@@ -475,14 +512,14 @@ class PubServer(Pub):
         with self.dataLock:
             if not self.duplex_client:
                 return
+        
+        # update stats
+        SolUtils.AppStats().increment('PUBSERVER_PUBJSON')
 
         # convert objects and push to duplex_client
         o = json.dumps(['j',o])
         log.debug("sending json object, size: {0} B".format(len(o)))
         self.duplex_client.to_server(o)
-
-    def _doSomething(self):
-        pass # actually nothing to do periodically
 
 # ======= periodically do something
 
@@ -506,9 +543,10 @@ class SolSnapshotThread(DoSomethingPeriodic):
         self._doSnapshot()
 
     def _doSnapshot(self):
+        # trace
+        Tracer().trace('trigger snapshot')
+        
         ret = self.mgrThread.jsonManager.snapshot_POST(manager=0)
-
-# publish app stats
 
 class StatsThread(DoSomethingPeriodic):
     """
@@ -526,7 +564,10 @@ class StatsThread(DoSomethingPeriodic):
         self.start()
 
     def _doSomething(self):
-
+        
+        # trace
+        Tracer().trace('collect statistics')
+        
         # create sensor object
         sobject = {
             'mac':       self.mgrThread.get_mac_manager(),
@@ -534,13 +575,10 @@ class StatsThread(DoSomethingPeriodic):
             'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS,
             'value':     getVersions(),
         }
-
+        
         # publish
         PubFile().publishBinary(sobject)
         PubServer().publishBinary(sobject)
-
-        # update stats
-        SolUtils.AppStats().increment('PUBSERVER_STATS')
 
 # ======= main application thread
 
@@ -573,6 +611,13 @@ class SolManager(threading.Thread):
             versions    = getVersions(),
         )
         self.cli.registerCommand(
+            name                       = 'trace',
+            alias                      = 't',
+            description                = 'switch trace on/off',
+            params                     = ["state",],
+            callback                   = self._clihandle_trace,
+        )
+        self.cli.registerCommand(
             name                       = 'stats',
             alias                      = 's',
             description                = 'print the stats',
@@ -596,16 +641,16 @@ class SolManager(threading.Thread):
     def run(self):
         try:
             # start manager thread
-            self.threads["mgrThread"]            = MgrThread()
+            self.threads["mgrThread"]  = MgrThread()
 
             # start the duplexClient
             self.duplex_client = DuplexClient.from_url(
-                server_url        = 'http://{0}/api/v1/o.json'.format(SolUtils.AppConfig().get("solserver_host")),
-                id                = self.threads["mgrThread"].get_mac_manager(),
-                token             = SolUtils.AppConfig().get("solserver_token"),
-                polling_period    = SolUtils.AppConfig().get("period_pollserver_min")*60,
-                from_server_cb    = self.from_server_cb,
-                buffer_tx         = False,
+                server_url             = 'http://{0}/api/v1/o.json'.format(SolUtils.AppConfig().get("solserver_host")),
+                id                     = self.threads["mgrThread"].get_mac_manager(),
+                token                  = SolUtils.AppConfig().get("solserver_token"),
+                polling_period         = SolUtils.AppConfig().get("period_pollserver_min")*60,
+                from_server_cb         = self.from_server_cb_JsonManager,
+                buffer_tx              = False,
             )
             while self.duplex_client is None:
                 log.warning("Waiting for duplex client to be started")
@@ -663,13 +708,19 @@ class SolManager(threading.Thread):
         print "bye bye."
         # all threads as daemonic, will close automatically
 
+    def _clihandle_trace(self, params):
+        if params[0]=='on':
+            Tracer().setTraceOn(True)
+            print 'trace on'
+        else:
+            Tracer().setTraceOn(False)
+            print 'trace off'
+       
     def _clihandle_stats(self, params):
         stats = SolUtils.AppStats().get()
         output  = []
         output += ['#== admin']
         output += self._returnStatsGroup(stats, 'ADM_')
-        output += ['#== connection to manager']
-        output += self._returnStatsGroup(stats, 'MGR_')
         output += ['#== notifications from manager']
         output += self._returnStatsGroup(stats, 'NUMRX_')
         output += ['#== publication']
@@ -678,10 +729,6 @@ class SolManager(threading.Thread):
         output += self._returnStatsGroup(stats, 'PUBFILE_')
         output += ['# to server']
         output += self._returnStatsGroup(stats, 'PUBSERVER_')
-        output += ['#== snapshot']
-        output += self._returnStatsGroup(stats, 'SNAPSHOT_')
-        output += ['#== JSON interface']
-        output += self._returnStatsGroup(stats, 'JSON_')
         output = '\n'.join(output)
         print output
 
@@ -706,10 +753,26 @@ class SolManager(threading.Thread):
             returnVal += ['   {0:<30}: {1}'.format(k, stats[k])]
         return returnVal
 
-    def from_server_cb(self, os):
-        log.debug("from_server_cb: {0}".format(os))
+    def from_server_cb_JsonManager(self, os):
+        
+        # update stats
+        SolUtils.AppStats().increment('PUBSERVER_FROMSERVER')
+        
+        log.debug("from_server_cb_JsonManager: {0}".format(os))
         for o in os:
-            self.threads["mgrThread"].from_server_cb(o)
+            try:
+                name    = '{0}.{1}.{2}'.format(
+                    o['id'],
+                    o['command'],
+                    o['data']['function'],
+                )
+            except:
+                name    = 'from_server'
+            threading.Thread(
+                target  = self.threads["mgrThread"].from_server_cb_MgrThread,
+                args    = (o,),
+                name    = name,
+            ).start()
 
 # =========================== main ============================================
 
