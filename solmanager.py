@@ -50,37 +50,19 @@ BACKUPFILE         = 'solmanager.backup'
 ALLSTATS           = [
     #== admin
     'ADM_NUM_CRASHES',
-    #== connection to manager
-    'MGR_NUM_CONNECT_ATTEMPTS',
-    'MGR_NUM_CONNECT_OK',
-    'MGR_NUM_DISCONNECTS',
-    'MGR_NUM_TIMESYNC',
     #== notifications from manager
     # note: we count the number of notifications form the manager, for each time, e.g. NUMRX_NOTIFDATA
     # all stats start with "NUMRX_"
     #== publication
     'PUB_TOTAL_SENTTOPUBLISH',
     # to file
+    'PUBFILE_PUBBINARY',
     'PUBFILE_BACKLOG',
     'PUBFILE_WRITES',
     # to server
-    'PUBSERVER_BACKLOG',
-    'PUBSERVER_SENDATTEMPTS',
-    'PUBSERVER_UNREACHABLE',
-    'PUBSERVER_SENDOK',
-    'PUBSERVER_SENDFAIL',
-    'PUBSERVER_STATS',
-    'PUBSERVER_PULLATTEMPTS',
-    'PUBSERVER_PULLOK',
-    'PUBSERVER_PULLFAIL',
-    #== snapshot
-    'SNAPSHOT_NUM_STARTED',
-    'SNAPSHOT_LASTSTARTED',
-    'SNAPSHOT_NUM_OK',
-    'SNAPSHOT_NUM_FAIL',
-    #== JSON interface
-    'JSON_NUM_REQ',
-    'JSON_NUM_UNAUTHORIZED',
+    'PUBSERVER_PUBBINARY',
+    'PUBSERVER_PUBJSON',
+    'PUBSERVER_FROMSERVER',
 ]
 
 # =========================== helpers =========================================
@@ -89,7 +71,7 @@ def getVersions():
     return {
         'SolManager'    : list(__version__),
         'Sol'           : list(SolVersion.VERSION),
-        'SmartMesh SDK' : list(sdk_version.VERSION)
+        'SmartMesh SDK' : list(sdk_version.VERSION),
     }
 
 # =========================== classes =========================================
@@ -325,9 +307,6 @@ class MgrThread(object):
             )
 
             for sol_json in sol_jsonl:
-                # update stats
-                SolUtils.AppStats().increment('PUB_TOTAL_SENTTOPUBLISH')
-
                 # publish
                 PubFile().publishBinary(sol_json)     # to the backup file
                 PubServer().publishBinary(sol_json)   # to the solserver over the Internet
@@ -355,26 +334,18 @@ class Pub(DoSomethingPeriodic):
     Abstract publish thread.
     """
     def __init__(self, periodvariable):
-        self.sol                        = Sol.Sol()
-        self.dataLock                   = threading.RLock()
-        self.toPublishBinary            = []
-        self.toPublishJson              = []
+        self.sol             = Sol.Sol()
+        self.dataLock        = threading.RLock()
         # initialize parent class
         super(Pub, self).__init__(periodvariable)
-        self.name                       = 'Pub'
+        self.name            = 'Pub'
         self.start()
-
-    def getBacklogLength(self):
-        with self.dataLock:
-            return len(self.toPublishBinary)+len(self.toPublishJson)
-
+    
     def publishBinary(self, o):
-        with self.dataLock:
-            self.toPublishBinary += [o]
+        raise SystemError("abstract method")
 
     def publishJson(self, o):
-        with self.dataLock:
-            self.toPublishJson   += [o]
+        raise SystemError("abstract method")
 
     def _doSomething(self):
         self._publishNow()
@@ -394,16 +365,36 @@ class PubFile(Pub):
         if not cls._instance:
             cls._instance = super(PubFile, cls).__new__(cls, *args, **kwargs)
         return cls._instance
-
-    def toPublishJson(self, o):
-        raise SystemError('toPublishJson not supported in PubFile')
-
+    
     def __init__(self):
         if self._init:
             return
-        self._init          = True
+        self._init           = True
+        self.toPublishBinary = []
         Pub.__init__(self, SolUtils.AppConfig().get("period_pubfile_min"))
-        self.name           = 'PubFile'
+        self.name            = 'PubFile'
+    
+    #======================== public ==========================================
+    
+    def publishBinary(self, o):
+        
+        # update stats
+        SolUtils.AppStats().increment('PUBFILE_PUBBINARY')
+        
+        with self.dataLock:
+            self.toPublishBinary += [o]
+            
+            # update stats
+            SolUtils.AppStats().update("PUBFILE_BACKLOG", len(self.toPublishBinary))
+    
+    def publishJson(self, o):
+        raise SystemError('publishJson not supported in PubFile')
+    
+    def getBacklogLength(self):
+        with self.dataLock:
+            return len(self.toPublishBinary)
+    
+    #======================== private =========================================
 
     def _publishNow(self):
         # update stats
@@ -452,7 +443,9 @@ class PubServer(Pub):
         Pub.__init__(self, 60) # 60 is an arbitrary large value
         self.name               = 'PubServer'
         self.duplex_client      = None
-
+    
+    #======================== public ==========================================
+    
     def setDuplexClient(self, duplex_client):
         with self.dataLock:
             self.duplex_client  = duplex_client
@@ -462,7 +455,10 @@ class PubServer(Pub):
         with self.dataLock:
             if not self.duplex_client:
                 return
-
+        
+        # update stats
+        SolUtils.AppStats().increment('PUBSERVER_PUBBINARY')
+        
         # convert objects and push to duplex_client
         o = self.sol.json_to_bin(o)
         o = base64.b64encode(''.join(chr(b) for b in o))
@@ -475,12 +471,17 @@ class PubServer(Pub):
         with self.dataLock:
             if not self.duplex_client:
                 return
+        
+        # update stats
+        SolUtils.AppStats().increment('PUBSERVER_PUBJSON')
 
         # convert objects and push to duplex_client
         o = json.dumps(['j',o])
         log.debug("sending json object, size: {0} B".format(len(o)))
         self.duplex_client.to_server(o)
-
+    
+    #======================== private =========================================
+    
     def _doSomething(self):
         pass # actually nothing to do periodically
 
@@ -534,13 +535,10 @@ class StatsThread(DoSomethingPeriodic):
             'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS,
             'value':     getVersions(),
         }
-
+        
         # publish
         PubFile().publishBinary(sobject)
         PubServer().publishBinary(sobject)
-
-        # update stats
-        SolUtils.AppStats().increment('PUBSERVER_STATS')
 
 # ======= main application thread
 
@@ -668,8 +666,6 @@ class SolManager(threading.Thread):
         output  = []
         output += ['#== admin']
         output += self._returnStatsGroup(stats, 'ADM_')
-        output += ['#== connection to manager']
-        output += self._returnStatsGroup(stats, 'MGR_')
         output += ['#== notifications from manager']
         output += self._returnStatsGroup(stats, 'NUMRX_')
         output += ['#== publication']
@@ -678,10 +674,6 @@ class SolManager(threading.Thread):
         output += self._returnStatsGroup(stats, 'PUBFILE_')
         output += ['# to server']
         output += self._returnStatsGroup(stats, 'PUBSERVER_')
-        output += ['#== snapshot']
-        output += self._returnStatsGroup(stats, 'SNAPSHOT_')
-        output += ['#== JSON interface']
-        output += self._returnStatsGroup(stats, 'JSON_')
         output = '\n'.join(output)
         print output
 
@@ -707,6 +699,10 @@ class SolManager(threading.Thread):
         return returnVal
 
     def from_server_cb(self, os):
+        
+        # update stats
+        SolUtils.AppStats().increment('PUBSERVER_FROMSERVER')
+        
         log.debug("from_server_cb: {0}".format(os))
         for o in os:
             self.threads["mgrThread"].from_server_cb(o)
