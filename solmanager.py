@@ -569,6 +569,13 @@ class SolManager(threading.Thread):
             versions    = getVersions(),
         )
         self.cli.registerCommand(
+            name                       = 'trace',
+            alias                      = 't',
+            description                = 'switch trace on/off',
+            params                     = ["state",],
+            callback                   = self._clihandle_trace,
+        )
+        self.cli.registerCommand(
             name                       = 'stats',
             alias                      = 's',
             description                = 'print the stats',
@@ -659,6 +666,9 @@ class SolManager(threading.Thread):
         print "bye bye."
         # all threads as daemonic, will close automatically
 
+    def _clihandle_trace(self, params):
+        print 'TODO _clihandle_trace {0}'.format(params)
+       
     def _clihandle_stats(self, params):
         stats = SolUtils.AppStats().get()
         output  = []
