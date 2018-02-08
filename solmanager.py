@@ -333,17 +333,13 @@ class MgrThread(object):
 
 # ======= publishers
 
-class Pub(DoSomethingPeriodic):
+class Pub(object):
     """
     Abstract publish thread.
     """
-    def __init__(self, periodvariable):
+    def __init__(self):
         self.sol             = Sol.Sol()
         self.dataLock        = threading.RLock()
-        # initialize parent class
-        super(Pub, self).__init__(periodvariable)
-        self.name            = 'Pub'
-        self.start()
     
     def publishBinary(self, o):
         raise SystemError("abstract method")
@@ -351,10 +347,7 @@ class Pub(DoSomethingPeriodic):
     def publishJson(self, o):
         raise SystemError("abstract method")
 
-    def _doSomething(self):
-        self._publishNow()
-
-class PubFile(Pub):
+class PubFile(Pub,DoSomethingPeriodic):
     """
     Singleton that writes Sol JSON objects to a file every period_pubfile_min.
     """
@@ -375,8 +368,11 @@ class PubFile(Pub):
             return
         self._init           = True
         self.toPublishBinary = []
-        Pub.__init__(self, SolUtils.AppConfig().get("period_pubfile_min"))
+        # initialize parent classes
+        Pub.__init__(self)
+        DoSomethingPeriodic.__init__(self, SolUtils.AppConfig().get("period_pubfile_min"))
         self.name            = 'PubFile'
+        self.start()
     
     #======================== public ==========================================
     
@@ -399,7 +395,10 @@ class PubFile(Pub):
             return len(self.toPublishBinary)
     
     #======================== private =========================================
-
+    
+    def _doSomething(self):
+        self._publishNow()
+    
     def _publishNow(self):
         # update stats
         SolUtils.AppStats().increment('PUBFILE_WRITES')
@@ -444,7 +443,7 @@ class PubServer(Pub):
         if self._init:
             return
         self._init              = True
-        Pub.__init__(self, 60) # 60 is an arbitrary large value
+        Pub.__init__(self)
         self.name               = 'PubServer'
         self.duplex_client      = None
     
@@ -483,11 +482,6 @@ class PubServer(Pub):
         o = json.dumps(['j',o])
         log.debug("sending json object, size: {0} B".format(len(o)))
         self.duplex_client.to_server(o)
-    
-    #======================== private =========================================
-    
-    def _doSomething(self):
-        pass # actually nothing to do periodically
 
 # ======= periodically do something
 
@@ -598,16 +592,16 @@ class SolManager(threading.Thread):
     def run(self):
         try:
             # start manager thread
-            self.threads["mgrThread"]            = MgrThread()
+            self.threads["mgrThread"]  = MgrThread()
 
             # start the duplexClient
             self.duplex_client = DuplexClient.from_url(
-                server_url        = 'http://{0}/api/v1/o.json'.format(SolUtils.AppConfig().get("solserver_host")),
-                id                = self.threads["mgrThread"].get_mac_manager(),
-                token             = SolUtils.AppConfig().get("solserver_token"),
-                polling_period    = SolUtils.AppConfig().get("period_pollserver_min")*60,
-                from_server_cb    = self.from_server_cb_JsonManager,
-                buffer_tx         = False,
+                server_url             = 'http://{0}/api/v1/o.json'.format(SolUtils.AppConfig().get("solserver_host")),
+                id                     = self.threads["mgrThread"].get_mac_manager(),
+                token                  = SolUtils.AppConfig().get("solserver_token"),
+                polling_period         = SolUtils.AppConfig().get("period_pollserver_min")*60,
+                from_server_cb         = self.from_server_cb_JsonManager,
+                buffer_tx              = False,
             )
             while self.duplex_client is None:
                 log.warning("Waiting for duplex client to be started")
