@@ -10,7 +10,7 @@ import os
 if __name__ == "__main__":
     here = sys.path[0]
     sys.path.insert(0, os.path.join(here, 'libs', 'sol-REL-1.4.0.0'))
-    sys.path.insert(0, os.path.join(here, 'libs', 'smartmeshsdk-REL-1.1.2.4', 'libs'))
+    sys.path.insert(0, os.path.join(here, 'libs', 'smartmeshsdk-REL-1.3.0.1', 'libs'))
     sys.path.insert(0, os.path.join(here, 'libs', 'duplex-REL-1.0.0.0'))
 
 # =========================== imports =========================================
@@ -87,21 +87,21 @@ class Tracer(object):
         if not cls._instance:
             cls._instance = super(Tracer, cls).__new__(cls, *args, **kwargs)
         return cls._instance
-    
+
     def __init__(self):
         if self._init:
             return
         self._init           = True
         self.dataLock        = threading.RLock()
         self.traceOn         = False
-    
+
     #======================== public ==========================================
-    
+
     def setTraceOn(self,newTraceOn):
         assert newTraceOn in [True,False]
         with self.dataLock:
             self.traceOn     = newTraceOn
-    
+
     def trace(self,msg):
         with self.dataLock:
             go = self.traceOn
@@ -320,7 +320,7 @@ class MgrThread(object):
         try:
             # trace
             Tracer().trace('from manager: {0}'.format(dust_notif['name']))
-            
+
             # filter raw HealthReport notifications
             if dust_notif['name'] == "notifHealthReport":
                 return
@@ -375,7 +375,7 @@ class Pub(object):
     def __init__(self):
         self.sol             = Sol.Sol()
         self.dataLock        = threading.RLock()
-    
+
     def publishBinary(self, o):
         raise SystemError("abstract method")
 
@@ -397,7 +397,7 @@ class PubFile(Pub,DoSomethingPeriodic):
         if not cls._instance:
             cls._instance = super(PubFile, cls).__new__(cls, *args, **kwargs)
         return cls._instance
-    
+
     def __init__(self):
         if self._init:
             return
@@ -408,39 +408,39 @@ class PubFile(Pub,DoSomethingPeriodic):
         DoSomethingPeriodic.__init__(self, SolUtils.AppConfig().get("period_pubfile_min"))
         self.name            = 'PubFile'
         self.start()
-    
+
     #======================== public ==========================================
-    
+
     def publishBinary(self, o):
-        
+
         # update stats
         SolUtils.AppStats().increment('PUBFILE_PUBBINARY')
-        
+
         with self.dataLock:
             self.toPublishBinary += [o]
-            
+
             # update stats
             SolUtils.AppStats().update("PUBFILE_BACKLOG", len(self.toPublishBinary))
-    
+
     def publishJson(self, o):
         raise SystemError('publishJson not supported in PubFile')
-    
+
     def getBacklogLength(self):
         with self.dataLock:
             return len(self.toPublishBinary)
-    
+
     #======================== private =========================================
-    
+
     def _doSomething(self):
         self._publishNow()
-    
+
     def _publishNow(self):
         # update stats
         SolUtils.AppStats().increment('PUBFILE_WRITES')
-        
+
         # trace
         Tracer().trace('write to backup file')
-        
+
         with self.dataLock:
             # order toPublishBinary chronologically
             self.toPublishBinary.sort(key=lambda i: i['timestamp'])
@@ -484,9 +484,9 @@ class PubServer(Pub):
         Pub.__init__(self)
         self.name               = 'PubServer'
         self.duplex_client      = None
-    
+
     #======================== public ==========================================
-    
+
     def setDuplexClient(self, duplex_client):
         with self.dataLock:
             self.duplex_client  = duplex_client
@@ -496,10 +496,10 @@ class PubServer(Pub):
         with self.dataLock:
             if not self.duplex_client:
                 return
-        
+
         # update stats
         SolUtils.AppStats().increment('PUBSERVER_PUBBINARY')
-        
+
         # convert objects and push to duplex_client
         o = self.sol.json_to_bin(o)
         o = base64.b64encode(''.join(chr(b) for b in o))
@@ -512,7 +512,7 @@ class PubServer(Pub):
         with self.dataLock:
             if not self.duplex_client:
                 return
-        
+
         # update stats
         SolUtils.AppStats().increment('PUBSERVER_PUBJSON')
 
@@ -545,7 +545,7 @@ class SolSnapshotThread(DoSomethingPeriodic):
     def _doSnapshot(self):
         # trace
         Tracer().trace('trigger snapshot')
-        
+
         ret = self.mgrThread.jsonManager.snapshot_POST(manager=0)
 
 class StatsThread(DoSomethingPeriodic):
@@ -564,10 +564,10 @@ class StatsThread(DoSomethingPeriodic):
         self.start()
 
     def _doSomething(self):
-        
+
         # trace
         Tracer().trace('collect statistics')
-        
+
         # create sensor object
         sobject = {
             'mac':       self.mgrThread.get_mac_manager(),
@@ -575,7 +575,7 @@ class StatsThread(DoSomethingPeriodic):
             'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS,
             'value':     getVersions(),
         }
-        
+
         # publish
         PubFile().publishBinary(sobject)
         PubServer().publishBinary(sobject)
@@ -715,7 +715,7 @@ class SolManager(threading.Thread):
         else:
             Tracer().setTraceOn(False)
             print 'trace off'
-       
+
     def _clihandle_stats(self, params):
         stats = SolUtils.AppStats().get()
         output  = []
@@ -754,10 +754,10 @@ class SolManager(threading.Thread):
         return returnVal
 
     def from_server_cb_JsonManager(self, os):
-        
+
         # update stats
         SolUtils.AppStats().increment('PUBSERVER_FROMSERVER')
-        
+
         log.debug("from_server_cb_JsonManager: {0}".format(os))
         for o in os:
             try:
