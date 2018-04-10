@@ -23,6 +23,7 @@ import logging.config
 import base64
 import traceback
 import argparse
+import subprocess
 
 # project-specific
 from   SmartMeshSDK          import sdk_version, \
@@ -67,7 +68,37 @@ ALLSTATS           = [
 
 # =========================== helpers =========================================
 
-def getVersions():
+def get_stats():
+    versions = get_versions()
+    stats = {
+        'solmanager_version': versions["SolManager"],
+        'sol_version': versions["Sol"],
+        'sdk_version': versions["SmartMesh SDK"],
+        'ram_usage': get_ram_usage(),
+        'disk_usage': get_disk_usage(),
+    }
+    return stats
+
+def get_ram_usage():
+    """Returns the percentage of used memory"""
+    out = subprocess.Popen(['free', '-m'],
+                           stdout=subprocess.PIPE
+                           ).communicate()[0].split(b'\n')
+    total_index = out[0].split().index(b'total') + 1
+    avail_index = out[0].split().index(b'available') + 1
+    usage = 100 * float(out[1].split()[avail_index]) / float(out[1].split()[total_index])
+    return int(round(usage))
+
+def get_disk_usage():
+    """Returns the percentage of used disk space"""
+    out = subprocess.Popen(['df', '-h', '/'],
+                           stdout=subprocess.PIPE
+                           ).communicate()[0].split(b'\n')
+    use_index = out[0].split().index(b'Use%')
+    usage = int(out[1].split()[use_index].replace('%', ''))
+    return usage
+
+def get_versions():
     return {
         'SolManager'    : list(__version__),
         'Sol'           : list(SolVersion.VERSION),
@@ -572,8 +603,8 @@ class StatsThread(DoSomethingPeriodic):
         sobject = {
             'mac':       self.mgrThread.get_mac_manager(),
             'timestamp': int(time.time()),
-            'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS,
-            'value':     getVersions(),
+            'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS_2,
+            'value':     get_stats(),
         }
 
         # publish
@@ -608,7 +639,7 @@ class SolManager(threading.Thread):
         self.cli                       = DustCli.DustCli(
             appName     = "SolManager",
             quit_cb     = self._clihandle_quit,
-            versions    = getVersions(),
+            versions    = get_versions(),
         )
         self.cli.registerCommand(
             name                       = 'trace',
@@ -734,7 +765,7 @@ class SolManager(threading.Thread):
 
     def _clihandle_versions(self, params):
         output  = []
-        for (k,v) in getVersions().items():
+        for (k,v) in get_versions().items():
             output += ["{0:>15} {1}".format(k, '.'.join([str(b) for b in v]))]
         output = '\n'.join(output)
         print output
