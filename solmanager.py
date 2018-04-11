@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-__version__ = (2, 0, 1, 0)
+__version__ = (2, 1, 0, 0)
 
 # =========================== adjust path =====================================
 
@@ -9,7 +9,7 @@ import os
 
 if __name__ == "__main__":
     here = sys.path[0]
-    sys.path.insert(0, os.path.join(here, 'libs', 'sol-REL-1.4.0.0'))
+    sys.path.insert(0, os.path.join(here, 'libs', 'sol-REL-1.5.0.0'))
     sys.path.insert(0, os.path.join(here, 'libs', 'smartmeshsdk-REL-1.3.0.1', 'libs'))
     sys.path.insert(0, os.path.join(here, 'libs', 'duplex-REL-1.0.0.0'))
 
@@ -31,8 +31,7 @@ from   SmartMeshSDK          import sdk_version, \
 from   SmartMeshSDK.utils    import JsonManager, \
                                     FormatUtils
 from   dustCli               import DustCli
-from   solobjectlib          import Sol, \
-                                    SolVersion, \
+from   solobjectlib          import Sol as sol, \
                                     SolDefines, \
                                     SolUtils
 from   DuplexClient          import DuplexClient
@@ -101,7 +100,7 @@ def get_disk_usage():
 def get_versions():
     return {
         'SolManager'    : list(__version__),
-        'Sol'           : list(SolVersion.VERSION),
+        'Sol'           : list(sol.VERSION),
         'SmartMesh SDK' : list(sdk_version.VERSION),
     }
 
@@ -182,7 +181,6 @@ class MgrThread(object):
     def __init__(self):
 
         # local variables
-        self.sol        = Sol.Sol()
         self.macManager = None
         self.dataLock   = threading.RLock()
 
@@ -370,7 +368,7 @@ class MgrThread(object):
                 epoch = self._netTsToEpoch(netTs)
 
             # convert dust notification to JSON SOL Object
-            sol_jsonl = self.sol.dust_to_json(
+            sol_jsonl = sol.dust_to_json(
                 dust_notif  = dust_notif,
                 mac_manager = self.get_mac_manager(),
                 timestamp   = epoch,
@@ -404,7 +402,6 @@ class Pub(object):
     Abstract publish thread.
     """
     def __init__(self):
-        self.sol             = Sol.Sol()
         self.dataLock        = threading.RLock()
 
     def publishBinary(self, o):
@@ -491,7 +488,7 @@ class PubFile(Pub,DoSomethingPeriodic):
 
         # write those to file
         if solJsonObjectsToWrite:
-            self.sol.dumpToFile(
+            sol.dumpToFile(
                 solJsonObjectsToWrite,
                 BACKUPFILE,
             )
@@ -532,7 +529,7 @@ class PubServer(Pub):
         SolUtils.AppStats().increment('PUBSERVER_PUBBINARY')
 
         # convert objects and push to duplex_client
-        o = self.sol.json_to_bin(o)
+        o = sol.json_to_bin(o)
         o = base64.b64encode(''.join(chr(b) for b in o))
         o = json.dumps(['b',o])
         log.debug("sending binary object, size: {0} B".format(len(o)))
@@ -615,7 +612,7 @@ class StatsThread(DoSomethingPeriodic):
 
 class SolManager(threading.Thread):
 
-    def __init__(self,configfile):
+    def __init__(self, configfile):
         # store params
         self.configfile     = configfile
 
