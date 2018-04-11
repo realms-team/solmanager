@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-__version__ = (2, 0, 1, 0)
+__version__ = (2, 1, 0, 0)
 
 # =========================== adjust path =====================================
 
@@ -9,8 +9,8 @@ import os
 
 if __name__ == "__main__":
     here = sys.path[0]
-    sys.path.insert(0, os.path.join(here, 'libs', 'sol-REL-1.4.0.0'))
-    sys.path.insert(0, os.path.join(here, 'libs', 'smartmeshsdk-REL-1.1.2.4', 'libs'))
+    sys.path.insert(0, os.path.join(here, 'libs', 'sol-REL-1.5.0.0'))
+    sys.path.insert(0, os.path.join(here, 'libs', 'smartmeshsdk-REL-1.3.0.1', 'libs'))
     sys.path.insert(0, os.path.join(here, 'libs', 'duplex-REL-1.0.0.0'))
 
 # =========================== imports =========================================
@@ -23,6 +23,7 @@ import logging.config
 import base64
 import traceback
 import argparse
+import subprocess
 
 # project-specific
 from   SmartMeshSDK          import sdk_version, \
@@ -30,8 +31,7 @@ from   SmartMeshSDK          import sdk_version, \
 from   SmartMeshSDK.utils    import JsonManager, \
                                     FormatUtils
 from   dustCli               import DustCli
-from   solobjectlib          import Sol, \
-                                    SolVersion, \
+from   solobjectlib          import Sol as sol, \
                                     SolDefines, \
                                     SolUtils
 from   DuplexClient          import DuplexClient
@@ -67,10 +67,40 @@ ALLSTATS           = [
 
 # =========================== helpers =========================================
 
-def getVersions():
+def get_stats():
+    versions = get_versions()
+    stats = {
+        'solmanager_version': versions["SolManager"],
+        'sol_version': versions["Sol"],
+        'sdk_version': versions["SmartMesh SDK"],
+        'ram_usage': get_ram_usage(),
+        'disk_usage': get_disk_usage(),
+    }
+    return stats
+
+def get_ram_usage():
+    """Returns the percentage of used memory"""
+    out = subprocess.Popen(['free', '-m'],
+                           stdout=subprocess.PIPE
+                           ).communicate()[0].split(b'\n')
+    total_index = out[0].split().index(b'total') + 1
+    avail_index = out[0].split().index(b'available') + 1
+    usage = 100 * float(out[1].split()[avail_index]) / float(out[1].split()[total_index])
+    return int(round(usage))
+
+def get_disk_usage():
+    """Returns the percentage of used disk space"""
+    out = subprocess.Popen(['df', '-h', '/'],
+                           stdout=subprocess.PIPE
+                           ).communicate()[0].split(b'\n')
+    use_index = out[0].split().index(b'Use%')
+    usage = int(out[1].split()[use_index].replace('%', ''))
+    return usage
+
+def get_versions():
     return {
         'SolManager'    : list(__version__),
-        'Sol'           : list(SolVersion.VERSION),
+        'Sol'           : list(sol.VERSION),
         'SmartMesh SDK' : list(sdk_version.VERSION),
     }
 
@@ -87,21 +117,21 @@ class Tracer(object):
         if not cls._instance:
             cls._instance = super(Tracer, cls).__new__(cls, *args, **kwargs)
         return cls._instance
-    
+
     def __init__(self):
         if self._init:
             return
         self._init           = True
         self.dataLock        = threading.RLock()
         self.traceOn         = False
-    
+
     #======================== public ==========================================
-    
+
     def setTraceOn(self,newTraceOn):
         assert newTraceOn in [True,False]
         with self.dataLock:
             self.traceOn     = newTraceOn
-    
+
     def trace(self,msg):
         with self.dataLock:
             go = self.traceOn
@@ -151,7 +181,6 @@ class MgrThread(object):
     def __init__(self):
 
         # local variables
-        self.sol        = Sol.Sol()
         self.macManager = None
         self.dataLock   = threading.RLock()
 
@@ -320,7 +349,7 @@ class MgrThread(object):
         try:
             # trace
             Tracer().trace('from manager: {0}'.format(dust_notif['name']))
-            
+
             # filter raw HealthReport notifications
             if dust_notif['name'] == "notifHealthReport":
                 return
@@ -339,7 +368,7 @@ class MgrThread(object):
                 epoch = self._netTsToEpoch(netTs)
 
             # convert dust notification to JSON SOL Object
-            sol_jsonl = self.sol.dust_to_json(
+            sol_jsonl = sol.dust_to_json(
                 dust_notif  = dust_notif,
                 mac_manager = self.get_mac_manager(),
                 timestamp   = epoch,
@@ -373,9 +402,8 @@ class Pub(object):
     Abstract publish thread.
     """
     def __init__(self):
-        self.sol             = Sol.Sol()
         self.dataLock        = threading.RLock()
-    
+
     def publishBinary(self, o):
         raise SystemError("abstract method")
 
@@ -397,7 +425,7 @@ class PubFile(Pub,DoSomethingPeriodic):
         if not cls._instance:
             cls._instance = super(PubFile, cls).__new__(cls, *args, **kwargs)
         return cls._instance
-    
+
     def __init__(self):
         if self._init:
             return
@@ -408,39 +436,39 @@ class PubFile(Pub,DoSomethingPeriodic):
         DoSomethingPeriodic.__init__(self, SolUtils.AppConfig().get("period_pubfile_min"))
         self.name            = 'PubFile'
         self.start()
-    
+
     #======================== public ==========================================
-    
+
     def publishBinary(self, o):
-        
+
         # update stats
         SolUtils.AppStats().increment('PUBFILE_PUBBINARY')
-        
+
         with self.dataLock:
             self.toPublishBinary += [o]
-            
+
             # update stats
             SolUtils.AppStats().update("PUBFILE_BACKLOG", len(self.toPublishBinary))
-    
+
     def publishJson(self, o):
         raise SystemError('publishJson not supported in PubFile')
-    
+
     def getBacklogLength(self):
         with self.dataLock:
             return len(self.toPublishBinary)
-    
+
     #======================== private =========================================
-    
+
     def _doSomething(self):
         self._publishNow()
-    
+
     def _publishNow(self):
         # update stats
         SolUtils.AppStats().increment('PUBFILE_WRITES')
-        
+
         # trace
         Tracer().trace('write to backup file')
-        
+
         with self.dataLock:
             # order toPublishBinary chronologically
             self.toPublishBinary.sort(key=lambda i: i['timestamp'])
@@ -460,7 +488,7 @@ class PubFile(Pub,DoSomethingPeriodic):
 
         # write those to file
         if solJsonObjectsToWrite:
-            self.sol.dumpToFile(
+            sol.dumpToFile(
                 solJsonObjectsToWrite,
                 BACKUPFILE,
             )
@@ -484,9 +512,9 @@ class PubServer(Pub):
         Pub.__init__(self)
         self.name               = 'PubServer'
         self.duplex_client      = None
-    
+
     #======================== public ==========================================
-    
+
     def setDuplexClient(self, duplex_client):
         with self.dataLock:
             self.duplex_client  = duplex_client
@@ -496,12 +524,12 @@ class PubServer(Pub):
         with self.dataLock:
             if not self.duplex_client:
                 return
-        
+
         # update stats
         SolUtils.AppStats().increment('PUBSERVER_PUBBINARY')
-        
+
         # convert objects and push to duplex_client
-        o = self.sol.json_to_bin(o)
+        o = sol.json_to_bin(o)
         o = base64.b64encode(''.join(chr(b) for b in o))
         o = json.dumps(['b',o])
         log.debug("sending binary object, size: {0} B".format(len(o)))
@@ -512,7 +540,7 @@ class PubServer(Pub):
         with self.dataLock:
             if not self.duplex_client:
                 return
-        
+
         # update stats
         SolUtils.AppStats().increment('PUBSERVER_PUBJSON')
 
@@ -545,7 +573,7 @@ class SolSnapshotThread(DoSomethingPeriodic):
     def _doSnapshot(self):
         # trace
         Tracer().trace('trigger snapshot')
-        
+
         ret = self.mgrThread.jsonManager.snapshot_POST(manager=0)
 
 class StatsThread(DoSomethingPeriodic):
@@ -564,18 +592,18 @@ class StatsThread(DoSomethingPeriodic):
         self.start()
 
     def _doSomething(self):
-        
+
         # trace
         Tracer().trace('collect statistics')
-        
+
         # create sensor object
         sobject = {
             'mac':       self.mgrThread.get_mac_manager(),
             'timestamp': int(time.time()),
-            'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS,
-            'value':     getVersions(),
+            'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS_2,
+            'value':     get_stats(),
         }
-        
+
         # publish
         PubFile().publishBinary(sobject)
         PubServer().publishBinary(sobject)
@@ -584,7 +612,7 @@ class StatsThread(DoSomethingPeriodic):
 
 class SolManager(threading.Thread):
 
-    def __init__(self,configfile):
+    def __init__(self, configfile):
         # store params
         self.configfile     = configfile
 
@@ -608,7 +636,7 @@ class SolManager(threading.Thread):
         self.cli                       = DustCli.DustCli(
             appName     = "SolManager",
             quit_cb     = self._clihandle_quit,
-            versions    = getVersions(),
+            versions    = get_versions(),
         )
         self.cli.registerCommand(
             name                       = 'trace',
@@ -715,7 +743,7 @@ class SolManager(threading.Thread):
         else:
             Tracer().setTraceOn(False)
             print 'trace off'
-       
+
     def _clihandle_stats(self, params):
         stats = SolUtils.AppStats().get()
         output  = []
@@ -734,7 +762,7 @@ class SolManager(threading.Thread):
 
     def _clihandle_versions(self, params):
         output  = []
-        for (k,v) in getVersions().items():
+        for (k,v) in get_versions().items():
             output += ["{0:>15} {1}".format(k, '.'.join([str(b) for b in v]))]
         output = '\n'.join(output)
         print output
@@ -754,10 +782,10 @@ class SolManager(threading.Thread):
         return returnVal
 
     def from_server_cb_JsonManager(self, os):
-        
+
         # update stats
         SolUtils.AppStats().increment('PUBSERVER_FROMSERVER')
-        
+
         log.debug("from_server_cb_JsonManager: {0}".format(os))
         for o in os:
             try:
