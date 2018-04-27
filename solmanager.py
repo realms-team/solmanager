@@ -9,7 +9,7 @@ import os
 
 if __name__ == "__main__":
     here = sys.path[0]
-    sys.path.insert(0, os.path.join(here, 'libs', 'sol-REL-1.5.0.0'))
+    sys.path.insert(0, os.path.join(here, 'libs', 'sol-REL-1.6.0.0'))
     sys.path.insert(0, os.path.join(here, 'libs', 'smartmeshsdk-REL-1.3.0.1', 'libs'))
     sys.path.insert(0, os.path.join(here, 'libs', 'duplex-REL-1.0.0.0'))
 
