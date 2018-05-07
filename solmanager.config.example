@@ -3,8 +3,8 @@
 ; activity periods
 period_pollserver_min    = 0.05                                           ; request for commands from SolServer
 period_pubfile_min       = 1.0                                            ; write data to file
-period_snapshot_min      = 1.0                                            ; perform a full snapshot
-period_stats_min         = 1.0                                            ; publish stats (write to file and send)
+period_snapshot_min      = 60.0                                           ; perform a full snapshot
+period_stats_min         = 60.0                                           ; publish stats (write to file and send)
 
 ; connecting to SmartMesh IP manager
 serialport               = COM6                                           ; the serial port of the SmartMesh IP Manager's API port
