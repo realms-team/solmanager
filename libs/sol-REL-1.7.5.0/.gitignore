@@ -1,0 +1,13 @@
+*.pyc
+
+# tests
+.cache/
+
+# pypi
+dist/
+build/
+MANIFEST
+sensorobjectlibrary.egg-info/
+
+# pycharm
+.idea/

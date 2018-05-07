@@ -1,0 +1,11 @@
+language: python
+python:
+  - "2.7"
+
+before_install:
+
+install:
+  - pip install flatdict==1.2.0
+
+script:
+  - python -m pytest tests

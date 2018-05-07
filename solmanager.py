@@ -9,7 +9,7 @@ import os
 
 if __name__ == "__main__":
     here = sys.path[0]
-    sys.path.insert(0, os.path.join(here, 'libs', 'sol-REL-1.6.0.0'))
+    sys.path.insert(0, os.path.join(here, 'libs', 'sol-REL-1.7.5.0'))
     sys.path.insert(0, os.path.join(here, 'libs', 'smartmeshsdk-REL-1.3.0.1', 'libs'))
     sys.path.insert(0, os.path.join(here, 'libs', 'duplex-REL-1.0.0.0'))
 
@@ -100,7 +100,7 @@ def get_disk_usage():
 def get_versions():
     return {
         'SolManager'    : list(__version__),
-        'Sol'           : list(sol.VERSION),
+        'Sol'           : list(sol.version()),
         'SmartMesh SDK' : list(sdk_version.VERSION),
     }
 
