@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-__version__ = (2, 1, 0, 0)
+__version__ = (2, 2, 0, 0)
 
 # =========================== adjust path =====================================
 
@@ -31,7 +31,7 @@ from   SmartMeshSDK          import sdk_version, \
 from   SmartMeshSDK.utils    import JsonManager, \
                                     FormatUtils
 from   dustCli               import DustCli
-from   solobjectlib          import Sol as sol, \
+from   sensorobjectlibrary   import Sol as sol, \
                                     SolDefines, \
                                     SolUtils
 from   DuplexClient          import DuplexClient
