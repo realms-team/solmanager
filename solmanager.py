@@ -594,20 +594,21 @@ class StatsThread(DoSomethingPeriodic):
 
     def _doSomething(self):
 
-        # trace
-        Tracer().trace('collect statistics')
+        if platform.system() == "Linux": # TODO get_stats does not work on windows
+            # trace
+            Tracer().trace('collect statistics')
 
-        # create sensor object
-        sobject = {
-            'mac':       self.mgrThread.get_mac_manager(),
-            'timestamp': int(time.time()),
-            'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS_2,
-            'value':     get_stats(),
-        }
+            # create sensor object
+            sobject = {
+                'mac':       self.mgrThread.get_mac_manager(),
+                'timestamp': int(time.time()),
+                'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS_2,
+                'value':     get_stats(),
+            }
 
-        # publish
-        PubFile().publishBinary(sobject)
-        PubServer().publishBinary(sobject)
+            # publish
+            PubFile().publishBinary(sobject)
+            PubServer().publishBinary(sobject)
 
 # ======= main application thread
 
@@ -694,10 +695,9 @@ class SolManager(threading.Thread):
                 mgrThread=self.threads["mgrThread"],
             )
 
-            if platform.system() == "Linux":
-                self.threads["statsThread"]          = StatsThread(
-                    mgrThread=self.threads["mgrThread"],
-                )
+            self.threads["statsThread"]          = StatsThread(
+                mgrThread=self.threads["mgrThread"],
+            )
 
             # wait for all threads to have started
             all_started = False
