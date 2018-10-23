@@ -24,6 +24,7 @@ import base64
 import traceback
 import argparse
 import subprocess
+import platform
 
 # project-specific
 from   SmartMeshSDK          import sdk_version, \
@@ -692,9 +693,11 @@ class SolManager(threading.Thread):
             self.threads["solSnapshotThread"]        = SolSnapshotThread(
                 mgrThread=self.threads["mgrThread"],
             )
-            self.threads["statsThread"]              = StatsThread(
-                mgrThread=self.threads["mgrThread"],
-            )
+
+            if platform.system() == "Linux":
+                self.threads["statsThread"]          = StatsThread(
+                    mgrThread=self.threads["mgrThread"],
+                )
 
             # wait for all threads to have started
             all_started = False
