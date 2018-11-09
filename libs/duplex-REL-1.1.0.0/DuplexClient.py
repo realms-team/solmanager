@@ -3,8 +3,10 @@ import Queue
 import time
 import threading
 import collections
+import json
 
 import requests
+import websocket
 
 # =========================== logging =========================================
 
@@ -62,7 +64,7 @@ class DuplexClientPeriodicTimer(threading.Thread):
         self.goOn = False
 
 class DuplexClient(object):
-    
+
     def __init__(self, kwargs):
         self.from_server_cb = kwargs['from_server_cb']
         self.id             = kwargs['id']
@@ -80,34 +82,38 @@ class DuplexClient(object):
 
     def to_server(self, o):
         raise NotImplementedError()
+
     def getStatus(self):
         raise NotImplementedError()
 
+    def disconnect(self):
+        raise NotImplementedError()
+
 class DuplexClientHttp(DuplexClient):
-    
+
     MAXQUEUEZISE = 100
-    
+
     def __init__(self, kwargs):
-        '''
+        """
         The following kwargs MUST be present:
         - the required kwargs for the DuplexClient class
         - 'server_url' URL of the server, e.g. "http://127.0.0.1:8080/api/v1/o.json"
         - 'polling_period' the period (in seconds) with which the DuplexClientHttp instance polls the server
         - 'buffer_tx' a boolean. It False, objects passed through the to_server() method are buffered until the next polling_period.
-        '''
+        """
 
         # store params
         self.server_url      = kwargs['server_url']
         self.polling_period  = kwargs['polling_period']
         self.buffer_tx       = kwargs['buffer_tx']
-        
+
         # local variables
         self.dataLock        = threading.RLock()
         self.toserverqueue   = Queue.Queue(maxsize=self.MAXQUEUEZISE)
         self.is_connected    = False
         self.lastheard_ts    = None
         self._set_is_connected(False)
-        
+
         # initialize parent
         DuplexClient.__init__(self, kwargs)
 
@@ -119,20 +125,20 @@ class DuplexClientHttp(DuplexClient):
         self.periodicTimer.fireNow()
 
     # ======================= public ==========================================
-    
+
     def to_server(self, o):
-        '''
+        """
         'o' contains a single object ['b','yttywetywe']
-        '''
-        assert type(o)==str
-        
+        """
+        assert type(o) == str
+
         # add to queue
-        self.toserverqueue.put(o)
-        
+        self.toserverqueue.put(o, block=False)
+
         # send now, if appropriate
         if self.buffer_tx==False:
            self.periodicTimer.fireNow()
-    
+
     def getStatus(self):
         returnVal = {}
         with self.dataLock:
@@ -143,15 +149,18 @@ class DuplexClientHttp(DuplexClient):
                 returnVal['lastheard_since']     = time.time()-self.lastheard_ts
             returnVal['toserverqueue_fill']      = self.toserverqueue.qsize()
         return returnVal
-    
+
+    def disconnect(self):
+        self.polling_timer.cancel()
+
     # ======================= private =========================================
-    
+
     def _poll_server(self, o=None):
-        '''
+        """
         Send one HTTP POST request to server to
         (1) send the elements from toserverqueue to the server
         (2) receive the objects from the server and rearm.
-        '''
+        """
         # send objects
         try:
             # create HTTP body
@@ -171,7 +180,7 @@ class DuplexClientHttp(DuplexClient):
                     o += [e]
             if o:
                 body['o'] = o
-            
+
             # send to server
             r = requests.post(
                 self.server_url,
@@ -188,7 +197,7 @@ class DuplexClientHttp(DuplexClient):
             self._set_is_connected(True)
             if r['o']:
                 self.from_server_cb(r['o'])
-    
+
     def _set_is_connected(self,newstate):
         with self.dataLock:
             self.is_connected      = newstate
@@ -196,8 +205,51 @@ class DuplexClientHttp(DuplexClient):
                 self.lastheard_ts  = time.time()
 
 class DuplexClientWs(DuplexClient):
+
     def __init__(self, kwargs):
+        # store params
+        self.server_url = kwargs['server_url']
+
+        # initialize parent
+        DuplexClient.__init__(self, kwargs)
+
+        # start Websocket
+        self.ws = websocket.WebSocketApp(self.server_url,
+                                         on_message=self.on_message,
+                                         on_error=self.on_error,
+                                         on_close=self.on_close,
+                                         )
+        self.ws.on_open = self.on_open
+        wst = threading.Thread(target=self.ws.run_forever)
+        wst.daemon = True
+        wst.start()
+
+    def on_message(self, ws, message):
+        if message['o']:
+            self.from_server_cb(message['o'])
+
+    def on_error(self, ws, error):
+        self.from_server_cb(error)
+
+    def on_close(self, ws):
+        logger.debug("Websocket closed for id: {0}.".format(self.id))
+
+    def on_open(self, ws):
+        logger.debug("Websocket open for id: {0}.".format(self.id))
+
+    def to_server(self, o):
+        body = {
+            'id': self.id,
+            'token': self.token,
+            'o': [o]
+        }
+        self.ws.send(json.dumps(body))
+
+    def getStatus(self):
         raise NotImplementedError()
+
+    def disconnect(self):
+        self.ws.close()
 
 # =========================== main ============================================
 
@@ -222,7 +274,7 @@ class CliDuplexClient(object):
             from_server_cb   = self.from_server_cb,
         )
         '''
-        
+
         # cli
         self.cli                  = DustCli.DustCli(
             'CliDuplexClient',
@@ -246,12 +298,12 @@ class CliDuplexClient(object):
     def _clihandle_tx(self, params):
         msg = params[0]
         self.duplexClient.to_server([{'msg': msg}])
-    
+
     def _clihandle_status(self, params):
         pp.pprint(self.duplexClient.getStatus())
-    
+
     def from_server_cb(self, o):
-        print 'from server: {0}'.format(o)
+        logger.debug('from server: {0}'.format(o))
 
     def _clihandle_quit(self):
         time.sleep(.3)
