@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-__version__ = (2, 2, 0, 0)
+__version__ = (2, 3, 0, 0)
 
 # =========================== adjust path =====================================
 
@@ -11,7 +11,7 @@ if __name__ == "__main__":
     here = sys.path[0]
     sys.path.insert(0, os.path.join(here, 'libs', 'sol-REL-1.7.5.0'))
     sys.path.insert(0, os.path.join(here, 'libs', 'smartmeshsdk-REL-1.3.0.1', 'libs'))
-    sys.path.insert(0, os.path.join(here, 'libs', 'duplex-REL-1.0.0.0'))
+    sys.path.insert(0, os.path.join(here, 'libs', 'duplex-REL-1.1.0.0'))
 
 # =========================== imports =========================================
 
@@ -24,6 +24,7 @@ import base64
 import traceback
 import argparse
 import subprocess
+import platform
 
 # project-specific
 from   SmartMeshSDK          import sdk_version, \
@@ -593,20 +594,21 @@ class StatsThread(DoSomethingPeriodic):
 
     def _doSomething(self):
 
-        # trace
-        Tracer().trace('collect statistics')
+        if platform.system() == "Linux": # TODO get_stats does not work on windows
+            # trace
+            Tracer().trace('collect statistics')
 
-        # create sensor object
-        sobject = {
-            'mac':       self.mgrThread.get_mac_manager(),
-            'timestamp': int(time.time()),
-            'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS_2,
-            'value':     get_stats(),
-        }
+            # create sensor object
+            sobject = {
+                'mac':       self.mgrThread.get_mac_manager(),
+                'timestamp': int(time.time()),
+                'type':      SolDefines.SOL_TYPE_SOLMANAGER_STATS_2,
+                'value':     get_stats(),
+            }
 
-        # publish
-        PubFile().publishBinary(sobject)
-        PubServer().publishBinary(sobject)
+            # publish
+            PubFile().publishBinary(sobject)
+            PubServer().publishBinary(sobject)
 
 # ======= main application thread
 
@@ -692,7 +694,8 @@ class SolManager(threading.Thread):
             self.threads["solSnapshotThread"]        = SolSnapshotThread(
                 mgrThread=self.threads["mgrThread"],
             )
-            self.threads["statsThread"]              = StatsThread(
+
+            self.threads["statsThread"]          = StatsThread(
                 mgrThread=self.threads["mgrThread"],
             )
 
